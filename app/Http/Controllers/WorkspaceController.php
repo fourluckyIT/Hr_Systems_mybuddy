@@ -22,6 +22,7 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Auth;
 
 class WorkspaceController extends Controller
 {
@@ -29,8 +30,49 @@ class WorkspaceController extends Controller
         protected PayrollCalculationService $payrollService
     ) {}
 
+    protected function isWorkspaceEditingEnabled(Employee $employee): bool
+    {
+        $toggle = $employee->moduleToggles()
+            ->where('module_name', 'workspace_editing')
+            ->first();
+
+        // Default to enabled so existing users keep current behavior.
+        return $toggle ? (bool) $toggle->is_enabled : true;
+    }
+
+    protected function ensureWorkspaceEditingEnabled(Employee $employee): void
+    {
+        if (!$this->isWorkspaceEditingEnabled($employee)) {
+            throw new \RuntimeException('สิทธิ์แก้ไข Workspace ถูกปิดจาก Work Center');
+        }
+    }
+
+    public function myWorkspace(?int $month = null, ?int $year = null)
+    {
+        $user = Auth::user();
+        $employee = $user?->employee;
+
+        if (!$employee) {
+            return redirect()->route('employees.index')
+                ->withErrors(['error' => 'ไม่พบข้อมูลพนักงานที่ผูกกับบัญชีผู้ใช้นี้']);
+        }
+
+        return redirect()->route('workspace.show', [
+            'employee' => $employee->id,
+            'month' => $month ?: now()->month,
+            'year' => $year ?: now()->year,
+        ]);
+    }
+
     public function show(Employee $employee, int $month, int $year)
     {
+        $user = Auth::user();
+        if ($user && $user->hasAnyRole(['employee', 'viewer']) && !$user->hasAnyRole(['admin', 'hr', 'manager'])) {
+            if ((int) ($user->employee?->id) !== (int) $employee->id) {
+                abort(403, 'คุณไม่มีสิทธิ์เข้าถึง Workspace ของพนักงานคนอื่น');
+            }
+        }
+
         $employee->load(['department', 'position', 'salaryProfile', 'bankAccount', 'profile']);
 
         $dayTypeLabels = [
@@ -159,17 +201,21 @@ class WorkspaceController extends Controller
                 ->get()
             : collect();
 
+        $workspaceEditEnabled = $this->isWorkspaceEditingEnabled($employee);
+
         return view('workspace.show', compact(
             'employee', 'month', 'year',
             'attendanceLogs', 'workLogs', 'layerRates',
             'result', 'payrollItems', 'payslip', 'proofs', 'claims',
-            'dayTypeLabels', 'dayTypeColors', 'attendanceMeta', 'assignedEditJobs', 'recordingAssignments', 'panel'
+            'dayTypeLabels', 'dayTypeColors', 'attendanceMeta', 'assignedEditJobs', 'recordingAssignments', 'panel', 'workspaceEditEnabled'
         ));
     }
 
     public function storeClaim(Request $request, Employee $employee, int $month, int $year)
     {
         try {
+            $this->ensureWorkspaceEditingEnabled($employee);
+
             $validated = $request->validate([
                 'description' => 'required|string|max:255',
                 'amount' => 'required|numeric|min:0.01',
@@ -221,13 +267,14 @@ class WorkspaceController extends Controller
     public function updateAdvanceCeiling(Request $request, Employee $employee)
     {
         try {
+            $this->ensureWorkspaceEditingEnabled($employee);
+
             return DB::transaction(function () use ($request, $employee) {
                 $validated = $request->validate([
                     'advance_ceiling_percent' => 'nullable|numeric|min:0|max:100',
                 ]);
 
                 $oldValue = $employee->advance_ceiling_percent;
-
                 $employee->update([
                     'advance_ceiling_percent' => $validated['advance_ceiling_percent'] ?: 0,
                 ]);
@@ -253,6 +300,8 @@ class WorkspaceController extends Controller
 
     public function toggleWorkLog(\App\Models\WorkLog $workLog)
     {
+        $this->ensureWorkspaceEditingEnabled($workLog->employee);
+
         $workLog->update(['is_disabled' => !$workLog->is_disabled]);
         return back();
     }
@@ -425,6 +474,8 @@ class WorkspaceController extends Controller
     public function saveAttendance(Request $request, Employee $employee, int $month, int $year)
     {
         try {
+            $this->ensureWorkspaceEditingEnabled($employee);
+
             return DB::transaction(function () use ($request, $employee, $month, $year) {
                 $logs = $request->input('attendance', []);
                 $changes = [];
@@ -565,9 +616,160 @@ class WorkspaceController extends Controller
         }
     }
 
+    /**
+     * AJAX: Save a single attendance row, recalculate payroll, return updated summary.
+     */
+    public function saveAttendanceRow(Request $request, Employee $employee, int $month, int $year)
+    {
+        try {
+            $this->ensureWorkspaceEditingEnabled($employee);
+
+            return DB::transaction(function () use ($request, $employee, $month, $year) {
+                $logId = $request->input('log_id');
+                $data = $request->input('data', []);
+
+                $log = AttendanceLog::where('id', $logId)
+                    ->where('employee_id', $employee->id)
+                    ->firstOrFail();
+
+                $workingHoursRule = AttendanceRule::getActiveRule('working_hours');
+                $targetCheckIn = $workingHoursRule?->config['target_check_in'] ?? '09:30';
+                $targetCheckOut = $workingHoursRule?->config['target_check_out'] ?? '18:30';
+                $targetMinutesPerDay = (int) ($workingHoursRule?->config['target_minutes_per_day'] ?? 540);
+
+                $oldData = $log->getAttributes();
+                $oldDayType = $log->day_type;
+
+                $dayType = $data['day_type'] ?? $log->day_type;
+                $isWorkday = in_array($dayType, ['workday', 'ot_full_day']);
+                $isLwop = $dayType === 'lwop' || isset($data['lwop_flag']);
+
+                $checkIn = $data['check_in'] ?? null;
+                $checkOut = $data['check_out'] ?? null;
+
+                $lateMinutes = 0;
+                $otMinutes = 0;
+                $earlyLeaveMinutes = 0;
+
+                if ($isWorkday && !$isLwop && $checkIn && $checkOut) {
+                    $inAt = Carbon::parse("{$log->log_date->format('Y-m-d')} {$checkIn}:00");
+                    $outAt = Carbon::parse("{$log->log_date->format('Y-m-d')} {$checkOut}:00");
+
+                    if ($outAt->lessThanOrEqualTo($inAt)) {
+                        $outAt->addDay();
+                    }
+
+                    $targetInAt = Carbon::parse("{$log->log_date->format('Y-m-d')} {$targetCheckIn}:00");
+                    $targetOutAt = Carbon::parse("{$log->log_date->format('Y-m-d')} {$targetCheckOut}:00");
+
+                    if ($inAt->greaterThan($targetInAt)) {
+                        $lateMinutes = $targetInAt->diffInMinutes($inAt);
+                    }
+
+                    if ($outAt->lessThan($targetOutAt)) {
+                        $earlyLeaveMinutes = $outAt->diffInMinutes($targetOutAt);
+                    }
+
+                    $workedMinutes = max(0, $inAt->diffInMinutes($outAt));
+                    if (!empty($data['ot_enabled'])) {
+                        $otMinutes = max(0, $workedMinutes - $targetMinutesPerDay);
+                    }
+                } else {
+                    $checkIn = null;
+                    $checkOut = null;
+                }
+
+                if (!$checkIn || !$checkOut) {
+                    $lateMinutes = (int) ($data['late_minutes'] ?? 0);
+                    $otMinutes = !empty($data['ot_enabled']) ? (int) ($data['ot_minutes'] ?? 0) : 0;
+                }
+
+                $isSwapToWorkday = $dayType === 'workday' && in_array($oldDayType, ['holiday', 'company_holiday']);
+                $clearSwapFlag = $log->is_swapped_day && $dayType !== 'workday';
+
+                $swapAttributes = [];
+                if ($isSwapToWorkday) {
+                    $swapAttributes = [
+                        'is_swapped_day' => true,
+                        'swapped_from_day_type' => $log->swapped_from_day_type ?: $oldDayType,
+                        'swapped_at' => now(),
+                        'swapped_by' => auth()->id(),
+                    ];
+                } elseif ($clearSwapFlag) {
+                    $swapAttributes = [
+                        'is_swapped_day' => false,
+                        'swapped_from_day_type' => null,
+                        'swapped_at' => null,
+                        'swapped_by' => null,
+                    ];
+                }
+
+                $log->update([
+                    'day_type' => $dayType,
+                    'check_in' => $checkIn ?: null,
+                    'check_out' => $checkOut ?: null,
+                    'late_minutes' => $lateMinutes,
+                    'early_leave_minutes' => $earlyLeaveMinutes,
+                    'ot_minutes' => $otMinutes,
+                    'ot_enabled' => !empty($data['ot_enabled']),
+                    'lwop_flag' => $isLwop,
+                    ...$swapAttributes,
+                ]);
+
+                if ($oldDayType !== $dayType) {
+                    AttendanceDaySwap::create([
+                        'employee_id' => $employee->id,
+                        'attendance_log_id' => $log->id,
+                        'log_date' => $log->log_date,
+                        'from_day_type' => $oldDayType,
+                        'to_day_type' => $dayType,
+                        'swap_reason' => $isSwapToWorkday
+                            ? 'manual_workday_swap'
+                            : 'manual_day_type_change',
+                        'swapped_by' => auth()->id(),
+                    ]);
+                }
+
+                \App\Services\AuditLogService::logAction(
+                    'attendance_row_updated',
+                    'attendance_logs',
+                    $log->id,
+                    ['employee_id' => $employee->id, 'month' => $month, 'year' => $year],
+                    null
+                );
+
+                // Recalculate payroll
+                $result = $this->payrollService->calculateForEmployee($employee, $month, $year);
+                $this->payrollService->savePayrollItems($employee, $month, $year, $result);
+
+                $log->refresh();
+
+                return response()->json([
+                    'ok' => true,
+                    'row' => [
+                        'log_id' => $log->id,
+                        'late_minutes' => $log->late_minutes,
+                        'ot_minutes' => $log->ot_minutes,
+                        'day_type' => $log->day_type,
+                    ],
+                    'summary' => $result['summary'],
+                    'items' => $result['items'],
+                ]);
+            });
+        } catch (\Throwable $e) {
+            Log::error('saveAttendanceRow error', [
+                'employee_id' => $employee->id,
+                'error' => $e->getMessage(),
+            ]);
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        }
+    }
+
     public function saveWorkLogs(Request $request, Employee $employee, int $month, int $year)
     {
         try {
+            $this->ensureWorkspaceEditingEnabled($employee);
+
             return DB::transaction(function () use ($request, $employee, $month, $year) {
                 $logs = $request->input('worklogs', []);
 
@@ -673,6 +875,8 @@ class WorkspaceController extends Controller
     public function storePerformanceRecord(Request $request, Employee $employee, int $month, int $year)
     {
         try {
+            $this->ensureWorkspaceEditingEnabled($employee);
+
             $validated = $request->validate([
                 'record_date' => 'nullable|date',
                 'finish_date' => 'nullable|date',
@@ -825,6 +1029,8 @@ class WorkspaceController extends Controller
     public function deletePerformanceRecord(PerformanceRecord $record)
     {
         try {
+            $this->ensureWorkspaceEditingEnabled($record->employee);
+
             $employeeId = $record->employee_id;
             $month = $record->month;
             $year = $record->year;
@@ -848,6 +1054,8 @@ class WorkspaceController extends Controller
     public function updatePayrollItem(Request $request, Employee $employee, int $month, int $year)
     {
         try {
+            $this->ensureWorkspaceEditingEnabled($employee);
+
             return DB::transaction(function () use ($request, $employee, $month, $year) {
                 $validated = $request->validate([
                     'item_id' => 'required|exists:payroll_items,id',

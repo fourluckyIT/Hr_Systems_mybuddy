@@ -6,6 +6,8 @@ use Illuminate\Http\Request;
 use App\Models\PayrollItemType;
 use App\Models\Department;
 use App\Models\Position;
+use App\Models\Employee;
+use App\Models\ModuleToggle;
 use App\Services\AuditLogService;
 
 class MasterDataController extends Controller
@@ -20,8 +22,39 @@ class MasterDataController extends Controller
         $departments = Department::withCount('employees')->orderBy('name')->get();
         $positions = Position::with('department')->withCount('employees')->orderBy('name')->get();
         $jobStages = \App\Models\JobStage::orderBy('type')->orderBy('sort_order')->get();
+        $employees = Employee::with(['department', 'position', 'moduleToggles'])
+            ->orderBy('first_name')
+            ->orderBy('last_name')
+            ->get();
 
-        return view('settings.master-data', compact('payrollItemTypes', 'departments', 'positions', 'jobStages'));
+        return view('settings.master-data', compact('payrollItemTypes', 'departments', 'positions', 'jobStages', 'employees'));
+    }
+
+    public function updateWorkspaceAccess(Request $request, Employee $employee)
+    {
+        $validated = $request->validate([
+            'is_enabled' => 'required|boolean',
+        ]);
+
+        $toggle = ModuleToggle::firstOrNew([
+            'employee_id' => $employee->id,
+            'module_name' => 'workspace_editing',
+        ]);
+
+        $oldValue = $toggle->exists ? (bool) $toggle->is_enabled : true;
+        $toggle->is_enabled = (bool) $validated['is_enabled'];
+        $toggle->save();
+
+        $this->audit->log(
+            $toggle,
+            'workspace_access_updated',
+            'is_enabled',
+            $oldValue,
+            $toggle->is_enabled,
+            'Workspace edit access updated from Master Data'
+        );
+
+        return back()->with('success', 'อัปเดตสิทธิ์แก้ไข Workspace สำเร็จ');
     }
 
     // === Payroll Item Types ===

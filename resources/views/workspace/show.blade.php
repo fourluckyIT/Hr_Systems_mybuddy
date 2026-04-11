@@ -17,6 +17,12 @@
     $nextYear = $month == 12 ? $year + 1 : $year;
 @endphp
 
+@if(!($workspaceEditEnabled ?? true))
+<div class="mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-sm font-semibold">
+    Workspace นี้ถูกปิดสิทธิ์การแก้ไขจาก Master Data (โหมดดูข้อมูลอย่างเดียว)
+</div>
+@endif
+
 <!-- Header -->
 <div class="flex items-center justify-between mb-4">
     <div class="flex items-center gap-4">
@@ -72,21 +78,21 @@
 <div class="grid grid-cols-3 gap-4 mb-6">
     <div class="bg-green-50 border border-green-200 rounded-xl p-4">
         <p class="text-xs text-green-600 font-medium">รายรับ</p>
-        <p class="text-2xl font-bold text-green-700">{{ number_format($summary['total_income'] ?? 0, 2) }}</p>
+        <p id="summary-total-income" class="text-2xl font-bold text-green-700 transition-all">{{ number_format($summary['total_income'] ?? 0, 2) }}</p>
     </div>
     <div class="bg-red-50 border border-red-200 rounded-xl p-4">
         <p class="text-xs text-red-600 font-medium">รายหัก</p>
-        <p class="text-2xl font-bold text-red-700">{{ number_format($summary['total_deduction'] ?? 0, 2) }}</p>
+        <p id="summary-total-deduction" class="text-2xl font-bold text-red-700 transition-all">{{ number_format($summary['total_deduction'] ?? 0, 2) }}</p>
     </div>
     <div class="bg-indigo-50 border border-indigo-200 rounded-xl p-4">
         <p class="text-xs text-indigo-600 font-medium">รายได้สุทธิ</p>
-        <p class="text-2xl font-bold text-indigo-700">{{ number_format($summary['net_pay'] ?? 0, 2) }}</p>
+        <p id="summary-net-pay" class="text-2xl font-bold text-indigo-700 transition-all">{{ number_format($summary['net_pay'] ?? 0, 2) }}</p>
     </div>
 </div>
 
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
     <!-- Main Grid (2/3) -->
-    <div class="lg:col-span-2 space-y-6">
+    <div class="lg:col-span-2 space-y-6 {{ !($workspaceEditEnabled ?? true) ? 'opacity-60 pointer-events-none select-none' : '' }}">
         @if($employee->payroll_mode === 'monthly_staff')
             @include('workspace.partials.attendance-grid')
         @elseif($employee->payroll_mode === 'freelance_layer')
@@ -110,19 +116,19 @@
             <div class="space-y-2 mb-4 text-sm">
                 <div class="flex justify-between">
                     <span class="text-gray-500">ชั่วโมงรวม</span>
-                    <span class="font-medium">{{ $formatHoursAsClock($summary['total_work_hours'] ?? 0) }} ชม.</span>
+                    <span id="summary-work-hours" class="font-medium">{{ $formatHoursAsClock($summary['total_work_hours'] ?? 0) }} ชม.</span>
                 </div>
                 <div class="flex justify-between">
                     <span class="text-gray-500">OT</span>
-                    <span class="font-medium">{{ $formatHoursAsClock($summary['total_ot_hours'] ?? 0) }} ชม.</span>
+                    <span id="summary-ot-hours" class="font-medium">{{ $formatHoursAsClock($summary['total_ot_hours'] ?? 0) }} ชม.</span>
                 </div>
                 <div class="flex justify-between">
                     <span class="text-gray-500">มาสาย</span>
-                    <span class="font-medium">{{ $summary['late_count'] ?? 0 }} ครั้ง ({{ $summary['late_minutes'] ?? 0 }} นาที)</span>
+                    <span id="summary-late-info" class="font-medium">{{ $summary['late_count'] ?? 0 }} ครั้ง ({{ $summary['late_minutes'] ?? 0 }} นาที)</span>
                 </div>
                 <div class="flex justify-between">
                     <span class="text-gray-500">ขาดงาน</span>
-                    <span class="font-medium">{{ $summary['lwop_days'] ?? 0 }} วัน</span>
+                    <span id="summary-lwop-days" class="font-medium">{{ $summary['lwop_days'] ?? 0 }} วัน</span>
                 </div>
             </div>
             <hr class="my-3">
@@ -132,6 +138,7 @@
                 เงินได้
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-gray-300 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor" title="รายการรายรับทั้งหมด (แสดงผลจากการคำนวณ)"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
             </h4>
+            <div id="payroll-income-items">
             @foreach(($result['items'] ?? []) as $item)
                 @if($item['category'] === 'income')
                 @php 
@@ -148,12 +155,14 @@
                 </div>
                 @endif
             @endforeach
+            </div>
 
             <hr class="my-3">
             <h4 class="text-xs font-semibold text-red-600 mb-2 flex items-center gap-1">
                 รายหัก
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-gray-300 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor" title="รายการหักทั้งหมด (แสดงผลจากการคำนวณ)"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
             </h4>
+            <div id="payroll-deduction-items">
             @foreach(($result['items'] ?? []) as $item)
                 @if($item['category'] === 'deduction')
                 @php 
@@ -170,23 +179,26 @@
                 </div>
                 @endif
             @endforeach
+            </div>
 
             <hr class="my-3">
             <div class="flex justify-between font-bold text-base">
                 <span>รายได้สุทธิ</span>
-                <span class="text-indigo-600">{{ number_format($summary['net_pay'] ?? 0, 2) }}</span>
+                <span id="summary-net-pay-bottom" class="text-indigo-600">{{ number_format($summary['net_pay'] ?? 0, 2) }}</span>
             </div>
         </div>
 
         <!-- Recalculate Button -->
         <form method="POST" action="{{ route('workspace.recalculate', ['employee' => $employee->id, 'month' => $month, 'year' => $year]) }}">
             @csrf
-            <button type="submit" class="w-full bg-indigo-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors">
+            <button type="submit" {{ !($workspaceEditEnabled ?? true) ? 'disabled' : '' }} class="w-full bg-indigo-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                 คำนวณใหม่
             </button>
         </form>
 
-        @include('workspace.partials.claims-grid')
+        <div class="{{ !($workspaceEditEnabled ?? true) ? 'opacity-60 pointer-events-none select-none' : '' }}">
+            @include('workspace.partials.claims-grid')
+        </div>
     </div>
 </div>
 

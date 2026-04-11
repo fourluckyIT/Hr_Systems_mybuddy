@@ -15,23 +15,45 @@
     @stack('styles')
 </head>
 <body class="bg-gray-50 th-font text-gray-800 min-h-screen">
+    @php
+        $authUser = auth()->user();
+        $isAdmin = $authUser?->hasAnyRole(['admin']) ?? false;
+        $isHr = $authUser?->hasAnyRole(['hr']) ?? false;
+        $isManager = $authUser?->hasAnyRole(['manager']) ?? false;
+        $isEmployeeOnly = ($authUser?->hasAnyRole(['employee', 'viewer']) ?? false) && !($isAdmin || $isHr || $isManager);
+        $myEmployee = $authUser?->employee;
+    @endphp
+
     <!-- Navigation -->
     <nav class="bg-white shadow-sm border-b border-gray-200">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between h-14">
                 <div class="flex items-center space-x-6">
-                    <a href="{{ route('employees.index') }}" class="text-lg font-bold text-indigo-600">xHR Payroll</a>
-                    <a href="{{ route('employees.index') }}" class="text-sm text-gray-600 hover:text-indigo-600 {{ request()->routeIs('employees.*') ? 'text-indigo-600 font-semibold' : '' }}">พนักงาน</a>
-                    <a href="{{ route('calendar.index') }}" class="text-sm text-gray-600 hover:text-indigo-600 {{ request()->routeIs('calendar.*') ? 'text-indigo-600 font-semibold' : '' }}">ปฏิทินหลัก</a>
-                    <a href="{{ route('company.finance') }}" class="text-sm text-gray-600 hover:text-indigo-600 {{ request()->routeIs('company.*') ? 'text-indigo-600 font-semibold' : '' }}">การเงินบริษัท</a>
-                    <a href="{{ route('annual.index') }}" class="text-sm text-gray-600 hover:text-indigo-600 {{ request()->routeIs('annual.*') ? 'text-indigo-600 font-semibold' : '' }}">สรุปรายปี</a>
-                    <a href="{{ route('work.index') }}" class="text-sm text-gray-600 hover:text-indigo-600 {{ request()->routeIs('work.*') || request()->routeIs('settings.works.*') ? 'text-indigo-600 font-semibold' : '' }}">WORK Center</a>
-                    <a href="{{ route('settings.master-data') }}" class="text-sm text-gray-600 hover:text-indigo-600 {{ request()->routeIs('settings.master-data*') ? 'text-indigo-600 font-semibold' : '' }}">Master Data</a>
-                    <a href="{{ route('settings.rules') }}" class="text-sm text-gray-600 hover:text-indigo-600 {{ request()->routeIs('settings.rules*') ? 'text-indigo-600 font-semibold' : '' }}">ตั้งค่า</a>
-                    <a href="{{ route('audit-logs.index') }}" class="text-sm text-gray-600 hover:text-indigo-600 {{ request()->routeIs('audit-logs.*') ? 'text-indigo-600 font-semibold' : '' }}">Audit Log</a>
+                    <a href="{{ $isEmployeeOnly ? route('workspace.my') : route('employees.index') }}" class="text-lg font-bold text-indigo-600">xHR Payroll</a>
+
+                    @if($isEmployeeOnly)
+                        <a href="{{ route('workspace.my') }}" class="text-sm text-gray-600 hover:text-indigo-600 {{ request()->routeIs('workspace.*') ? 'text-indigo-600 font-semibold' : '' }}">My Workspace</a>
+                    @else
+                        @if($isAdmin || $isHr || $isManager)
+                            <a href="{{ route('employees.index') }}" class="text-sm text-gray-600 hover:text-indigo-600 {{ request()->routeIs('employees.*') ? 'text-indigo-600 font-semibold' : '' }}">พนักงาน</a>
+                            <a href="{{ route('calendar.index') }}" class="text-sm text-gray-600 hover:text-indigo-600 {{ request()->routeIs('calendar.*') ? 'text-indigo-600 font-semibold' : '' }}">ปฏิทินหลัก</a>
+                        @endif
+
+                        @if($isAdmin || $isHr)
+                            <a href="{{ route('company.finance') }}" class="text-sm text-gray-600 hover:text-indigo-600 {{ request()->routeIs('company.*') ? 'text-indigo-600 font-semibold' : '' }}">การเงินบริษัท</a>
+                            <a href="{{ route('annual.index') }}" class="text-sm text-gray-600 hover:text-indigo-600 {{ request()->routeIs('annual.*') ? 'text-indigo-600 font-semibold' : '' }}">สรุปรายปี</a>
+                            <a href="{{ route('work.index') }}" class="text-sm text-gray-600 hover:text-indigo-600 {{ request()->routeIs('work.*') || request()->routeIs('settings.works.*') ? 'text-indigo-600 font-semibold' : '' }}">WORK Center</a>
+                            <a href="{{ route('audit-logs.index') }}" class="text-sm text-gray-600 hover:text-indigo-600 {{ request()->routeIs('audit-logs.*') ? 'text-indigo-600 font-semibold' : '' }}">Audit Log</a>
+                        @endif
+
+                        @if($isAdmin)
+                            <a href="{{ route('settings.master-data') }}" class="text-sm text-gray-600 hover:text-indigo-600 {{ request()->routeIs('settings.master-data*') ? 'text-indigo-600 font-semibold' : '' }}">Master Data</a>
+                            <a href="{{ route('settings.rules') }}" class="text-sm text-gray-600 hover:text-indigo-600 {{ request()->routeIs('settings.rules*') ? 'text-indigo-600 font-semibold' : '' }}">ตั้งค่า</a>
+                        @endif
+                    @endif
                 </div>
                 <div class="flex items-center space-x-3">
-                    <span class="text-sm text-gray-500">{{ auth()->user()?->name ?? 'Admin' }}</span>
+                    <span class="text-sm text-gray-500">{{ $authUser?->name ?? 'Admin' }}</span>
                     <form method="POST" action="{{ route('logout') }}" class="inline">
                         @csrf
                         <button type="submit" class="text-sm text-red-500 hover:text-red-700">ออกจากระบบ</button>

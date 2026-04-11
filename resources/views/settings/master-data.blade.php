@@ -48,6 +48,10 @@
             สถานะงาน (Job Stages)
             <span class="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-gray-200 text-gray-600">{{ $jobStages->count() }}</span>
         </button>
+        <button @click="activeTab = 'workspace_access'" :class="activeTab === 'workspace_access' ? 'border-indigo-500 text-indigo-600 bg-indigo-50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'" class="px-4 py-2.5 text-sm font-semibold border-b-2 rounded-t-lg transition-all">
+            คุมสิทธิ์ Workspace
+            <span class="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-gray-200 text-gray-600">{{ $employees->count() }}</span>
+        </button>
     </div>
 
     <!-- ===================== TAB: Payroll Item Types ===================== -->
@@ -655,6 +659,66 @@
                         @endforeach
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================== TAB: Workspace Access ===================== -->
+    <div x-show="activeTab === 'workspace_access'" x-cloak>
+        <div class="bg-white rounded-2xl shadow-sm border overflow-hidden">
+            <div class="px-5 py-4 bg-slate-50 border-b border-slate-200">
+                <h3 class="font-bold text-slate-800 text-sm">ควบคุมสิทธิ์แก้ไข Workspace</h3>
+                <p class="text-xs text-slate-500 mt-1">เปิด/ปิดสิทธิ์แก้ไขหน้า Workspace แยกรายพนักงาน (ทุกแผนก)</p>
+            </div>
+            <div class="overflow-x-auto max-h-[65vh]">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-50 sticky top-0">
+                        <tr class="text-gray-500">
+                            <th class="text-left px-4 py-2.5 font-medium">พนักงาน</th>
+                            <th class="text-left px-4 py-2.5 font-medium">แผนก</th>
+                            <th class="text-left px-4 py-2.5 font-medium">ตำแหน่ง</th>
+                            <th class="text-left px-4 py-2.5 font-medium">สถานะสิทธิ์</th>
+                            <th class="text-right px-4 py-2.5 font-medium">จัดการ</th>
+                        </tr>
+                    </thead>
+                    @foreach($employees as $emp)
+                        @php
+                            $toggle = $emp->moduleToggles->firstWhere('module_name', 'workspace_editing');
+                            $isEnabled = $toggle ? (bool) $toggle->is_enabled : true;
+                        @endphp
+                        <tbody class="divide-y" x-data="{ showEdit: false, enabled: '{{ $isEnabled ? '1' : '0' }}' }">
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-4 py-3">
+                                    <div class="font-semibold text-gray-800">{{ $emp->full_name }}</div>
+                                    <div class="text-xs text-gray-400">{{ $emp->employee_code }}</div>
+                                </td>
+                                <td class="px-4 py-3 text-gray-600">{{ $emp->department?->name ?? '-' }}</td>
+                                <td class="px-4 py-3 text-gray-600">{{ $emp->position?->name ?? '-' }}</td>
+                                <td class="px-4 py-3">
+                                    <span class="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold {{ $isEnabled ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700' }}">
+                                        {{ $isEnabled ? 'เปิดแก้ไข' : 'ปิดแก้ไข' }}
+                                    </span>
+                                </td>
+                                <td class="px-4 py-3 text-right">
+                                    <button type="button" @click="showEdit = !showEdit" class="px-2 py-1 text-[10px] font-bold text-indigo-600 bg-indigo-50 rounded border border-indigo-200 hover:bg-indigo-100">ปรับสิทธิ์</button>
+                                </td>
+                            </tr>
+                            <tr x-show="showEdit" x-cloak class="bg-slate-50/50">
+                                <td colspan="5" class="px-4 py-3">
+                                    <form action="{{ route('settings.master-data.workspace-access.update', $emp) }}" method="POST" class="flex items-center gap-2">
+                                        @csrf
+                                        @method('PATCH')
+                                        <select name="is_enabled" x-model="enabled" class="border rounded-lg px-3 py-1.5 text-xs">
+                                            <option value="1">เปิดแก้ไข</option>
+                                            <option value="0">ปิดแก้ไข</option>
+                                        </select>
+                                        <button type="submit" class="px-3 py-1.5 text-xs text-white bg-indigo-600 rounded hover:bg-indigo-700">อัปเดต</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        </tbody>
+                    @endforeach
+                </table>
             </div>
         </div>
     </div>
