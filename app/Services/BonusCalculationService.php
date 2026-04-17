@@ -144,23 +144,32 @@ class BonusCalculationService
     /**
      * Calculate unlock percentage for the current cycle.
      */
-    public function calculateUnlockPercentage(int $monthsAfterProbation, string $cyclePeriod, float $previousPaidRatio = 0.0): float
-    {
+    /**
+     * @param array $config  Keys: june_max_ratio(0.4), june_scale_months(6), full_scale_months(12)
+     */
+    public function calculateUnlockPercentage(
+        int $monthsAfterProbation,
+        string $cyclePeriod,
+        float $previousPaidRatio = 0.0,
+        array $config = [],
+    ): float {
         if ($monthsAfterProbation <= 0) {
             return 0.0;
         }
 
+        $juneMaxRatio    = (float) ($config['june_max_ratio']    ?? 0.4);
+        $juneScaleMonths = (int)   ($config['june_scale_months'] ?? 6);
+        $fullScaleMonths = (int)   ($config['full_scale_months'] ?? 12);
+
         if ($cyclePeriod === 'june') {
-            $maxRatio = 0.4;
-            $scaleMonths = 6;
-            $unlocked = min($monthsAfterProbation / $scaleMonths, 1.0) * $maxRatio;
+            $unlocked = min($monthsAfterProbation / $juneScaleMonths, 1.0) * $juneMaxRatio;
 
             return round($unlocked, 4);
         }
 
         if ($cyclePeriod === 'december') {
-            $totalUnlocked = min($monthsAfterProbation / 12, 1.0);
-            $decemberRatio = $totalUnlocked - $previousPaidRatio;
+            $totalUnlocked  = min($monthsAfterProbation / $fullScaleMonths, 1.0);
+            $decemberRatio  = $totalUnlocked - $previousPaidRatio;
 
             return round(max(0, $decemberRatio), 4);
         }
@@ -220,6 +229,7 @@ class BonusCalculationService
                 $absentDays ?? 0,
                 $lateCount ?? 0,
                 $leaveDays ?? 0,
+                $cycle->attendancePenaltyConfig(),
             );
         }
 
@@ -269,7 +279,7 @@ class BonusCalculationService
         }
 
         // Step 6: Calculate unlock percentage
-        $unlockPct = $this->calculateUnlockPercentage($months, $cycle->cycle_period, $previousPaid);
+        $unlockPct = $this->calculateUnlockPercentage($months, $cycle->cycle_period, $previousPaid, $cycle->unlockConfig());
 
         // Step 7: Calculate actual payment
         $actualPayment = round($finalNet * $unlockPct, 2);
@@ -562,16 +572,28 @@ class BonusCalculationService
 
     /**
      * Calculate adjustment from detailed attendance metrics.
+     *
+     * @param array $config  Keys: absent_penalty_per_day(-0.01), late_penalty_per_occurrence(-0.002),
+     *                             leave_free_days(5), leave_penalty_rate(0.01)
      */
-    public function calculateAttendanceAdjustmentFromBreakdown(int $absentDays, int $lateCount, int $leaveDays): float
-    {
-        $absentPenalty = $absentDays * -0.01;
-        $latePenalty = $lateCount * -0.002;
+    public function calculateAttendanceAdjustmentFromBreakdown(
+        int $absentDays,
+        int $lateCount,
+        int $leaveDays,
+        array $config = [],
+    ): float {
+        $absentPenaltyRate = (float) ($config['absent_penalty_per_day']      ?? -0.01);
+        $latePenaltyRate   = (float) ($config['late_penalty_per_occurrence']  ?? -0.002);
+        $freeDays          = (int)   ($config['leave_free_days']              ?? 5);
+        $leaveRate         = (float) ($config['leave_penalty_rate']           ?? 0.01);
 
-        // First 5 leave days are penalized 1% each, then recover +1% per day after that.
-        $leaveAdjustment = $leaveDays <= 5
-            ? ($leaveDays * -0.01)
-            : (-0.05 + (($leaveDays - 5) * 0.01));
+        $absentPenalty = $absentDays * $absentPenaltyRate;
+        $latePenalty   = $lateCount  * $latePenaltyRate;
+
+        // First $freeDays are penalized $leaveRate each, recover +$leaveRate per day after.
+        $leaveAdjustment = $leaveDays <= $freeDays
+            ? ($leaveDays * -$leaveRate)
+            : (-$leaveRate * $freeDays + (($leaveDays - $freeDays) * $leaveRate));
 
         $total = $absentPenalty + $latePenalty + $leaveAdjustment;
 

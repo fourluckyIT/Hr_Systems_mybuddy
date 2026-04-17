@@ -267,6 +267,7 @@
                     <span class="text-gray-500">OT</span>
                     <span id="summary-ot-hours" class="font-medium">{{ $formatHoursAsClock($summary['total_ot_hours'] ?? 0) }} ชม.</span>
                 </div>
+                @if($employee->payroll_mode !== 'youtuber_salary')
                 <div class="flex justify-between">
                     <span class="text-gray-500">มาสาย</span>
                     <span id="summary-late-info" class="font-medium">{{ $summary['late_count'] ?? 0 }} ครั้ง ({{ $summary['late_minutes'] ?? 0 }} นาที)</span>
@@ -275,6 +276,7 @@
                     <span class="text-gray-500">ขาดงาน</span>
                     <span id="summary-lwop-days" class="font-medium">{{ $summary['lwop_days'] ?? 0 }} วัน</span>
                 </div>
+                @endif
             </div>
             <hr class="my-3">
             @endif
