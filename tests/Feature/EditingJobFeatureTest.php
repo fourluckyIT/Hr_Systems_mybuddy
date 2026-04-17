@@ -28,6 +28,8 @@ class EditingJobFeatureTest extends TestCase
             'name' => 'Admin', 'email' => 'admin@test.com', 'password' => bcrypt('pw'),
         ]);
 
+        $this->actingAs($this->user);
+
         $this->editor = Employee::create([
             'first_name' => 'Editor', 'last_name' => 'One',
             'payroll_mode' => 'monthly_staff', 'status' => 'active',
