@@ -328,13 +328,14 @@
 @php
     $monthNames = ['', 'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
     $primaryColor = $company?->primary_color ?? '#4f46e5';
+    $canManagePayslip = auth()->user()?->hasRole('admin') ?? false;
 @endphp
 
 <div class="print-hide flex items-center justify-between mb-4">
     <a href="{{ route('workspace.show', ['employee' => $employee->id, 'month' => $month, 'year' => $year]) }}"
        class="text-sm text-gray-500 hover:text-indigo-600">&larr; กลับ Workspace</a>
     <div class="flex gap-2">
-        @if(!$payslip || $payslip->status !== 'finalized')
+        @if($canManagePayslip && (!$payslip || $payslip->status !== 'finalized'))
         <form method="POST" action="{{ route('payslip.finalize', ['employee' => $employee->id, 'month' => $month, 'year' => $year]) }}">
             @csrf
             <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-green-700">Finalize</button>
@@ -347,7 +348,7 @@
     </div>
 </div>
 
-@if($payslip && $payslip->status === 'finalized')
+@if($canManagePayslip && $payslip && $payslip->status === 'finalized')
 <div class="print-hide bg-green-50 border border-green-200 text-green-700 px-4 py-2 rounded-lg text-sm mb-4 flex justify-between items-center">
     <span>Finalized: {{ $payslip->finalized_at?->format('d/m/Y H:i') }}</span>
     <form method="POST" action="{{ route('payslip.unfinalize', ['employee' => $employee->id, 'month' => $month, 'year' => $year]) }}" onsubmit="return confirm('คุณแน่ใจหรือว่าต้องการยกเลิก Finalize?');">
@@ -379,7 +380,7 @@
         <!-- Info Row -->
         <div class="info-row">
             <div class="item">
-                <label>เลขประจำตัวประเมิน:</label>
+                <label>เลขประจำตัวผู้เสียภาษี:</label>
                 <value>{{ $company?->tax_id ?? '-' }}</value>
             </div>
             <div class="item">
@@ -387,8 +388,8 @@
                 <value>{{ $monthNames[$month] }} {{ $year + 543 }}</value>
             </div>
             <div class="item">
-                <label>วิ่งจากพิมพ์:</label>
-                <value>-</value>
+                <label>วันที่พิมพ์:</label>
+                <value>{{ now()->format('d/m/') . (now()->year + 543) }}</value>
             </div>
             <div class="item">
                 <label>วันจ่ายเงิน:</label>
@@ -426,6 +427,7 @@
             };
         @endphp
         <div class="month-metrics">
+            @if(in_array($employee->payroll_mode, ['monthly_staff', 'office_staff', 'youtuber_salary']))
             <div class="month-metric">
                 <div class="label">ชั่วโมงรวม</div>
                 <div class="value">{{ $formatHoursAsClock($monthlyStats['total_work_hours'] ?? 0) }} ชม.</div>
@@ -442,6 +444,7 @@
                 <div class="label">ขาดงาน</div>
                 <div class="value">{{ $monthlyStats['lwop_days'] ?? 0 }} วัน</div>
             </div>
+            @endif
         </div>
 
         <!-- Income & Deduction Tables -->

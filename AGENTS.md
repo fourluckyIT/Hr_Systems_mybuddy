@@ -123,6 +123,7 @@
 ### 4.1 Payroll Modes
 ระบบต้องรองรับอย่างน้อย:
 - `monthly_staff`
+- `office_staff` (ใหม่ - ใช้ attendance เหมือน monthly_staff)
 - `freelance_layer`
 - `freelance_fixed`
 - `youtuber_salary`

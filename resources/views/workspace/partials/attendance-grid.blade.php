@@ -99,6 +99,7 @@
 (() => {
     const SAVE_URL = @json($saveRowUrl);
     const CSRF = document.querySelector('meta[name="csrf-token"]')?.content;
+    const canManageWorkspace = {{ $canManageWorkspace ? 'true' : 'false' }};
     const targetCheckIn = "{{ $attendanceMeta['target_check_in'] ?? '09:30' }}";
     const targetMinutesPerDay = Number("{{ $attendanceMeta['target_minutes_per_day'] ?? 540 }}");
 
@@ -256,7 +257,7 @@
                     <div class="flex justify-between text-sm py-1">
                         <span class="text-gray-600 flex items-center gap-1">
                             ${item.label}
-                            ${isManual ? '<span class="text-[8px] bg-amber-100 text-amber-700 px-1 rounded font-bold uppercase">Manual</span>' : ''}
+                            ${isManual && canManageWorkspace ? '<span class="text-[8px] bg-amber-100 text-amber-700 px-1 rounded font-bold uppercase">Manual</span>' : ''}
                         </span>
                         <span class="font-medium ${item.amount > 0 ? '' : 'text-gray-400'}">${formatMoney(item.amount)}</span>
                     </div>
@@ -272,7 +273,7 @@
                     <div class="flex justify-between text-sm py-1">
                         <span class="text-gray-600 flex items-center gap-1">
                             ${item.label}
-                            ${isManual ? '<span class="text-[8px] bg-amber-100 text-amber-700 px-1 rounded font-bold uppercase">Manual</span>' : ''}
+                            ${isManual && canManageWorkspace ? '<span class="text-[8px] bg-amber-100 text-amber-700 px-1 rounded font-bold uppercase">Manual</span>' : ''}
                         </span>
                         <span class="font-medium ${item.amount > 0 ? '' : 'text-gray-400'}">${formatMoney(item.amount)}</span>
                     </div>

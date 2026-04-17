@@ -22,7 +22,7 @@ class PayrollCalculationService
     public function calculateForEmployee(Employee $employee, int $month, int $year): array
     {
         $calculator = match ($employee->payroll_mode) {
-            'monthly_staff' => $this->monthlyStaffCalc,
+            'monthly_staff', 'office_staff' => $this->monthlyStaffCalc,
             'freelance_layer' => $this->freelanceLayerCalc,
             'freelance_fixed' => $this->freelanceFixedCalc,
             'youtuber_salary' => $this->youtuberSalaryCalc,

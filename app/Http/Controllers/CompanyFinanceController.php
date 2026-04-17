@@ -29,9 +29,11 @@ class CompanyFinanceController extends Controller
             $expense = CompanyExpense::where('year', $year)->where('month', $m)->sum('amount');
             $subscription = SubscriptionCost::where('year', $year)->where('month', $m)->sum('amount');
 
-            // Payroll cost = total payroll items for this month
-            $batch = PayrollBatch::where('year', $year)->where('month', $m)->first();
-            $payrollCost = $batch ? PayrollItem::where('payroll_batch_id', $batch->id)->where('category', 'income')->sum('amount') : 0;
+            // Payroll cost = total income from finalized payslips
+            $payrollCost = \App\Models\Payslip::where('year', $year)
+                ->where('month', $m)
+                ->where('status', 'finalized')
+                ->sum('total_income');
 
             $totalExpenses = $expense + $subscription + $payrollCost;
             $net = $revenue - $totalExpenses;

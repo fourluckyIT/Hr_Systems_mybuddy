@@ -8,7 +8,7 @@
     <div class="flex items-center justify-between mb-6">
         <div>
             <h1 class="text-2xl font-bold text-gray-900">Master Data</h1>
-            <p class="text-sm text-gray-500">จัดการข้อมูลหลัก: ประเภทรายการเงินเดือน, แผนก, ตำแหน่ง — ปรับชื่อ เพิ่ม/ลบได้</p>
+            <p class="text-sm text-gray-500">จัดการข้อมูลหลัก: รายการเงินเดือน, แผนก, ตำแหน่ง, เกม, เรท FL, สิทธิ์ Workspace</p>
         </div>
         <div class="flex items-center gap-2">
             <a href="{{ route('settings.rules') }}" class="px-3 py-1.5 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">← กฎระบบ</a>
@@ -44,9 +44,13 @@
             ตำแหน่ง
             <span class="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-gray-200 text-gray-600">{{ $positions->count() }}</span>
         </button>
-        <button @click="activeTab = 'job_stages'" :class="activeTab === 'job_stages' ? 'border-indigo-500 text-indigo-600 bg-indigo-50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'" class="px-4 py-2.5 text-sm font-semibold border-b-2 rounded-t-lg transition-all">
-            สถานะงาน (Job Stages)
-            <span class="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-gray-200 text-gray-600">{{ $jobStages->count() }}</span>
+        <button @click="activeTab = 'games'" :class="activeTab === 'games' ? 'border-indigo-500 text-indigo-600 bg-indigo-50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'" class="px-4 py-2.5 text-sm font-semibold border-b-2 rounded-t-lg transition-all">
+            เกม
+            <span class="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-gray-200 text-gray-600">{{ $games->count() }}</span>
+        </button>
+        <button @click="activeTab = 'layer_rate_templates'" :class="activeTab === 'layer_rate_templates' ? 'border-indigo-500 text-indigo-600 bg-indigo-50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'" class="px-4 py-2.5 text-sm font-semibold border-b-2 rounded-t-lg transition-all">
+            เทมเพลตเรท FL Layer
+            <span class="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-gray-200 text-gray-600">{{ $layerRateRules->count() }}</span>
         </button>
         <button @click="activeTab = 'workspace_access'" :class="activeTab === 'workspace_access' ? 'border-indigo-500 text-indigo-600 bg-indigo-50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'" class="px-4 py-2.5 text-sm font-semibold border-b-2 rounded-t-lg transition-all">
             คุมสิทธิ์ Workspace
@@ -351,7 +355,6 @@
                     <div>
                         <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Workspace Panel</label>
                         <select name="workspace_panel" class="w-full px-3 py-2 border rounded-lg text-sm">
-                            <option value="recording_queue">ตารางถ่ายทำ</option>
                             <option value="edit_jobs">งานตัดต่อ</option>
                             <option value="youtuber">YouTuber</option>
                             <option value="none">ไม่มี panel</option>
@@ -440,8 +443,7 @@
                                         <input type="text" name="name" value="{{ $pos->name }}" class="px-2 py-1.5 border rounded text-sm flex-grow" required>
                                         <input type="text" name="code" value="{{ $pos->code }}" placeholder="Code" class="px-2 py-1.5 border rounded text-sm w-28 uppercase">
                                         <select name="workspace_panel" class="px-2 py-1.5 border rounded text-sm">
-                                            <option value="recording_queue" @selected(($pos->workspace_panel ?? 'recording_queue') === 'recording_queue')>ตารางถ่ายทำ</option>
-                                            <option value="edit_jobs" @selected(($pos->workspace_panel ?? '') === 'edit_jobs')>งานตัดต่อ</option>
+                                            <option value="edit_jobs" @selected(($pos->workspace_panel ?? 'edit_jobs') === 'edit_jobs')>งานตัดต่อ</option>
                                             <option value="youtuber" @selected(($pos->workspace_panel ?? '') === 'youtuber')>YouTuber</option>
                                             <option value="none" @selected(($pos->workspace_panel ?? '') === 'none')>ไม่มี panel</option>
                                         </select>
@@ -471,193 +473,210 @@
         </div>
     </div>
 
-    <!-- ===================== TAB: Job Stages ===================== -->
-    <div x-show="activeTab === 'job_stages'" x-cloak>
+    <!-- ===================== TAB: Games ===================== -->
+    <div x-show="activeTab === 'games'" x-cloak>
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <!-- Add Job Stage -->
+            <!-- Add Game -->
             <div class="bg-white rounded-2xl shadow-sm border p-5 h-fit">
                 <h3 class="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
                     <span class="w-6 h-6 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs">+</span>
-                    เพิ่มสถานะใหม่
+                    เพิ่มเกมใหม่
                 </h3>
-                <form action="{{ route('settings.master-data.job-stages.store') }}" method="POST" class="space-y-3">
+                <form action="{{ route('settings.master-data.games.store') }}" method="POST" class="space-y-3">
                     @csrf
                     <div>
-                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">ประเภทงาน *</label>
-                        <select name="type" required class="w-full px-3 py-2 border rounded-lg text-sm bg-gray-50">
-                            <option value="recording">Recording (แพลนถ่ายทำ)</option>
-                            <option value="edit">Edit (งานตัดต่อ)</option>
-                        </select>
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">ชื่อเกม *</label>
+                        <input type="text" name="game_name" required placeholder="เช่น Elden Ring" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500">
                     </div>
                     <div>
-                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Code ของสถานะ (ห้ามซ้ำ) *</label>
-                        <input type="text" name="code" required placeholder="เช่น custom_approval" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500">
-                        <p class="text-[10px] text-gray-400 mt-1">ใช้ตัวอักษรภาษาอังกฤษและ _</p>
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Slug (auto-generate ถ้าเว้นว่าง)</label>
+                        <input type="text" name="game_slug" placeholder="elden-ring" class="w-full px-3 py-2 border rounded-lg text-sm lowercase">
                     </div>
-                    <div>
-                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">ชื่อแสดงผล (ตั้งอะไรก็ได้) *</label>
-                        <input type="text" name="name" required placeholder="เช่น รอพี่รหัสคอมเมนต์" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500">
-                    </div>
-                    <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">สีของป้าย *</label>
-                            <select name="color" required class="w-full px-3 py-2 border rounded-lg text-sm">
-                                <option value="gray">เทา (Gray)</option>
-                                <option value="blue">น้ำเงิน (Blue)</option>
-                                <option value="indigo">คราม (Indigo)</option>
-                                <option value="yellow">เหลือง (Yellow)</option>
-                                <option value="green">เขียว (Green)</option>
-                                <option value="emerald">เขียวเข้ม (Emerald)</option>
-                                <option value="red">แดง (Red)</option>
-                                <option value="pink">ชมพู (Pink)</option>
-                                <option value="purple">ม่วง (Purple)</option>
-                                <option value="orange">ส้ม (Orange)</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">ลำดับการเรียง</label>
-                            <input type="number" name="sort_order" value="99" min="0" class="w-full px-3 py-2 border rounded-lg text-sm">
-                        </div>
-                    </div>
-                    <div class="mt-4 p-3 bg-blue-50 text-blue-800 rounded-lg text-xs leading-relaxed border border-blue-200">
-                        <strong>ข้อควรระวัง:</strong> สถานะที่คุณสร้างเอง จะใช้เพื่อแบ่งระยะงานได้อิสระ แต่จะไม่มีการทริกเกอร์ระบบออโต้หลังบ้าน (เช่น หักเงิน/ปิดงาน ฯลฯ)
-                    </div>
-                    <button type="submit" class="w-full bg-indigo-600 text-white py-2.5 mt-2 rounded-xl font-bold text-sm hover:bg-indigo-700 transition">เพิ่มแบบประเมิน</button>
+                    <button type="submit" class="w-full bg-indigo-600 text-white py-2.5 rounded-xl font-bold text-sm hover:bg-indigo-700 transition">เพิ่มเกม</button>
                 </form>
             </div>
 
-            <!-- List Stages -->
-            <div class="lg:col-span-2 space-y-6">
-                <!-- Recording Stages -->
-                <div class="bg-white rounded-2xl shadow-sm border overflow-hidden">
-                    <div class="px-5 py-3 bg-slate-50 border-b border-slate-200">
-                        <h3 class="font-bold text-slate-800 text-sm flex items-center gap-2">
-                            สถานะฝั่ง Recording (แพลนถ่ายทำ)
-                        </h3>
-                    </div>
-                    <div class="divide-y relative min-h-[50px]">
-                        @foreach($jobStages->where('type', 'recording') as $stage)
-                        <div class="px-5 py-3 group hover:bg-gray-50 transition" x-data="{ editing: false }">
-                            <div x-show="!editing" class="flex items-center justify-between">
-                                <div class="flex items-center gap-4">
-                                    <div class="w-6 text-center text-xs text-gray-400">{{ $stage->sort_order }}</div>
-                                    <div class="min-w-[120px]">
-                                        <span class="inline-block px-2.5 py-1 rounded-full text-xs font-semibold bg-{{ $stage->color }}-100 text-{{ $stage->color }}-700 border border-{{ $stage->color }}-200">
-                                            {{ $stage->name }}
-                                        </span>
-                                    </div>
-                                    <div>
-                                        <code class="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">{{ $stage->code }}</code>
-                                    </div>
-                                    @if($stage->is_core)
-                                    <div>
-                                        <span class="px-1.5 py-0.5 bg-gray-800 text-white rounded text-[10px] font-bold">CORE</span>
-                                    </div>
-                                    @endif
-                                    @if(!$stage->is_active)
-                                    <div>
-                                        <span class="px-1.5 py-0.5 bg-red-100 text-red-600 rounded text-[10px] font-bold">ปิดใช้งาน</span>
-                                    </div>
-                                    @endif
+            <!-- Game List -->
+            <div class="lg:col-span-2 bg-white rounded-2xl shadow-sm border overflow-hidden">
+                <div class="px-5 py-3 bg-violet-50 border-b border-violet-100">
+                    <h3 class="font-bold text-violet-800 text-sm flex items-center gap-2">
+                        🎮 เกมทั้งหมด
+                    </h3>
+                </div>
+                <div class="divide-y">
+                    @forelse($games as $game)
+                    <div class="px-5 py-3 group hover:bg-gray-50 transition" x-data="{ editing: false }">
+                        <div x-show="!editing" class="flex items-center justify-between">
+                            <div class="flex items-center gap-4">
+                                <div>
+                                    <div class="text-sm font-semibold text-gray-800">{{ $game->game_name }}</div>
+                                    <code class="text-[11px] text-gray-400 bg-gray-50 px-1 rounded">{{ $game->game_slug }}</code>
                                 </div>
-                                <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button @click="editing = true" class="px-2 py-1 text-[10px] font-bold text-indigo-600 bg-indigo-50 rounded border border-indigo-200 hover:bg-indigo-100">แก้ไข</button>
-                                    @if(!$stage->is_core)
-                                    <form action="{{ route('settings.master-data.job-stages.delete', $stage->id) }}" method="POST" onsubmit="return confirm('ลบสถานะ {{ $stage->name }}? (หากมีจ๊อบค้างอยู่จะพัง)')">
-                                        @csrf @method('DELETE')
-                                        <button type="submit" class="px-2 py-1 text-[10px] font-bold text-red-600 bg-red-50 rounded border border-red-200 hover:bg-red-100">ลบ</button>
-                                    </form>
-                                    @endif
-                                </div>
-                            </div>
-                            <form x-show="editing" x-cloak action="{{ route('settings.master-data.job-stages.update', $stage->id) }}" method="POST" class="flex flex-wrap items-center gap-3 mt-2">
-                                @csrf @method('PATCH')
-                                <input type="number" name="sort_order" value="{{ $stage->sort_order }}" class="w-16 px-2 py-1.5 border rounded text-sm text-center" title="Sort Order">
-                                <input type="text" name="name" value="{{ $stage->name }}" class="px-2 py-1.5 border rounded text-sm flex-grow min-w-[150px]" required>
-                                @if(!$stage->is_core)
-                                <input type="text" name="code" value="{{ $stage->code }}" class="w-32 px-2 py-1.5 border rounded text-sm bg-indigo-50" title="Code">
+                                <span class="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold {{ $game->is_active ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-500' }}">
+                                    {{ $game->is_active ? 'Active' : 'Inactive' }}
+                                </span>
+                                @php $jobCount = $game->editingJobs()->where('is_deleted', false)->count(); @endphp
+                                @if($jobCount > 0)
+                                <span class="text-[10px] text-gray-400">{{ $jobCount }} งาน</span>
                                 @endif
-                                <select name="color" class="w-32 px-2 py-1.5 border rounded text-sm">
-                                    @foreach(['gray', 'blue', 'indigo', 'yellow', 'green', 'emerald', 'red', 'pink', 'purple', 'orange'] as $c)
-                                        <option value="{{ $c }}" @selected($stage->color === $c)>{{ ucfirst($c) }}</option>
-                                    @endforeach
-                                </select>
-                                <label class="flex items-center gap-1 text-xs whitespace-nowrap">
-                                    <input type="checkbox" name="is_active" value="1" {{ $stage->is_active ? 'checked' : '' }} class="rounded border-gray-300 text-indigo-600">
-                                    เปิดใช้งาน
-                                </label>
-                                <button type="submit" class="px-3 py-1.5 text-xs text-white bg-indigo-600 rounded hover:bg-indigo-700">บันทึก</button>
-                                <button type="button" @click="editing = false" class="px-3 py-1.5 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200">ยกเลิก</button>
-                            </form>
+                            </div>
+                            <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button @click="editing = true" class="px-2 py-1 text-[10px] font-bold text-indigo-600 bg-indigo-50 rounded border border-indigo-200 hover:bg-indigo-100">แก้ไข</button>
+                                @if($jobCount === 0)
+                                <form action="{{ route('settings.master-data.games.delete', $game->id) }}" method="POST" onsubmit="return confirm('ลบเกม {{ $game->game_name }}?')">
+                                    @csrf @method('DELETE')
+                                    <button type="submit" class="px-2 py-1 text-[10px] font-bold text-red-600 bg-red-50 rounded border border-red-200 hover:bg-red-100">ลบ</button>
+                                </form>
+                                @endif
+                            </div>
                         </div>
-                        @endforeach
+                        <form x-show="editing" x-cloak action="{{ route('settings.master-data.games.update', $game->id) }}" method="POST" class="flex items-center gap-3 flex-wrap mt-2">
+                            @csrf @method('PATCH')
+                            <input type="text" name="game_name" value="{{ $game->game_name }}" class="px-2 py-1.5 border rounded text-sm flex-grow" required>
+                            <input type="text" name="game_slug" value="{{ $game->game_slug }}" class="px-2 py-1.5 border rounded text-sm w-32 lowercase">
+                            <label class="flex items-center gap-1 text-xs whitespace-nowrap">
+                                <input type="checkbox" name="is_active" value="1" {{ $game->is_active ? 'checked' : '' }} class="rounded border-gray-300 text-indigo-600">
+                                Active
+                            </label>
+                            <button type="submit" class="px-3 py-1.5 text-xs text-white bg-indigo-600 rounded hover:bg-indigo-700">บันทึก</button>
+                            <button type="button" @click="editing = false" class="px-3 py-1.5 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200">ยกเลิก</button>
+                        </form>
+                    </div>
+                    @empty
+                    <div class="px-5 py-8 text-center text-gray-400 italic">ยังไม่มีเกม — เพิ่มได้จากฟอร์มซ้ายมือ</div>
+                    @endforelse
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================== TAB: FL Layer Rate Templates ===================== -->
+    <div x-show="activeTab === 'layer_rate_templates'" x-cloak x-data="{ selectedEmployeeId: '' }">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="bg-white rounded-2xl shadow-sm border p-5">
+                <h3 class="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
+                    <span class="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center text-xs">+</span>
+                    เพิ่มเทมเพลตราคา FL Layer รายคน
+                </h3>
+                <form action="{{ route('settings.master-data.layer-rate-rules.store') }}" method="POST" class="space-y-3">
+                    @csrf
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">พนักงาน (FL Layer) *</label>
+                        <select name="employee_id" required class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-emerald-500">
+                            <option value="">-- เลือกพนักงาน --</option>
+                            @foreach($freelanceLayerEmployees as $emp)
+                            <option value="{{ $emp->id }}">{{ $emp->full_name }} ({{ $emp->employee_code }})</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Layer From *</label>
+                            <input type="number" name="layer_from" min="1" required class="w-full px-3 py-2 border rounded-lg text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Layer To *</label>
+                            <input type="number" name="layer_to" min="1" required class="w-full px-3 py-2 border rounded-lg text-sm">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Rate per minute *</label>
+                        <input type="number" name="rate_per_minute" step="0.0001" min="0" required class="w-full px-3 py-2 border rounded-lg text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Effective Date *</label>
+                        <input type="date" name="effective_date" value="{{ now()->toDateString() }}" required class="w-full px-3 py-2 border rounded-lg text-sm">
+                    </div>
+                    <label class="inline-flex items-center gap-2 text-xs font-medium text-gray-600">
+                        <input type="checkbox" name="is_active" value="1" checked class="rounded border-gray-300 text-emerald-600">
+                        เปิดใช้งาน
+                    </label>
+                    <button type="submit" class="w-full bg-emerald-600 text-white py-2.5 rounded-xl font-bold text-sm hover:bg-emerald-700 transition">เพิ่มเทมเพลต</button>
+                </form>
+            </div>
+
+            <div class="lg:col-span-2 bg-white rounded-2xl shadow-sm border overflow-hidden">
+                <div class="px-5 py-3 bg-emerald-50 border-b border-emerald-100">
+                    <h3 class="font-bold text-emerald-800 text-sm">รายการเทมเพลตราคาเลเยอร์รายคน (FL Layer)</h3>
+                </div>
+                <div class="px-5 py-3 border-b border-gray-100 bg-white">
+                    <div class="max-w-sm">
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">ฟิลเตอร์เฉพาะพนักงาน</label>
+                        <select x-model="selectedEmployeeId" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-emerald-500">
+                            <option value="">-- แสดงทุกคน --</option>
+                            @foreach($freelanceLayerEmployees as $emp)
+                            <option value="{{ $emp->id }}">{{ $emp->full_name }} ({{ $emp->employee_code }})</option>
+                            @endforeach
+                        </select>
                     </div>
                 </div>
+                <div class="overflow-x-auto max-h-[65vh]">
+                    <table class="w-full text-sm">
+                        <thead class="bg-gray-50 sticky top-0">
+                            <tr class="text-gray-500">
+                                <th class="text-left px-4 py-2.5 font-medium">พนักงาน</th>
+                                <th class="text-left px-4 py-2.5 font-medium">ช่วงเลเยอร์</th>
+                                <th class="text-left px-4 py-2.5 font-medium">เรท/นาที</th>
+                                <th class="text-left px-4 py-2.5 font-medium">Effective</th>
+                                <th class="text-left px-4 py-2.5 font-medium">สถานะ</th>
+                                <th class="text-right px-4 py-2.5 font-medium">จัดการ</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y">
+                            @forelse($layerRateRules as $rule)
+                            <tr class="group hover:bg-gray-50" x-data="{ editing: false }" x-show="selectedEmployeeId === '' || selectedEmployeeId === '{{ $rule->employee_id }}'">
+                                <td class="px-4 py-3" colspan="6">
+                                    <div x-show="!editing" class="flex items-center justify-between gap-4">
+                                        <div class="min-w-[180px]">
+                                            <div class="font-semibold text-gray-800">{{ $rule->employee?->full_name ?? '-' }}</div>
+                                            <div class="text-xs text-gray-400">{{ $rule->employee?->employee_code ?? '-' }}</div>
+                                        </div>
+                                        <div class="min-w-[120px] text-sm text-gray-700">L{{ $rule->layer_from }} - L{{ $rule->layer_to }}</div>
+                                        <div class="min-w-[120px] text-sm font-semibold text-gray-800">{{ number_format((float) $rule->rate_per_minute, 4) }}/นาที</div>
+                                        <div class="min-w-[120px] text-xs text-gray-500">{{ optional($rule->effective_date)->format('d/m/Y') }}</div>
+                                        <div class="min-w-[80px]">
+                                            <span class="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold {{ $rule->is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-500' }}">
+                                                {{ $rule->is_active ? 'ใช้งาน' : 'ปิด' }}
+                                            </span>
+                                        </div>
+                                        <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-auto">
+                                            <button @click="editing = true" class="px-2 py-1 text-[10px] font-bold text-indigo-600 bg-indigo-50 rounded border border-indigo-200 hover:bg-indigo-100">แก้ไข</button>
+                                            <form action="{{ route('settings.master-data.layer-rate-rules.delete', $rule->id) }}" method="POST" onsubmit="return confirm('ลบเทมเพลตราคา L{{ $rule->layer_from }}-L{{ $rule->layer_to }} ของ {{ $rule->employee?->full_name }} ?')">
+                                                @csrf @method('DELETE')
+                                                <button type="submit" class="px-2 py-1 text-[10px] font-bold text-red-600 bg-red-50 rounded border border-red-200 hover:bg-red-100">ลบ</button>
+                                            </form>
+                                        </div>
+                                    </div>
 
-                <!-- Edit Stages -->
-                <div class="bg-white rounded-2xl shadow-sm border overflow-hidden">
-                    <div class="px-5 py-3 bg-slate-50 border-b border-slate-200">
-                        <h3 class="font-bold text-slate-800 text-sm flex items-center gap-2">
-                            สถานะฝั่ง Edit (งานตัดต่อ)
-                        </h3>
-                    </div>
-                    <div class="divide-y relative min-h-[50px]">
-                        @foreach($jobStages->where('type', 'edit') as $stage)
-                        <div class="px-5 py-3 group hover:bg-gray-50 transition" x-data="{ editing: false }">
-                            <div x-show="!editing" class="flex items-center justify-between">
-                                <div class="flex items-center gap-4">
-                                    <div class="w-6 text-center text-xs text-gray-400">{{ $stage->sort_order }}</div>
-                                    <div class="min-w-[120px]">
-                                        <span class="inline-block px-2.5 py-1 rounded-full text-xs font-semibold bg-{{ $stage->color }}-100 text-{{ $stage->color }}-700 border border-{{ $stage->color }}-200">
-                                            {{ $stage->name }}
-                                        </span>
-                                    </div>
-                                    <div>
-                                        <code class="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">{{ $stage->code }}</code>
-                                    </div>
-                                    @if($stage->is_core)
-                                    <div>
-                                        <span class="px-1.5 py-0.5 bg-gray-800 text-white rounded text-[10px] font-bold">CORE</span>
-                                    </div>
-                                    @endif
-                                    @if(!$stage->is_active)
-                                    <div>
-                                        <span class="px-1.5 py-0.5 bg-red-100 text-red-600 rounded text-[10px] font-bold">ปิดใช้งาน</span>
-                                    </div>
-                                    @endif
-                                </div>
-                                <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button @click="editing = true" class="px-2 py-1 text-[10px] font-bold text-indigo-600 bg-indigo-50 rounded border border-indigo-200 hover:bg-indigo-100">แก้ไข</button>
-                                    @if(!$stage->is_core)
-                                    <form action="{{ route('settings.master-data.job-stages.delete', $stage->id) }}" method="POST" onsubmit="return confirm('ลบสถานะ {{ $stage->name }}? (หากมีจ๊อบค้างอยู่จะพัง)')">
-                                        @csrf @method('DELETE')
-                                        <button type="submit" class="px-2 py-1 text-[10px] font-bold text-red-600 bg-red-50 rounded border border-red-200 hover:bg-red-100">ลบ</button>
+                                    <form x-show="editing" x-cloak action="{{ route('settings.master-data.layer-rate-rules.update', $rule->id) }}" method="POST" class="grid grid-cols-1 md:grid-cols-6 gap-2 mt-1">
+                                        @csrf @method('PATCH')
+                                        <div class="md:col-span-2 text-sm px-2 py-1.5 border rounded bg-gray-50 text-gray-700">
+                                            {{ $rule->employee?->full_name ?? '-' }}
+                                        </div>
+                                        <input type="number" name="layer_from" value="{{ $rule->layer_from }}" min="1" required class="px-2 py-1.5 border rounded text-sm">
+                                        <input type="number" name="layer_to" value="{{ $rule->layer_to }}" min="1" required class="px-2 py-1.5 border rounded text-sm">
+                                        <input type="number" name="rate_per_minute" value="{{ (float) $rule->rate_per_minute }}" step="0.0001" min="0" required class="px-2 py-1.5 border rounded text-sm">
+                                        <input type="date" name="effective_date" value="{{ optional($rule->effective_date)->toDateString() }}" required class="px-2 py-1.5 border rounded text-sm">
+                                        <div class="md:col-span-6 flex items-center justify-between">
+                                            <label class="inline-flex items-center gap-2 text-xs text-gray-600">
+                                                <input type="checkbox" name="is_active" value="1" {{ $rule->is_active ? 'checked' : '' }} class="rounded border-gray-300 text-emerald-600">
+                                                เปิดใช้งาน
+                                            </label>
+                                            <div class="flex items-center gap-2">
+                                                <button type="button" @click="editing = false" class="px-3 py-1.5 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200">ยกเลิก</button>
+                                                <button type="submit" class="px-3 py-1.5 text-xs text-white bg-indigo-600 rounded hover:bg-indigo-700">บันทึก</button>
+                                            </div>
+                                        </div>
                                     </form>
-                                    @endif
-                                </div>
-                            </div>
-                            <form x-show="editing" x-cloak action="{{ route('settings.master-data.job-stages.update', $stage->id) }}" method="POST" class="flex flex-wrap items-center gap-3 mt-2">
-                                @csrf @method('PATCH')
-                                <input type="number" name="sort_order" value="{{ $stage->sort_order }}" class="w-16 px-2 py-1.5 border rounded text-sm text-center" title="Sort Order">
-                                <input type="text" name="name" value="{{ $stage->name }}" class="px-2 py-1.5 border rounded text-sm flex-grow min-w-[150px]" required>
-                                @if(!$stage->is_core)
-                                <input type="text" name="code" value="{{ $stage->code }}" class="w-32 px-2 py-1.5 border rounded text-sm bg-indigo-50" title="Code">
-                                @endif
-                                <select name="color" class="w-32 px-2 py-1.5 border rounded text-sm">
-                                    @foreach(['gray', 'blue', 'indigo', 'yellow', 'green', 'emerald', 'red', 'pink', 'purple', 'orange'] as $c)
-                                        <option value="{{ $c }}" @selected($stage->color === $c)>{{ ucfirst($c) }}</option>
-                                    @endforeach
-                                </select>
-                                <label class="flex items-center gap-1 text-xs whitespace-nowrap">
-                                    <input type="checkbox" name="is_active" value="1" {{ $stage->is_active ? 'checked' : '' }} class="rounded border-gray-300 text-indigo-600">
-                                    เปิดใช้งาน
-                                </label>
-                                <button type="submit" class="px-3 py-1.5 text-xs text-white bg-indigo-600 rounded hover:bg-indigo-700">บันทึก</button>
-                                <button type="button" @click="editing = false" class="px-3 py-1.5 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200">ยกเลิก</button>
-                            </form>
-                        </div>
-                        @endforeach
-                    </div>
+                                </td>
+                            </tr>
+                            @empty
+                            <tr>
+                                <td colspan="6" class="px-4 py-8 text-center text-gray-400 italic">ยังไม่มีเทมเพลตราคา FL Layer รายคน</td>
+                            </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>

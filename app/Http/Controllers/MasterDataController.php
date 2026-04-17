@@ -8,6 +8,8 @@ use App\Models\Department;
 use App\Models\Position;
 use App\Models\Employee;
 use App\Models\ModuleToggle;
+use App\Models\LayerRateRule;
+use App\Models\Game;
 use App\Services\AuditLogService;
 
 class MasterDataController extends Controller
@@ -26,8 +28,29 @@ class MasterDataController extends Controller
             ->orderBy('first_name')
             ->orderBy('last_name')
             ->get();
+        $freelanceLayerEmployees = Employee::where('is_active', true)
+            ->where('payroll_mode', 'freelance_layer')
+            ->orderBy('first_name')
+            ->orderBy('last_name')
+            ->get();
+        $layerRateRules = LayerRateRule::with('employee')
+            ->orderBy('employee_id')
+            ->orderBy('layer_from')
+            ->orderByDesc('effective_date')
+            ->get();
 
-        return view('settings.master-data', compact('payrollItemTypes', 'departments', 'positions', 'jobStages', 'employees'));
+        $games = Game::orderBy('game_name')->get();
+
+        return view('settings.master-data', compact(
+            'payrollItemTypes',
+            'departments',
+            'positions',
+            'jobStages',
+            'employees',
+            'freelanceLayerEmployees',
+            'layerRateRules',
+            'games'
+        ));
     }
 
     public function updateWorkspaceAccess(Request $request, Employee $employee)
@@ -55,6 +78,63 @@ class MasterDataController extends Controller
         );
 
         return back()->with('success', 'อัปเดตสิทธิ์แก้ไข Workspace สำเร็จ');
+    }
+
+    // === FL Layer Rate Templates (Per Employee) ===
+
+    public function storeLayerRateRule(Request $request)
+    {
+        $validated = $request->validate([
+            'employee_id' => 'required|exists:employees,id',
+            'layer_from' => 'required|integer|min:1',
+            'layer_to' => 'required|integer|gte:layer_from',
+            'rate_per_minute' => 'required|numeric|min:0',
+            'effective_date' => 'required|date',
+            'is_active' => 'nullable|boolean',
+        ]);
+
+        $employee = Employee::findOrFail($validated['employee_id']);
+        if ($employee->payroll_mode !== 'freelance_layer') {
+            return back()->with('error', 'ตั้งค่า Layer Rate ได้เฉพาะพนักงาน payroll mode = freelance_layer เท่านั้น');
+        }
+
+        $validated['is_active'] = $request->boolean('is_active', true);
+        $rule = LayerRateRule::create($validated);
+
+        $this->audit->logCreated($rule, 'เพิ่มเทมเพลตราคาเลเยอร์รายคน');
+
+        return back()->with('success', 'เพิ่มเทมเพลตราคาเลเยอร์สำเร็จ');
+    }
+
+    public function updateLayerRateRule(Request $request, LayerRateRule $layerRateRule)
+    {
+        $validated = $request->validate([
+            'layer_from' => 'required|integer|min:1',
+            'layer_to' => 'required|integer|gte:layer_from',
+            'rate_per_minute' => 'required|numeric|min:0',
+            'effective_date' => 'required|date',
+            'is_active' => 'nullable|boolean',
+        ]);
+
+        $validated['is_active'] = $request->boolean('is_active');
+        $old = $layerRateRule->toArray();
+        $layerRateRule->update($validated);
+
+        $this->audit->logUpdated(
+            $layerRateRule,
+            collect($old)->only(array_keys($validated))->toArray(),
+            'แก้ไขเทมเพลตราคาเลเยอร์รายคน'
+        );
+
+        return back()->with('success', 'อัปเดตเทมเพลตราคาเลเยอร์สำเร็จ');
+    }
+
+    public function deleteLayerRateRule(LayerRateRule $layerRateRule)
+    {
+        $this->audit->logDeleted($layerRateRule, 'ลบเทมเพลตราคาเลเยอร์รายคน');
+        $layerRateRule->delete();
+
+        return back()->with('success', 'ลบเทมเพลตราคาเลเยอร์สำเร็จ');
     }
 
     // === Payroll Item Types ===
@@ -160,12 +240,12 @@ class MasterDataController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:100',
             'code' => 'nullable|string|max:20',
-            'workspace_panel' => 'nullable|string|in:recording_queue,edit_jobs,youtuber,none',
+            'workspace_panel' => 'nullable|string|in:edit_jobs,youtuber,none',
             'department_id' => 'required|exists:departments,id',
         ]);
 
         $validated['is_active'] = true;
-        $validated['workspace_panel'] = $validated['workspace_panel'] ?? 'recording_queue';
+        $validated['workspace_panel'] = $validated['workspace_panel'] ?? 'edit_jobs';
         $pos = Position::create($validated);
         $this->audit->logCreated($pos, 'เพิ่มตำแหน่งใหม่');
 
@@ -177,13 +257,13 @@ class MasterDataController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:100',
             'code' => 'nullable|string|max:20',
-            'workspace_panel' => 'nullable|string|in:recording_queue,edit_jobs,youtuber,none',
+            'workspace_panel' => 'nullable|string|in:edit_jobs,youtuber,none',
             'department_id' => 'required|exists:departments,id',
             'is_active' => 'nullable|boolean',
         ]);
 
         $validated['is_active'] = $request->boolean('is_active');
-        $validated['workspace_panel'] = $validated['workspace_panel'] ?? 'recording_queue';
+        $validated['workspace_panel'] = $validated['workspace_panel'] ?? 'edit_jobs';
         $old = $position->toArray();
         $position->update($validated);
         $this->audit->logUpdated($position, collect($old)->only(array_keys($validated))->toArray(), 'แก้ไขตำแหน่ง');
@@ -258,5 +338,57 @@ class MasterDataController extends Controller
         $jobStage->delete();
 
         return back()->with('success', "ลบสถานะ \"{$name}\" สำเร็จ");
+    }
+
+    // === Games ===
+
+    public function storeGame(Request $request)
+    {
+        $validated = $request->validate([
+            'game_name' => 'required|string|max:255',
+            'game_slug' => 'nullable|string|max:255',
+        ]);
+
+        $validated['game_slug'] = $validated['game_slug']
+            ?: \Illuminate\Support\Str::slug($validated['game_name']);
+        $validated['is_active'] = true;
+
+        $game = Game::create($validated);
+        $this->audit->logCreated($game, 'เพิ่มเกม: ' . $game->game_name);
+
+        return back()->with('success', 'เพิ่มเกม "' . $game->game_name . '" สำเร็จ');
+    }
+
+    public function updateGame(Request $request, Game $game)
+    {
+        $validated = $request->validate([
+            'game_name' => 'required|string|max:255',
+            'game_slug' => 'nullable|string|max:255',
+            'is_active' => 'nullable',
+        ]);
+
+        $validated['is_active'] = $request->has('is_active');
+        if (!empty($validated['game_slug'])) {
+            $validated['game_slug'] = \Illuminate\Support\Str::slug($validated['game_slug']);
+        }
+
+        $game->update($validated);
+        $this->audit->logUpdated($game, 'อัปเดตเกม: ' . $game->game_name);
+
+        return back()->with('success', 'อัปเดตเกม "' . $game->game_name . '" สำเร็จ');
+    }
+
+    public function deleteGame(Game $game)
+    {
+        $jobCount = $game->editingJobs()->where('is_deleted', false)->count();
+        if ($jobCount > 0) {
+            return back()->with('error', 'ไม่สามารถลบเกมที่มีงานอยู่ (' . $jobCount . ' งาน)');
+        }
+
+        $name = $game->game_name;
+        $this->audit->logDeleted($game, 'ลบเกม: ' . $name);
+        $game->delete();
+
+        return back()->with('success', 'ลบเกม "' . $name . '" สำเร็จ');
     }
 }

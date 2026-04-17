@@ -5,6 +5,7 @@
     $totalAdvances = $claims->where('type', 'advance')->sum('amount');
     $isOverCeiling = $ceilingPercent > 0 && $totalAdvances > $ceilingAmount;
     $remainingQuota = $ceilingPercent > 0 ? ($ceilingAmount - $totalAdvances) : null;
+    $canManageClaims = auth()->user()?->hasRole('admin') ?? false;
 @endphp
 
 <!-- Cash Advance & Expense Claims Module -->
@@ -95,18 +96,20 @@
                         </td>
                         <td class="px-3 py-2 text-right whitespace-nowrap">
                             <div class="flex items-center justify-end gap-2 text-[10px] font-bold">
-                                @if($claim->status === 'pending')
+                                @if($canManageClaims && $claim->status === 'pending')
                                 <form action="{{ route('workspace.claims.approve', $claim->id) }}" method="POST">
                                     @csrf
                                     @method('PATCH')
                                     <button type="submit" class="text-indigo-600 hover:text-indigo-800 uppercase">Approve</button>
                                 </form>
                                 @endif
+                                @if($canManageClaims)
                                 <form action="{{ route('workspace.claims.delete', $claim->id) }}" method="POST" onsubmit="return confirm('ยืนยันการลบ?')">
                                     @csrf
                                     @method('DELETE')
                                     <button type="submit" class="text-red-400 hover:text-red-600 uppercase">ลบ</button>
                                 </form>
+                                @endif
                             </div>
                         </td>
                     </tr>
@@ -121,6 +124,7 @@
 
         <div x-show="openManage" x-cloak class="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-4">
             <div class="grid grid-cols-1 gap-4">
+                @if($canManageClaims)
                 <form action="{{ route('workspace.updateAdvanceCeiling', $employee->id) }}" method="POST" class="rounded-xl border bg-white p-3 flex items-center gap-3">
                     @csrf
                     @method('PATCH')
@@ -141,6 +145,7 @@
                             <button type="submit" class="bg-indigo-600 text-white px-3 py-1.5 rounded text-[10px] font-bold uppercase hover:bg-indigo-700 transition">Update</button>
                     </div>
                 </form>
+                @endif
 
                 @if($errors->has('amount'))
                 <div class="rounded-xl border border-red-200 bg-red-50 px-3 py-3 text-red-700 text-xs font-bold">

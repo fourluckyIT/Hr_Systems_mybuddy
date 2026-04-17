@@ -20,9 +20,23 @@ class PayslipController extends Controller
         protected PayrollCalculationService $payrollService
     ) {}
 
+    protected function ensureCanAccessEmployeePayslip(Employee $employee): void
+    {
+        $user = auth()->user();
+        $isEmployeeOnly = $user
+            && $user->hasRole('owner')
+            && !$user->hasRole('admin');
+
+        if ($isEmployeeOnly && (int) ($user->employee?->id) !== (int) $employee->id) {
+            abort(403, 'คุณไม่มีสิทธิ์เข้าถึงสลิปของพนักงานคนอื่น');
+        }
+    }
+
     public function preview(Employee $employee, int $month, int $year)
     {
         try {
+            $this->ensureCanAccessEmployeePayslip($employee);
+
             // Validate month and year
             if ($month < 1 || $month > 12 || $year < 2000 || $year > 2100) {
                 return back()->withErrors(['error' => 'เดือนหรือปีไม่ถูกต้อง']);
@@ -63,7 +77,7 @@ class PayslipController extends Controller
 
             $yearToDate = $this->buildYearToDateSummary($employee, $month, $year);
             $monthlyStats = $this->buildMonthlyStats($employee, $month, $year, $result);
-            
+
             // Get company profile (active)
             $company = CompanyProfile::active();
 
@@ -134,6 +148,8 @@ class PayslipController extends Controller
     public function downloadPdf(Employee $employee, int $month, int $year)
     {
         try {
+            $this->ensureCanAccessEmployeePayslip($employee);
+
             // Validate month and year
             if ($month < 1 || $month > 12 || $year < 2000 || $year > 2100) {
                 return back()->withErrors(['error' => 'เดือนหรือปีไม่ถูกต้อง']);
@@ -157,6 +173,7 @@ class PayslipController extends Controller
 
             $yearToDate = $this->buildYearToDateSummary($employee, $month, $year);
             $monthlyStats = $this->buildMonthlyStats($employee, $month, $year);
+            $company = CompanyProfile::active();
 
             $monthNames = ['', 'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
 
@@ -168,6 +185,7 @@ class PayslipController extends Controller
                 'monthName' => $monthNames[$month] ?? '',
                 'yearToDate' => $yearToDate,
                 'monthlyStats' => $monthlyStats,
+                'company' => $company,
             ])->setOption([
                 'defaultFont' => 'NotoSansThai',
                 'isFontSubsettingEnabled' => true,
@@ -226,32 +244,38 @@ class PayslipController extends Controller
         $totalDeduction = 0.0;
         $netPay = 0.0;
 
+        // Respect start_date – do not accumulate months before the employee joined
+        $startDate    = $employee->start_date;
+        $startYear    = $startDate ? (int) $startDate->format('Y') : 0;
+        $startMonth   = $startDate ? (int) $startDate->format('n') : 1;
+
         for ($runningMonth = 1; $runningMonth <= $month; $runningMonth++) {
+            // Skip months before start_date
+            if ($startDate) {
+                if ($year < $startYear) break;
+                if ($year === $startYear && $runningMonth < $startMonth) continue;
+            }
+
             $monthlyPayslip = Payslip::where('employee_id', $employee->id)
                 ->where('month', $runningMonth)
                 ->where('year', $year)
                 ->first();
 
             if ($monthlyPayslip && $monthlyPayslip->status === 'finalized') {
-                $monthlyIncome = (float) $monthlyPayslip->total_income;
+                $monthlyIncome    = (float) $monthlyPayslip->total_income;
                 $monthlyDeduction = (float) $monthlyPayslip->total_deduction;
-                $monthlyNet = (float) $monthlyPayslip->net_pay;
-            } else {
-                $result = $this->payrollService->calculateForEmployee($employee, $runningMonth, $year);
-                $monthlyIncome = (float) ($result['summary']['total_income'] ?? 0);
-                $monthlyDeduction = (float) ($result['summary']['total_deduction'] ?? 0);
-                $monthlyNet = (float) ($result['summary']['net_pay'] ?? ($monthlyIncome - $monthlyDeduction));
-            }
+                $monthlyNet       = (float) $monthlyPayslip->net_pay;
 
-            $totalIncome += $monthlyIncome;
-            $totalDeduction += $monthlyDeduction;
-            $netPay += $monthlyNet;
+                $totalIncome    += $monthlyIncome;
+                $totalDeduction += $monthlyDeduction;
+                $netPay         += $monthlyNet;
+            }
         }
 
         return [
-            'total_income' => $totalIncome,
+            'total_income'    => $totalIncome,
             'total_deduction' => $totalDeduction,
-            'net_pay' => $netPay,
+            'net_pay'         => $netPay,
         ];
     }
 

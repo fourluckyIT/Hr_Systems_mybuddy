@@ -24,7 +24,7 @@ return new class extends Migration
             $table->id();
             $table->unsignedBigInteger('employee_id');
             $table->unsignedInteger('layer_from');
-            $table->unsignedInteger('layer_to');
+            $table->unsignedInteger('layer_to')->nullable();
             $table->decimal('rate_per_minute', 12, 4)->default(0);
             $table->date('effective_date');
             $table->boolean('is_active')->default(true);

@@ -8,15 +8,15 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('media_resources', function (Blueprint $table) {
-            $table->unsignedInteger('footage_count')->nullable()->after('title');
+        Schema::table('employees', function (Blueprint $table) {
+            $table->date('probation_end_date')->nullable()->after('start_date');
         });
     }
 
     public function down(): void
     {
-        Schema::table('media_resources', function (Blueprint $table) {
-            $table->dropColumn('footage_count');
+        Schema::table('employees', function (Blueprint $table) {
+            $table->dropColumn('probation_end_date');
         });
     }
 };

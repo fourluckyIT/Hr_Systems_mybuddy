@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Employee;
 use App\Models\Department;
 use App\Models\Position;
+use App\Models\Role;
 use App\Models\EmployeeProfile;
 use App\Models\EmployeeSalaryProfile;
 use App\Models\EmployeeBankAccount;
@@ -42,8 +43,9 @@ class EmployeeController extends Controller
 
         $employees = $query->orderBy('first_name')->get();
         $departments = Department::where('is_active', true)->get();
+        $positions = Position::where('is_active', true)->with('department')->get();
 
-        return view('employees.index', compact('employees', 'departments', 'showInactive'));
+        return view('employees.index', compact('employees', 'departments', 'positions', 'showInactive'));
     }
 
     public function toggleStatus(Employee $employee)
@@ -62,8 +64,9 @@ class EmployeeController extends Controller
     {
         $departments = Department::where('is_active', true)->get();
         $positions = Position::where('is_active', true)->get();
+        $roles = Role::orderBy('name')->get();
 
-        return view('employees.create', compact('departments', 'positions'));
+        return view('employees.create', compact('departments', 'positions', 'roles'));
     }
 
     public function store(Request $request)
@@ -75,8 +78,11 @@ class EmployeeController extends Controller
             'employee_code' => 'nullable|string|max:50|unique:employees',
             'department_id' => 'nullable|exists:departments,id',
             'position_id' => 'nullable|exists:positions,id',
-            'payroll_mode' => 'required|in:monthly_staff,freelance_layer,freelance_fixed,youtuber_salary,youtuber_settlement,custom_hybrid',
+            'role_id' => 'nullable|exists:roles,id',
+            'payroll_mode' => 'required|in:monthly_staff,office_staff,freelance_layer,freelance_fixed,youtuber_salary,youtuber_settlement,custom_hybrid',
+            'status' => 'nullable|string|in:active,inactive,probation,terminated',
             'start_date' => 'nullable|date',
+            'effective_date' => 'nullable|date',
             'base_salary' => 'nullable|numeric|min:0',
             'bank_name' => 'nullable|string|max:255',
             'account_number' => 'nullable|string|max:50',
@@ -93,6 +99,8 @@ class EmployeeController extends Controller
             'department_id' => $validated['department_id'] ?? null,
             'position_id' => $validated['position_id'] ?? null,
             'payroll_mode' => $validated['payroll_mode'],
+            'status' => $validated['status'] ?? 'active',
+            'is_active' => ($validated['status'] ?? 'active') === 'active',
             'start_date' => $validated['start_date'] ?? null,
         ]);
 
@@ -108,7 +116,7 @@ class EmployeeController extends Controller
             EmployeeSalaryProfile::create([
                 'employee_id' => $employee->id,
                 'base_salary' => $validated['base_salary'],
-                'effective_date' => $validated['start_date'] ?? now()->toDateString(),
+                'effective_date' => $validated['effective_date'] ?? $validated['start_date'] ?? now()->toDateString(),
                 'is_current' => true,
             ]);
         }
@@ -123,9 +131,62 @@ class EmployeeController extends Controller
             ]);
         }
 
+        if ($employee->user) {
+            $employee->user->roles()->sync([$validated['role_id']]);
+        }
+
         AuditLogService::logCreated($employee, 'Employee created');
 
         return redirect()->route('employees.index')->with('success', 'เพิ่มพนักงานสำเร็จ');
+    }
+
+    public function generateCode(Request $request)
+    {
+        $departmentId = $request->get('department_id');
+        $payrollMode = $request->get('payroll_mode');
+
+        $prefix = '';
+
+        if ($departmentId) {
+            $dept = Department::find($departmentId);
+            $prefix = $dept?->code ?? '';
+        }
+
+        if (!$prefix && $payrollMode) {
+            $prefix = match ($payrollMode) {
+                'freelance_layer', 'freelance_fixed' => 'FL',
+                'youtuber_salary', 'youtuber_settlement' => 'YT',
+                'monthly_staff' => 'STAFF',
+                'office_staff' => 'OFFICE',
+                default => 'EMP',
+            };
+        }
+
+        if (!$prefix) {
+            $prefix = 'EMP';
+        }
+
+        // Find next sequence for this prefix (Database agnostic approach)
+        $codes = Employee::where('employee_code', 'like', $prefix . '-%')
+            ->pluck('employee_code')
+            ->toArray();
+
+        $nextNum = 1;
+        if (!empty($codes)) {
+            $maxNum = 0;
+            foreach ($codes as $c) {
+                $parts = explode('-', $c);
+                $num = (int) end($parts);
+                if ($num > $maxNum) {
+                    $maxNum = $num;
+                }
+            }
+            $nextNum = $maxNum + 1;
+        }
+
+        $code = $prefix . '-' . str_pad($nextNum, 3, '0', STR_PAD_LEFT);
+
+        return response()->json(['code' => $code, 'prefix' => $prefix]);
     }
 
     public function edit(Employee $employee)
@@ -146,7 +207,7 @@ class EmployeeController extends Controller
             'employee_code' => 'nullable|string|max:50|unique:employees,employee_code,' . $employee->id,
             'department_id' => 'nullable|exists:departments,id',
             'position_id' => 'nullable|exists:positions,id',
-            'payroll_mode' => 'required|in:monthly_staff,freelance_layer,freelance_fixed,youtuber_salary,youtuber_settlement,custom_hybrid',
+            'payroll_mode' => 'required|in:monthly_staff,office_staff,freelance_layer,freelance_fixed,youtuber_salary,youtuber_settlement,custom_hybrid',
             'start_date' => 'nullable|date',
             'base_salary' => 'nullable|numeric|min:0',
             'bank_name' => 'nullable|string|max:255',

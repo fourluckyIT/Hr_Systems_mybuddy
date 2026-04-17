@@ -5,11 +5,14 @@ namespace App\Http\Controllers;
 use App\Models\Employee;
 use App\Models\AttendanceLog;
 use App\Models\CompanyHoliday;
+use App\Models\DaySwapRequest;
+use App\Models\LeaveRequest;
 use App\Models\RecordingJob;
-use App\Models\EditJob;
+use App\Models\EditingJob;
 use App\Models\JobStage;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class CalendarController extends Controller
 {
@@ -50,10 +53,31 @@ class CalendarController extends Controller
             ->whereBetween('scheduled_date', [$startDate, $endDate])
             ->get();
 
-        // Fetch Edit Jobs
-        $editJobs = EditJob::with('mediaResource', 'editor')
-            ->whereBetween('due_date', [$startDate, $endDate])
+        // Fetch Editing Jobs (Consolidated Pipeline)
+        $editingJobs = EditingJob::with(['game', 'assignee'])
+            ->active()
+            ->whereBetween('deadline_date', [$startDate, $endDate])
             ->get();
+
+        // Fetch personal leave / swap requests
+        $user = Auth::user();
+        $isAdmin = $user->hasRole('admin');
+
+        $leaveQuery = LeaveRequest::with('employee')
+            ->whereIn('status', ['pending', 'approved'])
+            ->whereBetween('leave_date', [$startDate, $endDate]);
+        $swapQuery = DaySwapRequest::with('employee')
+            ->whereIn('status', ['pending', 'approved'])
+            ->whereBetween('work_date', [$startDate, $endDate]);
+
+        if (!$isAdmin) {
+            $myEmployeeId = $user->employee?->id;
+            $leaveQuery->where('employee_id', $myEmployeeId);
+            $swapQuery->where('employee_id', $myEmployeeId);
+        }
+
+        $leaveRequests = $leaveQuery->get();
+        $swapRequests  = $swapQuery->get();
 
         $events = [];
 
@@ -112,19 +136,55 @@ class CalendarController extends Controller
             ];
         }
 
-        // Add Edit Jobs to events (All day)
-        foreach ($editJobs as $ej) {
-            $dateStr = Carbon::parse($ej->due_date)->format('Y-m-d');
+        // Add Editing Jobs to events (All day)
+        foreach ($editingJobs as $ej) {
+            $dateStr = Carbon::parse($ej->deadline_date)->format('Y-m-d');
             $stage = $jobStages->get($ej->status);
             $c = $stage ? "bg-{$stage->color}-100 text-{$stage->color}-800 border-{$stage->color}-200" : 'bg-sky-100 text-sky-800 border-sky-200';
 
             $events[$dateStr][] = [
-                'type' => 'edit_job',
+                'type' => 'editing_job',
                 'id' => $ej->id,
-                'label' => '✂️ ' . ($ej->mediaResource?->title ?: 'งานตัดต่อ(ไม่ทราบชื่อ)'),
+                'label' => '✂️ ' . $ej->job_name,
                 'color' => $c,
                 'is_all_day' => true,
                 'model' => $ej,
+            ];
+        }
+
+        // Add Leave Requests to events (personal)
+        $leaveTypeLabels = ['sick_leave' => 'ลาป่วย', 'personal_leave' => 'ลากิจ', 'vacation_leave' => 'ลาพักร้อน', 'lwop' => 'LWOP'];
+        foreach ($leaveRequests as $lr) {
+            $dateStr = Carbon::parse($lr->leave_date)->format('Y-m-d');
+            $isPending = $lr->status === 'pending';
+            $color = $isPending ? 'bg-blue-50 text-blue-600 border-blue-200' : 'bg-blue-100 text-blue-800 border-blue-200';
+            $badge = $isPending ? '⏳' : '✓';
+            $typeLabel = $leaveTypeLabels[$lr->leave_type] ?? $lr->leave_type;
+
+            $events[$dateStr][] = [
+                'type'       => 'leave_request',
+                'id'         => $lr->id,
+                'label'      => "{$badge} {$lr->employee->nickname}: {$typeLabel}",
+                'color'      => $color,
+                'is_all_day' => true,
+                'model'      => $lr,
+            ];
+        }
+
+        // Add Day-Swap Requests to events (personal)
+        foreach ($swapRequests as $sr) {
+            $dateStr = Carbon::parse($sr->work_date)->format('Y-m-d');
+            $isPending = $sr->status === 'pending';
+            $color = $isPending ? 'bg-orange-50 text-orange-600 border-orange-200' : 'bg-orange-100 text-orange-800 border-orange-200';
+            $badge = $isPending ? '⏳' : '⇄';
+
+            $events[$dateStr][] = [
+                'type'       => 'day_swap_request',
+                'id'         => $sr->id,
+                'label'      => "{$badge} {$sr->employee->nickname}: สลับวัน",
+                'color'      => $color,
+                'is_all_day' => true,
+                'model'      => $sr,
             ];
         }
 
@@ -148,18 +208,18 @@ class CalendarController extends Controller
         $activeJobStages = $jobStages->where('is_active', true)->sortBy('sort_order');
         $mediaResources = \App\Models\MediaResource::whereIn('status', ['raw', 'ready_for_edit'])->get();
 
-        // --- Mini calendar (current month grid for sidebar) ---
+        // --- Mini calendar ---
         $miniCalendarStart = $currentDate->copy()->startOfMonth()->startOfWeek(Carbon::SUNDAY);
         $miniCalendarEnd   = $currentDate->copy()->endOfMonth()->endOfWeek(Carbon::SATURDAY);
 
-        // Fetch event dots for the full mini-calendar range
         $miniHolidays   = CompanyHoliday::where('is_active', true)
             ->whereBetween('holiday_date', [$miniCalendarStart, $miniCalendarEnd])
             ->get()->groupBy(fn($h) => Carbon::parse($h->holiday_date)->format('Y-m-d'));
         $miniRecordings = RecordingJob::whereBetween('scheduled_date', [$miniCalendarStart, $miniCalendarEnd])
             ->get()->groupBy(fn($rj) => Carbon::parse($rj->scheduled_date)->format('Y-m-d'));
-        $miniEdits      = EditJob::whereBetween('due_date', [$miniCalendarStart, $miniCalendarEnd])
-            ->get()->groupBy(fn($ej) => Carbon::parse($ej->due_date)->format('Y-m-d'));
+        $miniEdits      = EditingJob::active()
+            ->whereBetween('deadline_date', [$miniCalendarStart, $miniCalendarEnd])
+            ->get()->groupBy(fn($ej) => Carbon::parse($ej->deadline_date)->format('Y-m-d'));
 
         $miniCalendarDays = [];
         $d2 = $miniCalendarStart->copy();
@@ -195,9 +255,10 @@ class CalendarController extends Controller
             ->orderBy('scheduled_date')->orderBy('scheduled_time')
             ->get();
 
-        $upcomingEdits = EditJob::with('mediaResource', 'editor')
-            ->whereBetween('due_date', [$upcomingStart, $upcomingEnd])
-            ->orderBy('due_date')->get();
+        $upcomingEdits = EditingJob::with(['game', 'assignee'])
+            ->active()
+            ->whereBetween('deadline_date', [$upcomingStart, $upcomingEnd])
+            ->orderBy('deadline_date')->get();
 
         $upcomingEvents = collect();
         foreach ($upcomingHolidays as $h) {
@@ -224,9 +285,9 @@ class CalendarController extends Controller
         }
         foreach ($upcomingEdits as $ej) {
             $upcomingEvents->push([
-                'date'  => Carbon::parse($ej->due_date),
-                'label' => $ej->mediaResource?->title ?: 'งานตัดต่อ',
-                'type'  => 'edit_job',
+                'date'  => Carbon::parse($ej->deadline_date),
+                'label' => $ej->job_name,
+                'type'  => 'editing_job',
                 'color' => 'bg-sky-100 text-sky-700',
                 'dot'   => 'bg-sky-400',
                 'icon'  => '✂️',
@@ -235,10 +296,12 @@ class CalendarController extends Controller
         }
         $upcomingEvents = $upcomingEvents->sortBy(fn($e) => $e['date']->timestamp)->values();
 
+        $games = \App\Models\Game::where('is_active', true)->orderBy('game_name')->get();
+
         return view('calendar.index', compact(
             'weekDays', 'events', 'startDate', 'endDate', 'currentDate',
             'employees', 'youtubers', 'activeJobStages', 'jobStages', 'mediaResources',
-            'miniCalendarDays', 'upcomingEvents'
+            'miniCalendarDays', 'upcomingEvents', 'games', 'isAdmin'
         ));
     }
 
@@ -268,25 +331,5 @@ class CalendarController extends Controller
         ];
 
         return $colors[$type] ?? 'bg-gray-50 text-gray-600 border-gray-200';
-    }
-
-    protected function generateCalendarData(Carbon $startDate)
-    {
-        $calendar = [];
-        $startOfCalendar = $startDate->copy()->startOfWeek(Carbon::SUNDAY);
-        $endOfCalendar = $startDate->copy()->endOfMonth()->endOfWeek(Carbon::SATURDAY);
-
-        $date = $startOfCalendar->copy();
-        while ($date <= $endOfCalendar) {
-            $calendar[] = [
-                'date' => $date->copy(),
-                'is_current_month' => $date->month == $startDate->month,
-                'is_today' => $date->isToday(),
-                'is_weekend' => $date->isWeekend(),
-            ];
-            $date->addDay();
-        }
-
-        return $calendar;
     }
 }

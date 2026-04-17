@@ -78,22 +78,24 @@
 
     <table class="metrics-table" style="width:100%">
         <tr>
-            <td style="width:25%">
-                <div class="metric-label">ชั่วโมงรวม</div>
-                <div class="metric-value">{{ $formatHoursAsClock($monthlyStats['total_work_hours'] ?? 0) }} ชม.</div>
-            </td>
-            <td style="width:25%">
-                <div class="metric-label">OT</div>
-                <div class="metric-value">{{ $formatHoursAsClock($monthlyStats['total_ot_hours'] ?? 0) }} ชม.</div>
-            </td>
-            <td style="width:25%">
-                <div class="metric-label">มาสาย</div>
-                <div class="metric-value">{{ $monthlyStats['late_count'] ?? 0 }} ครั้ง ({{ $monthlyStats['late_minutes'] ?? 0 }} นาที)</div>
-            </td>
-            <td style="width:25%">
-                <div class="metric-label">ขาดงาน</div>
-                <div class="metric-value">{{ $monthlyStats['lwop_days'] ?? 0 }} วัน</div>
-            </td>
+                @if(in_array($employee->payroll_mode, ['monthly_staff', 'office_staff', 'youtuber_salary']))
+                <td style="width:25%">
+                    <div class="metric-label">ชั่วโมงรวม</div>
+                    <div class="metric-value">{{ $formatHoursAsClock($monthlyStats['total_work_hours'] ?? 0) }} ชม.</div>
+                </td>
+                <td style="width:25%">
+                    <div class="metric-label">OT</div>
+                    <div class="metric-value">{{ $formatHoursAsClock($monthlyStats['total_ot_hours'] ?? 0) }} ชม.</div>
+                </td>
+                <td style="width:25%">
+                    <div class="metric-label">มาสาย</div>
+                    <div class="metric-value">{{ $monthlyStats['late_count'] ?? 0 }} ครั้ง ({{ $monthlyStats['late_minutes'] ?? 0 }} นาที)</div>
+                </td>
+                <td style="width:25%">
+                    <div class="metric-label">ขาดงาน</div>
+                    <div class="metric-value">{{ $monthlyStats['lwop_days'] ?? 0 }} วัน</div>
+                </td>
+                @endif
         </tr>
     </table>
 
@@ -203,8 +205,24 @@
 
     <table class="signatures" style="width:100%">
         <tr>
-            <td>___________________________<br>ลายเซ็นผู้จ่าย</td>
-            <td>___________________________<br>ลายเซ็นผู้รับ</td>
+            <td style="text-align: center;">
+                @if($payslip->status === 'finalized' && !empty($company) && !empty($company->signature_approver_image_path) && file_exists(storage_path('app/public/' . $company->signature_approver_image_path)))
+                    <img src="{{ storage_path('app/public/' . $company->signature_approver_image_path) }}" style="max-height: 50px; display: block; margin: 0 auto 5px;"><br>
+                @else
+                    ___________________________<br>
+                @endif
+                ลายเซ็นผู้จ่าย<br>
+                {{ !empty($company) && !empty($company->signature_approver_name) ? "({$company->signature_approver_name})" : '' }}
+            </td>
+            <td style="text-align: center;">
+                @if($payslip->status === 'finalized' && !empty($company) && !empty($company->signature_receiver_image_path) && file_exists(storage_path('app/public/' . $company->signature_receiver_image_path)))
+                    <img src="{{ storage_path('app/public/' . $company->signature_receiver_image_path) }}" style="max-height: 50px; display: block; margin: 0 auto 5px;"><br>
+                @else
+                    ___________________________<br>
+                @endif
+                ลายเซ็นผู้รับ<br>
+                {{ !empty($company) && !empty($company->signature_receiver_name) ? "({$company->signature_receiver_name})" : '' }}
+            </td>
         </tr>
     </table>
 

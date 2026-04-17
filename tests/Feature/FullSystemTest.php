@@ -16,6 +16,7 @@ use App\Models\PayrollBatch;
 use App\Models\PayrollItem;
 use App\Models\Payslip;
 use App\Models\PayslipItem;
+use App\Models\Role;
 use App\Models\SocialSecurityConfig;
 use App\Models\SubscriptionCost;
 use App\Models\User;
@@ -40,12 +41,22 @@ class FullSystemTest extends TestCase
     {
         parent::setUp();
 
+        // Create roles
+        $adminRole = Role::create(['name' => 'admin', 'display_name' => 'Admin']);
+        $hrRole = Role::create(['name' => 'hr', 'display_name' => 'HR']);
+        $managerRole = Role::create(['name' => 'manager', 'display_name' => 'Manager']);
+        $employeeRole = Role::create(['name' => 'employee', 'display_name' => 'Employee']);
+        $viewerRole = Role::create(['name' => 'viewer', 'display_name' => 'Viewer']);
+
         // Create user
         $this->user = User::create([
             'name' => 'Admin',
             'email' => 'admin@test.local',
             'password' => bcrypt('password'),
         ]);
+
+        // Attach admin role
+        $this->user->roles()->attach($adminRole);
 
         // Create SSO config
         SocialSecurityConfig::create([
@@ -251,6 +262,32 @@ class FullSystemTest extends TestCase
     {
         $response = $this->actingAs($this->user)->get("/workspace/{$this->monthlyEmployee->id}/4/2026");
         $response->assertStatus(200);
+    }
+
+    public function test_workspace_loads_when_first_day_attendance_log_already_exists(): void
+    {
+        AttendanceLog::create([
+            'employee_id' => $this->monthlyEmployee->id,
+            'log_date' => '2026-04-01',
+            'day_type' => 'workday',
+        ]);
+
+        $response = $this->actingAs($this->user)->get("/workspace/{$this->monthlyEmployee->id}/4/2026");
+
+        $response->assertStatus(200);
+        $this->assertSame(
+            1,
+            AttendanceLog::where('employee_id', $this->monthlyEmployee->id)
+                ->whereDate('log_date', '2026-04-01')
+                ->count()
+        );
+        $this->assertSame(
+            30,
+            AttendanceLog::where('employee_id', $this->monthlyEmployee->id)
+                ->whereMonth('log_date', 4)
+                ->whereYear('log_date', 2026)
+                ->count()
+        );
     }
 
     public function test_workspace_loads_for_freelance_layer(): void

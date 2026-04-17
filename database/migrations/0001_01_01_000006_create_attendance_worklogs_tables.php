@@ -53,6 +53,7 @@ return new class extends Migration
             $table->decimal('amount', 12, 2)->default(0);
             $table->unsignedInteger('sort_order')->default(0);
             $table->text('notes')->nullable();
+            $table->unsignedBigInteger('editing_job_id')->nullable();
             $table->timestamps();
 
             $table->foreign('employee_id')->references('id')->on('employees')->onDelete('cascade');

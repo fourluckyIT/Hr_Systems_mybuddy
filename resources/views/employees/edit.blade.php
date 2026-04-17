@@ -34,6 +34,7 @@
                     <label class="block text-xs font-medium text-gray-600 mb-1">Payroll Mode *</label>
                     <select name="payroll_mode" required class="w-full px-3 py-2 border rounded-lg text-sm">
                         <option value="monthly_staff" @selected(old('payroll_mode', $employee->payroll_mode) === 'monthly_staff')>พนักงานรายเดือน</option>
+                        <option value="office_staff" @selected(old('payroll_mode', $employee->payroll_mode) === 'office_staff')>พนักงานออฟฟิศ (OFFICE)</option>
                         <option value="freelance_layer" @selected(old('payroll_mode', $employee->payroll_mode) === 'freelance_layer')>ฟรีแลนซ์เรทเลเยอร์</option>
                         <option value="freelance_fixed" @selected(old('payroll_mode', $employee->payroll_mode) === 'freelance_fixed')>ฟรีแลนซ์ฟิกเรท</option>
                         <option value="youtuber_salary" @selected(old('payroll_mode', $employee->payroll_mode) === 'youtuber_salary')>YouTuber เงินเดือน</option>

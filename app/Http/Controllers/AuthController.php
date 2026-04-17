@@ -13,7 +13,7 @@ class AuthController extends Controller
         if (Auth::check()) {
             $user = Auth::user();
 
-            if ($user && $user->hasAnyRole(['employee', 'viewer']) && !$user->hasAnyRole(['admin', 'hr', 'manager'])) {
+            if ($user && $user->hasRole('owner') && !$user->hasRole('admin')) {
                 return redirect()->route('workspace.my');
             }
 
@@ -35,7 +35,7 @@ class AuthController extends Controller
 
             $user = Auth::user();
 
-            if ($user && $user->hasAnyRole(['employee', 'viewer']) && !$user->hasAnyRole(['admin', 'hr', 'manager'])) {
+            if ($user && $user->hasRole('owner') && !$user->hasRole('admin')) {
                 return redirect()->intended(route('workspace.my'));
             }
 

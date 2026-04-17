@@ -13,8 +13,12 @@ use App\Models\PayrollBatch;
 use App\Models\LayerRateRule;
 use App\Models\PerformanceRecord;
 use App\Models\WorkLogType;
-use App\Models\EditJob;
-use App\Models\RecordingJobAssignee;
+use App\Models\EditingJob;
+use App\Models\Payslip;
+use App\Models\PaymentProof;
+use App\Models\ExpenseClaim;
+use App\Models\ModuleToggle;
+use App\Models\CompanyHoliday;
 use App\Services\Payroll\PayrollCalculationService;
 use App\Services\AuditLogService;
 use App\Support\DurationInput;
@@ -47,6 +51,18 @@ class WorkspaceController extends Controller
         }
     }
 
+    protected function ensureCanAccessEmployeeWorkspace(Employee $employee): void
+    {
+        $user = Auth::user();
+        $isEmployeeOnly = $user
+            && $user->hasRole('owner')
+            && !$user->hasRole('admin');
+
+        if ($isEmployeeOnly && (int) ($user->employee?->id) !== (int) $employee->id) {
+            abort(403, 'คุณไม่มีสิทธิ์เข้าถึงข้อมูลของพนักงานคนอื่น');
+        }
+    }
+
     public function myWorkspace(?int $month = null, ?int $year = null)
     {
         $user = Auth::user();
@@ -66,12 +82,7 @@ class WorkspaceController extends Controller
 
     public function show(Employee $employee, int $month, int $year)
     {
-        $user = Auth::user();
-        if ($user && $user->hasAnyRole(['employee', 'viewer']) && !$user->hasAnyRole(['admin', 'hr', 'manager'])) {
-            if ((int) ($user->employee?->id) !== (int) $employee->id) {
-                abort(403, 'คุณไม่มีสิทธิ์เข้าถึง Workspace ของพนักงานคนอื่น');
-            }
-        }
+        $this->ensureCanAccessEmployeeWorkspace($employee);
 
         $employee->load(['department', 'position', 'salaryProfile', 'bankAccount', 'profile']);
 
@@ -100,7 +111,7 @@ class WorkspaceController extends Controller
         ];
 
         // Generate attendance logs for monthly-attendance based modes
-        if (in_array($employee->payroll_mode, ['monthly_staff', 'youtuber_salary'])) {
+        if (in_array($employee->payroll_mode, ['monthly_staff', 'office_staff', 'youtuber_salary'])) {
             $this->ensureAttendanceLogs($employee, $month, $year);
         }
 
@@ -109,6 +120,14 @@ class WorkspaceController extends Controller
             ->whereYear('log_date', $year)
             ->orderBy('log_date')
             ->get();
+
+        // Attendance history visibility rule:
+        // - Current month: hidden from owner role (prevent confusion on partial data)
+        // - Past months: always visible
+        // - Admin: always has full access
+        $isCurrentMonth = ($month === (int) now()->month && $year === (int) now()->year);
+        $isAdmin = auth()->user()?->hasRole('admin') ?? false;
+        $attendanceReadOnly = !$isAdmin && $isCurrentMonth;
 
         $workLogs = WorkLog::where('employee_id', $employee->id)
             ->where('month', $month)
@@ -131,7 +150,7 @@ class WorkspaceController extends Controller
         // Calculate payroll
         $result = $this->payrollService->calculateForEmployee($employee, $month, $year);
 
-        // Get existing payroll items (may include manual overrides)
+        // Get existing payroll items
         $batch = PayrollBatch::where('month', $month)->where('year', $year)->first();
         $payrollItems = $batch
             ? PayrollItem::where('employee_id', $employee->id)
@@ -139,12 +158,12 @@ class WorkspaceController extends Controller
                 ->get()
             : collect();
 
-        $payslip = \App\Models\Payslip::where('employee_id', $employee->id)
+        $payslip = Payslip::where('employee_id', $employee->id)
             ->where('month', $month)
             ->where('year', $year)
             ->first();
 
-        $proofs = \App\Models\PaymentProof::where('employee_id', $employee->id)
+        $proofs = PaymentProof::where('employee_id', $employee->id)
             ->whereHas('payslip', function($q) use ($month, $year) {
                 $q->where('month', $month)->where('year', $year);
             })->orWhere(function($q) use ($employee, $month, $year) {
@@ -154,52 +173,41 @@ class WorkspaceController extends Controller
                   ->whereYear('created_at', $year);
             })->get();
 
-        $claims = \App\Models\ExpenseClaim::where('employee_id', $employee->id)
+        $claims = ExpenseClaim::where('employee_id', $employee->id)
             ->where('month', $month)
             ->where('year', $year)
             ->get();
 
-        $panel = $employee->position?->workspace_panel ?? 'recording_queue';
+        $panel = 'edit_jobs';
 
-        $hasEditAssignments = EditJob::where('assigned_to', $employee->id)->exists();
-        $hasRecordingAssignments = RecordingJobAssignee::where('employee_id', $employee->id)
-            ->whereHas('recordingJob', fn($q) => $q->whereNotIn('status', ['cancelled']))
-            ->exists();
+        // Check for assignments (Editing Pipeline)
+        $hasEditAssignments = EditingJob::where('assigned_to', $employee->id)->active()->exists();
 
-        // Freelance workspace should follow actual assignments first.
         if (in_array($employee->payroll_mode, ['freelance_layer', 'freelance_fixed'], true)) {
             if ($hasEditAssignments) {
                 $panel = 'edit_jobs';
-            } elseif ($hasRecordingAssignments) {
-                $panel = 'recording_queue';
             } else {
                 $panel = 'none';
             }
         }
 
-        // Edit jobs assigned to this employee from WORK Center
-        $assignedEditJobs = $panel === 'edit_jobs'
-            ? EditJob::with('mediaResource')
+        // Editing jobs assigned to this employee
+        $assignedEditJobs = $hasEditAssignments
+            ? EditingJob::with('game')
                 ->where('assigned_to', $employee->id)
+                ->active()
                 ->orderByRaw("CASE status
                     WHEN 'assigned' THEN 1
-                    WHEN 'editing' THEN 2
-                    WHEN 'submitted' THEN 3
-                    WHEN 'approved' THEN 4
-                    WHEN 'done' THEN 5
+                    WHEN 'in_progress' THEN 2
+                    WHEN 'review_ready' THEN 3
+                    WHEN 'final' THEN 4
                     ELSE 99
                 END")
-                ->orderBy('due_date')
+                ->orderBy('deadline_date')
                 ->get()
             : collect();
 
-        $recordingAssignments = $panel === 'recording_queue'
-            ? RecordingJobAssignee::with('recordingJob')
-                ->where('employee_id', $employee->id)
-                ->whereHas('recordingJob', fn($q) => $q->whereNotIn('status', ['cancelled']))
-                ->orderByDesc('id')
-                ->get()
-            : collect();
+        $recordingAssignments = collect();
 
         $workspaceEditEnabled = $this->isWorkspaceEditingEnabled($employee);
 
@@ -207,13 +215,16 @@ class WorkspaceController extends Controller
             'employee', 'month', 'year',
             'attendanceLogs', 'workLogs', 'layerRates',
             'result', 'payrollItems', 'payslip', 'proofs', 'claims',
-            'dayTypeLabels', 'dayTypeColors', 'attendanceMeta', 'assignedEditJobs', 'recordingAssignments', 'panel', 'workspaceEditEnabled'
+            'dayTypeLabels', 'dayTypeColors', 'attendanceMeta',
+            'attendanceReadOnly', 'isAdmin',
+            'assignedEditJobs', 'recordingAssignments', 'panel', 'workspaceEditEnabled'
         ));
     }
 
     public function storeClaim(Request $request, Employee $employee, int $month, int $year)
     {
         try {
+            $this->ensureCanAccessEmployeeWorkspace($employee);
             $this->ensureWorkspaceEditingEnabled($employee);
 
             $validated = $request->validate([
@@ -227,8 +238,8 @@ class WorkspaceController extends Controller
             if ($validated['type'] === 'advance' && $employee->advance_ceiling_percent > 0) {
                 $baseSalary = $employee->salaryProfile?->base_salary ?? 0;
                 $limit = ($baseSalary * $employee->advance_ceiling_percent) / 100;
-                
-                $currentAdvances = \App\Models\ExpenseClaim::where('employee_id', $employee->id)
+
+                $currentAdvances = ExpenseClaim::where('employee_id', $employee->id)
                     ->where('month', $month)
                     ->where('year', $year)
                     ->where('type', 'advance')
@@ -239,7 +250,7 @@ class WorkspaceController extends Controller
                 }
             }
 
-            $claim = \App\Models\ExpenseClaim::create([
+            $claim = ExpenseClaim::create([
                 'employee_id' => $employee->id,
                 'description' => $validated['description'],
                 'amount'      => $validated['amount'],
@@ -298,7 +309,7 @@ class WorkspaceController extends Controller
         }
     }
 
-    public function toggleWorkLog(\App\Models\WorkLog $workLog)
+    public function toggleWorkLog(WorkLog $workLog)
     {
         $this->ensureWorkspaceEditingEnabled($workLog->employee);
 
@@ -306,12 +317,12 @@ class WorkspaceController extends Controller
         return back();
     }
 
-    public function approveClaim(\App\Models\ExpenseClaim $claim)
+    public function approveClaim(ExpenseClaim $claim)
     {
         try {
             return DB::transaction(function () use ($claim) {
                 $oldStatus = $claim->status;
-                
+
                 $claim->update([
                     'status' => 'approved',
                     'approved_at' => now(),
@@ -336,12 +347,12 @@ class WorkspaceController extends Controller
         }
     }
 
-    public function deleteClaim(\App\Models\ExpenseClaim $claim)
+    public function deleteClaim(ExpenseClaim $claim)
     {
         try {
             return DB::transaction(function () use ($claim) {
                 $claimData = $claim->getAttributes();
-                
+
                 $claim->delete();
 
                 \App\Services\AuditLogService::logDeleted($claim, 'Claim deleted by ' . (auth()->user()?->name ?? 'system'));
@@ -364,18 +375,18 @@ class WorkspaceController extends Controller
                 'proof' => 'required|image|mimes:jpeg,png,jpg,gif|max:2048',
             ]);
 
-            $payslip = \App\Models\Payslip::where('employee_id', $employee->id)
+            $payslip = Payslip::where('employee_id', $employee->id)
                 ->where('month', $month)
                 ->where('year', $year)
                 ->first();
 
             $path = $request->file('proof')->store('proofs', 'public');
-            
+
             if (!$path) {
                 throw new \Exception('ความล้มเหลวในการจัดเก็บไฟล์');
             }
 
-            $proof = \App\Models\PaymentProof::create([
+            $proof = PaymentProof::create([
                 'employee_id' => $employee->id,
                 'payslip_id' => $payslip?->id,
                 'file_path' => $path,
@@ -401,12 +412,12 @@ class WorkspaceController extends Controller
         try {
             return DB::transaction(function () use ($request, $employee) {
                 $moduleName = $request->input('module_name');
-                
+
                 if (!$moduleName) {
                     throw new \Exception('ชื่อโมดูลไม่ระบุ');
                 }
 
-                $toggle = \App\Models\ModuleToggle::firstOrNew([
+                $toggle = ModuleToggle::firstOrNew([
                     'employee_id' => $employee->id,
                     'module_name' => $moduleName,
                 ]);
@@ -616,9 +627,6 @@ class WorkspaceController extends Controller
         }
     }
 
-    /**
-     * AJAX: Save a single attendance row, recalculate payroll, return updated summary.
-     */
     public function saveAttendanceRow(Request $request, Employee $employee, int $month, int $year)
     {
         try {
@@ -790,76 +798,42 @@ class WorkspaceController extends Controller
                 foreach ($logs as $index => $data) {
                     $durationMinutes = !empty($data['duration_hms'])
                         ? DurationInput::minutesFromHms($data['duration_hms'])
-                        : (isset($data['duration_minutes']) && $data['duration_minutes'] !== ''
-                        ? max((float) $data['duration_minutes'], 0)
-                        : null);
-
-                    if ($durationMinutes !== null) {
-                        $hours = 0;
-                        $minutes = (int) floor($durationMinutes);
-                        $seconds = (int) round(($durationMinutes - $minutes) * 60);
-
-                        if ($seconds === 60) {
-                            $minutes++;
-                            $seconds = 0;
-                        }
-                    } else {
-                        $hours = (int) ($data['hours'] ?? 0);
-                        $minutes = (int) ($data['minutes'] ?? 0);
-                        $seconds = (int) ($data['seconds'] ?? 0);
-                    }
-
-                    if (empty($data['layer'])
-                        && $durationMinutes === null
-                        && empty($data['duration_hms'])
-                        && empty($data['hours'])
-                        && empty($data['minutes'])
-                        && empty($data['quantity'])
-                        && empty($data['custom_rate'])
-                        && empty($data['pricing_template_label'])) {
-                        continue;
-                    }
+                        : (int) ($data['duration_minutes'] ?? 0);
 
                     $log = WorkLog::create([
                         'employee_id' => $employee->id,
                         'month' => $month,
                         'year' => $year,
-                        'work_type' => $data['work_type'] ?? null,
-                        'layer' => $data['layer'] ?? null,
-                        'hours' => $hours,
-                        'minutes' => $minutes,
-                        'seconds' => $seconds,
-                        'quantity' => (int) ($data['quantity'] ?? 0),
-                        'rate' => (float) ($data['rate'] ?? 0),
-                        'amount' => (float) ($data['amount'] ?? 0),
-                        'pricing_mode' => $data['pricing_mode'] ?? 'template',
-                        'custom_rate' => isset($data['custom_rate']) && $data['custom_rate'] !== '' ? (float) $data['custom_rate'] : null,
-                        'pricing_template_label' => $data['pricing_template_label'] ?? null,
-                        'sort_order' => $index + 1,
-                        'notes' => $data['notes'] ?? null,
-                        'entry_type' => $data['entry_type'] ?? 'income',
-                        'is_disabled' => isset($data['is_disabled']),
+                        'log_date' => $data['log_date'] ?? null,
+                        'work_log_type_id' => $data['work_log_type_id'] ?? null,
+                        'editing_job_id' => $data['editing_job_id'] ?? null,
+                        'description' => $data['description'] ?? '',
+                        'quantity' => $data['quantity'] ?? 1,
+                        'duration_minutes' => $durationMinutes,
+                        'rate' => $data['rate'] ?? 0,
+                        'amount' => $data['amount'] ?? 0,
+                        'pricing_mode' => $data['pricing_mode'] ?? 'fixed',
+                        'sort_order' => $index,
+                        'status' => 'confirmed',
                     ]);
-                    $newLogs[] = $log->getAttributes();
+                    $newLogs[] = $log;
                 }
 
-                // Log to audit trail
                 \App\Services\AuditLogService::logAction(
-                    'worklogs_updated',
+                    'work_logs_updated',
                     'work_logs',
                     $employee->id,
-                    ['count' => count($oldLogs), 'month' => $month, 'year' => $year],
-                    ['count' => count($newLogs)]
+                    ['count' => count($newLogs), 'month' => $month, 'year' => $year],
+                    null
                 );
 
-                // Recalculate + sync WorkLog row amounts
+                // Recalculate after save
                 $result = $this->payrollService->calculateForEmployee($employee, $month, $year);
                 $this->payrollService->savePayrollItems($employee, $month, $year, $result);
-                $this->payrollService->syncWorkLogAmounts($employee, $month, $year);
 
                 return redirect()
                     ->route('workspace.show', ['employee' => $employee->id, 'month' => $month, 'year' => $year])
-                    ->with('success', 'บันทึก Work Log สำเร็จ');
+                    ->with('success', 'บันทึกข้อมูลงานสำเร็จ');
             });
         } catch (\Throwable $e) {
             Log::error('saveWorkLogs error', [
@@ -868,288 +842,52 @@ class WorkspaceController extends Controller
                 'year' => $year,
                 'error' => $e->getMessage(),
             ]);
-            return back()->withErrors(['error' => 'เกิดข้อผิดพลาดในการบันทึก Work Log: ' . $e->getMessage()]);
+            return back()->withErrors(['error' => 'เกิดข้อผิดพลาดในการบันทึกข้อมูลงาน: ' . $e->getMessage()]);
         }
     }
 
-    public function storePerformanceRecord(Request $request, Employee $employee, int $month, int $year)
+    protected function ensureAttendanceLogs(Employee $employee, int $month, int $year)
     {
-        try {
-            $this->ensureWorkspaceEditingEnabled($employee);
-
-            $validated = $request->validate([
-                'record_date' => 'nullable|date',
-                'finish_date' => 'nullable|date',
-                'duration_mmss' => ['nullable', 'regex:/^\d{1,3}:\d{2}$/'],
-                'work_assignment_id' => 'nullable|exists:work_assignments,id',
-                'work_title' => 'nullable|string|max:255',
-                'work_type_code' => 'nullable|exists:work_log_types,code',
-                'video_title' => 'nullable|string|max:255',
-                'layer' => 'nullable|integer|min:0|max:1000',
-                'duration_minutes' => 'nullable|numeric|min:0',
-                'quantity' => 'nullable|integer|min:0',
-                'rate_snapshot' => 'nullable|numeric|min:0',
-                'status' => 'required|in:action_select,in_process,finished,rejected',
-                'quality_score' => 'nullable|numeric|min:1|max:5',
-                'reject_reason' => 'nullable|string|max:1000',
-                'notes' => 'nullable|string|max:1000',
-            ]);
-
-            $selectedAssignment = null;
-            if (!empty($validated['work_assignment_id'])) {
-                $selectedAssignment = WorkAssignment::with('workType')
-                    ->where('id', $validated['work_assignment_id'])
-                    ->where('employee_id', $employee->id)
-                    ->first();
-            }
-
-            $selectedWorkType = $selectedAssignment?->workType;
-            if (!empty($validated['work_type_code'])) {
-                $selectedWorkType = WorkLogType::where('code', $validated['work_type_code'])->where('is_active', true)->first();
-            }
-
-            $workTitle = trim((string) ($validated['work_title'] ?? ''));
-            if ($workTitle === '' && $selectedWorkType) {
-                $workTitle = $selectedWorkType->name;
-            }
-
-            if ($workTitle === '') {
-                return back()->withErrors(['work_title' => 'กรุณาเลือก Template หรือกรอกชื่องาน']);
-            }
-
-            $status = $validated['status'];
-            $actionSelect = match ($status) {
-                'finished' => 'confirm_finished',
-                'rejected' => 'reject',
-                default => null,
-            };
-
-            if ($status === 'finished') {
-                if (empty($validated['quality_score'])) {
-                    return back()->withErrors(['quality_score' => 'กรุณาให้คะแนนคุณภาพงาน (1-5)']);
-                }
-
-                if (empty($validated['duration_minutes']) && empty($validated['duration_mmss'])) {
-                    return back()->withErrors(['duration_minutes' => 'กรุณากรอกระยะเวลางานเมื่อยืนยันว่าเสร็จ']);
-                }
-            }
-
-            if ($status === 'rejected') {
-                if (empty($validated['reject_reason'])) {
-                    return back()->withErrors(['reject_reason' => 'กรุณาระบุเหตุผลการ Reject']);
-                }
-            }
-
-            $parsedDurationMinutes = null;
-            if (!empty($validated['duration_mmss'])) {
-                [$mm, $ss] = array_map('intval', explode(':', $validated['duration_mmss']));
-                $parsedDurationMinutes = $mm + ($ss / 60);
-            }
-
-            $durationMinutes = $parsedDurationMinutes ?? (isset($validated['duration_minutes'])
-                ? max((float) $validated['duration_minutes'], 0)
-                : (float) ($selectedWorkType?->target_length_minutes ?? 0));
-
-            $hours = 0;
-            $minutes = (int) floor($durationMinutes);
-            $seconds = (int) round(($durationMinutes - $minutes) * 60);
-
-            if ($seconds === 60) {
-                $minutes++;
-                $seconds = 0;
-            }
-
-            $rateSnapshot = isset($validated['rate_snapshot'])
-                ? (float) $validated['rate_snapshot']
-                : (float) ($selectedWorkType?->default_rate_per_minute ?? 0);
-            $amountSnapshot = round($durationMinutes * $rateSnapshot, 2);
-
-            $notes = trim((string) ($validated['notes'] ?? ''));
-            if ($selectedWorkType && $selectedWorkType->footage_size) {
-                $notes = trim($notes . ($notes !== '' ? ' | ' : '') . 'Template Footage: ' . $selectedWorkType->footage_size);
-            }
-
-            PerformanceRecord::create([
-                'employee_id' => $employee->id,
-                'work_assignment_id' => $selectedAssignment?->id,
-                'record_date' => $validated['finish_date'] ?? $validated['record_date'] ?? now()->toDateString(),
-                'month' => $month,
-                'year' => $year,
-                'work_title' => $workTitle,
-                'video_title' => $validated['video_title'] ?? null,
-                'layer' => $validated['layer'] ?? null,
-                'hours' => $hours,
-                'minutes' => $minutes,
-                'seconds' => $seconds,
-                'quantity' => (int) ($validated['quantity'] ?? 0),
-                'rate_snapshot' => $rateSnapshot,
-                'amount_snapshot' => $amountSnapshot,
-                'status' => $status,
-                'action_select' => $actionSelect,
-                'quality_score' => $validated['quality_score'] ?? null,
-                'reject_reason' => $validated['reject_reason'] ?? null,
-                'confirmed_finished_at' => $status === 'finished' ? now() : null,
-                'score' => 0,
-                'category' => $selectedWorkType?->code ?? 'work_history',
-                'notes' => $notes !== '' ? $notes : null,
-                'source' => 'manual',
-                'created_by' => auth()->id(),
-            ]);
-
-            if ($selectedAssignment) {
-                $selectedAssignment->update([
-                    'status' => $status,
-                    'completed_at' => $status === 'finished' ? now() : null,
-                    'notes' => $selectedAssignment->notes,
-                ]);
-            }
-
-            \App\Services\AuditLogService::logAction(
-                'performance_record_created',
-                'performance_records',
-                $employee->id,
-                null,
-                ['work_title' => $workTitle, 'status' => $status, 'month' => $month, 'year' => $year]
-            );
-
-            return redirect()
-                ->route('workspace.show', ['employee' => $employee->id, 'month' => $month, 'year' => $year])
-                ->with('success', 'บันทึกประวัติการทำงานสำเร็จ');
-        } catch (\Throwable $e) {
-            Log::error('storePerformanceRecord error', [
-                'employee_id' => $employee->id,
-                'month' => $month,
-                'year' => $year,
-                'error' => $e->getMessage(),
-            ]);
-            return back()->withErrors(['error' => 'เกิดข้อผิดพลาดในการบันทึกประวัติการทำงาน: ' . $e->getMessage()]);
-        }
-    }
-
-    public function deletePerformanceRecord(PerformanceRecord $record)
-    {
-        try {
-            $this->ensureWorkspaceEditingEnabled($record->employee);
-
-            $employeeId = $record->employee_id;
-            $month = $record->month;
-            $year = $record->year;
-
-            \App\Services\AuditLogService::logDeleted($record, 'Performance record deleted');
-
-            $record->delete();
-
-            return redirect()
-                ->route('workspace.show', ['employee' => $employeeId, 'month' => $month, 'year' => $year])
-                ->with('success', 'ลบประวัติการทำงานสำเร็จ');
-        } catch (\Throwable $e) {
-            Log::error('deletePerformanceRecord error', [
-                'record_id' => $record->id,
-                'error' => $e->getMessage(),
-            ]);
-            return back()->withErrors(['error' => 'เกิดข้อผิดพลาดในการลบประวัติการทำงาน: ' . $e->getMessage()]);
-        }
-    }
-
-    public function updatePayrollItem(Request $request, Employee $employee, int $month, int $year)
-    {
-        try {
-            $this->ensureWorkspaceEditingEnabled($employee);
-
-            return DB::transaction(function () use ($request, $employee, $month, $year) {
-                $validated = $request->validate([
-                    'item_id' => 'required|exists:payroll_items,id',
-                    'amount' => 'required|numeric|min:0',
-                ]);
-
-                $item = PayrollItem::findOrFail($validated['item_id']);
-                $oldAmount = $item->amount;
-                $oldSourceFlag = $item->source_flag;
-
-                $item->update([
-                    'amount' => $validated['amount'],
-                    'source_flag' => 'override',
-                ]);
-
-                \App\Services\AuditLogService::log(
-                    $item,
-                    'overridden',
-                    'amount',
-                    $oldAmount,
-                    $validated['amount'],
-                    'source_flag changed from ' . $oldSourceFlag . ' to override'
-                );
-
-                return redirect()
-                    ->route('workspace.show', ['employee' => $employee->id, 'month' => $month, 'year' => $year])
-                    ->with('success', 'อัพเดทรายการสำเร็จ');
-            });
-        } catch (\Throwable $e) {
-            Log::error('updatePayrollItem error', [
-                'employee_id' => $employee->id,
-                'month' => $month,
-                'year' => $year,
-                'error' => $e->getMessage(),
-            ]);
-            return back()->withErrors(['error' => 'เกิดข้อผิดพลาดในการอัพเดทรายการ: ' . $e->getMessage()]);
-        }
-    }
-
-    protected function ensureAttendanceLogs(Employee $employee, int $month, int $year): void
-    {
-        $startDate = Carbon::create($year, $month, 1);
+        $startDate = Carbon::create($year, $month, 1)->startOfMonth();
         $endDate = $startDate->copy()->endOfMonth();
+        $startDateString = $startDate->toDateString();
+        $endDateString = $endDate->toDateString();
 
-        // Load Existing Logs for the month
-        $existingLogs = AttendanceLog::where('employee_id', $employee->id)
-            ->whereMonth('log_date', $month)
-            ->whereYear('log_date', $year)
-            ->get()
-            ->keyBy(function($log) {
-                return \Carbon\Carbon::parse($log->log_date)->format('Y-m-d');
-            });
-
-        // Load Company Holidays
-        $companyHolidays = \App\Models\CompanyHoliday::where('is_active', true)
-            ->get()
-            ->pluck('holiday_date')
-            ->map(fn($d) => $d->format('Y-m-d'))
+        $existingDates = AttendanceLog::where('employee_id', $employee->id)
+            ->whereBetween('log_date', [$startDateString, $endDateString])
+            ->pluck('log_date')
+            ->map(fn($d) => Carbon::parse($d)->format('Y-m-d'))
             ->toArray();
 
-        $empStartDate = $employee->start_date ? Carbon::parse($employee->start_date) : null;
+        $holidays = CompanyHoliday::where('is_active', true)
+            ->whereBetween('holiday_date', [$startDateString, $endDateString])
+            ->pluck('holiday_date')
+            ->map(fn($d) => Carbon::parse($d)->format('Y-m-d'))
+            ->toArray();
 
-        $date = $startDate->copy();
-        while ($date <= $endDate) {
+        $newLogs = [];
+        for ($date = $startDate->copy(); $date <= $endDate; $date->addDay()) {
             $dateStr = $date->format('Y-m-d');
-            $existingLog = $existingLogs->get($dateStr);
+            if (!in_array($dateStr, $existingDates)) {
+                $isWeekend = $date->isWeekend();
+                $isHoliday = in_array($dateStr, $holidays);
 
-            $dayType = 'workday';
-            if ($empStartDate && $date < $empStartDate) {
-                $dayType = 'not_started';
-            } elseif (in_array($dateStr, $companyHolidays)) {
-                $dayType = 'company_holiday';
-            } elseif ($date->isWeekend()) {
-                $dayType = 'holiday';
-            }
+                $dayType = 'workday';
+                if ($isHoliday) $dayType = 'company_holiday';
+                elseif ($isWeekend) $dayType = 'holiday';
 
-            if (!$existingLog) {
-                AttendanceLog::create([
+                $newLogs[] = [
                     'employee_id' => $employee->id,
                     'log_date' => $dateStr,
                     'day_type' => $dayType,
-                ]);
-            } else {
-                // Auto-Sync: If it's currently a regular workday or holiday, but it SHOULD be a company_holiday or not_started
-                if (
-                    !$existingLog->is_swapped_day
-                    && in_array($existingLog->day_type, ['workday', 'holiday'])
-                    && $existingLog->day_type !== $dayType
-                ) {
-                    $existingLog->update(['day_type' => $dayType]);
-                }
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
             }
-            $date->addDay();
+        }
+
+        if (!empty($newLogs)) {
+            AttendanceLog::query()->insertOrIgnore($newLogs);
         }
     }
-
 }

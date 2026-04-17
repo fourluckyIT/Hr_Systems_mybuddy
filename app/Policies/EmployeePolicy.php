@@ -21,8 +21,8 @@ class EmployeePolicy
      */
     public function view(User $user, Employee $employee): bool
     {
-        // Allow user to view their own data or if they have HR/Admin role
-        return $user->id === $employee->user_id || $user->hasRole(['admin', 'hr', 'payroll']);
+        // Allow admins to view everyone and owners to view their own data only.
+        return $user->hasRole('admin') || $user->id === $employee->user_id;
     }
 
     /**
@@ -38,8 +38,7 @@ class EmployeePolicy
      */
     public function update(User $user, Employee $employee): bool
     {
-        // Allow HR, Payroll, or Admin to update
-        return $user->hasRole(['admin', 'hr', 'payroll']);
+        return $user->hasRole('admin');
     }
 
     /**

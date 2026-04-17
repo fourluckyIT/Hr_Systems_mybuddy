@@ -12,7 +12,7 @@ class Employee extends Model
     protected $fillable = [
         'user_id', 'employee_code', 'first_name', 'last_name', 'nickname',
         'department_id', 'position_id', 'payroll_mode', 'advance_ceiling_percent', 'status', 'is_active',
-        'start_date', 'end_date',
+        'start_date', 'probation_end_date', 'end_date',
     ];
 
     protected function casts(): array
@@ -20,6 +20,7 @@ class Employee extends Model
         return [
             'is_active' => 'boolean',
             'start_date' => 'date',
+            'probation_end_date' => 'date',
             'end_date' => 'date',
         ];
     }
@@ -122,6 +123,11 @@ class Employee extends Model
     public function workAssignments()
     {
         return $this->hasMany(WorkAssignment::class);
+    }
+
+    public function editingJobs()
+    {
+        return $this->hasMany(EditingJob::class, 'assigned_to');
     }
 
     public function isModuleEnabled(string $moduleName): bool

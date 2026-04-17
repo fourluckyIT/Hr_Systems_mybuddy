@@ -38,25 +38,26 @@ class AnnualSummaryController extends Controller
                     continue;
                 }
 
-                $income = PayrollItem::where('payroll_batch_id', $batch->id)
-                    ->where('employee_id', $emp->id)
-                    ->where('category', 'income')
-                    ->sum('amount');
-
-                $deduction = PayrollItem::where('payroll_batch_id', $batch->id)
-                    ->where('employee_id', $emp->id)
-                    ->where('category', 'deduction')
-                    ->sum('amount');
-
-                $net = $income - $deduction;
-                $finalized = Payslip::where('employee_id', $emp->id)
+                $payslip = Payslip::where('employee_id', $emp->id)
                     ->where('month', $m)->where('year', $year)
-                    ->where('status', 'finalized')->exists();
+                    ->where('status', 'finalized')->first();
+
+                if ($payslip) {
+                    $income = $payslip->total_income;
+                    $deduction = $payslip->total_deduction;
+                    $net = $payslip->net_pay;
+                    $finalized = true;
+                } else {
+                    $income = 0;
+                    $deduction = 0;
+                    $net = 0;
+                    $finalized = false;
+                }
 
                 $monthlyPay[$m] = [
-                    'income' => round($income, 2),
-                    'deduction' => round($deduction, 2),
-                    'net' => round($net, 2),
+                    'income' => round((float)$income, 2),
+                    'deduction' => round((float)$deduction, 2),
+                    'net' => round((float)$net, 2),
                     'finalized' => $finalized,
                 ];
 

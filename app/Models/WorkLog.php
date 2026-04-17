@@ -14,7 +14,7 @@ class WorkLog extends Model
         'layer', 'hours', 'minutes', 'seconds', 'quantity',
         'rate', 'amount', 'pricing_mode', 'custom_rate', 'pricing_template_label',
         'sort_order', 'notes', 'entry_type', 'is_disabled',
-        'source_flag', 'edit_job_id',
+        'source_flag', 'editing_job_id',
     ];
 
     protected function casts(): array
@@ -33,9 +33,9 @@ class WorkLog extends Model
         return $this->belongsTo(Employee::class);
     }
 
-    public function editJob()
+    public function editingJob()
     {
-        return $this->belongsTo(EditJob::class);
+        return $this->belongsTo(EditingJob::class);
     }
 
     public function getDurationMinutesAttribute(): float

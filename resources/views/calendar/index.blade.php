@@ -65,6 +65,15 @@
             const days = ['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'];
             const months = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
             return days[d.getDay()] + 'ที่ ' + d.getDate() + ' ' + months[d.getMonth()] + ' ' + d.getFullYear();
+        },
+        syncCalendarGutter() {
+            const grid = document.getElementById('calendar-time-grid');
+            const gutter = grid ? Math.max(0, grid.offsetWidth - grid.clientWidth) : 0;
+            document.documentElement.style.setProperty('--calendar-scrollbar-gutter', `${gutter}px`);
+        },
+        init() {
+            this.$nextTick(() => this.syncCalendarGutter());
+            window.addEventListener('resize', () => this.syncCalendarGutter());
         }
     }">
 
@@ -220,11 +229,10 @@
             <div class="w-16 flex-none border-r border-gray-200 py-3 text-center bg-gray-50">
                 <span class="text-[10px] font-bold text-gray-400">GMT+7</span>
             </div>
-            <div class="flex-1 flex">
+            <div class="flex-1 flex" style="padding-right: var(--calendar-scrollbar-gutter, 0px);">
                 @foreach($weekDays as $day)
-                <div class="flex-1 px-2 py-3 text-center border-r border-gray-200 last:border-r-0 {{ $day['is_today'] ? 'bg-indigo-50' : '' }}"
-                     @click="openDay('{{ $day['date_str'] }}')"
-                     class="cursor-pointer hover:bg-gray-100 transition-colors">
+                 <div class="flex-1 min-w-0 px-2 py-3 text-center border-r border-gray-200 last:border-r-0 cursor-pointer hover:bg-gray-100 transition-colors {{ $day['is_today'] ? 'bg-indigo-50' : '' }}"
+                     @click="openDay('{{ $day['date_str'] }}')">
                     <div class="text-[10px] font-semibold tracking-wider text-gray-500 uppercase">{{ $day['date']->translatedFormat('D') }}</div>
                     <div class="text-xl mt-1 {{ $day['is_today'] ? 'w-8 h-8 mx-auto rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold' : 'font-medium text-gray-900' }}">
                         {{ $day['date']->format('j') }}
@@ -239,12 +247,12 @@
             <div class="w-16 flex-none border-r border-gray-200 flex items-center justify-center bg-gray-50">
                 <span class="text-[10px] font-medium text-gray-500">All Day</span>
             </div>
-            <div class="flex-1 flex">
+            <div class="flex-1 flex" style="padding-right: var(--calendar-scrollbar-gutter, 0px);">
                 @foreach($weekDays as $day)
-                <div class="flex-1 border-r border-gray-100 p-1 min-h-[40px] last:border-r-0 cursor-pointer hover:bg-gray-50" @click="openDay('{{ $day['date_str'] }}')">
+                <div class="flex-1 min-w-0 border-r border-gray-100 p-1 min-h-[40px] last:border-r-0 cursor-pointer hover:bg-gray-50" @click="openDay('{{ $day['date_str'] }}')">
                     @php $dayEvents = collect($events[$day['date_str']] ?? [])->where('is_all_day', true); @endphp
                     @foreach($dayEvents as $ev)
-                    <div class="px-1.5 py-0.5 rounded mb-1 text-[10px] font-medium truncate {{ $ev['color'] }} border-l-2 text-left">
+                    <div class="block w-full max-w-full px-1.5 py-0.5 rounded mb-1 text-[10px] font-medium truncate {{ $ev['color'] }} border-l-2 text-left">
                         {{ $ev['label'] }}
                     </div>
                     @endforeach
@@ -279,7 +287,7 @@
 
                     <!-- Day Columns -->
                     @foreach($weekDays as $day)
-                    <div class="flex-1 border-r border-gray-100 relative last:border-r-0 cursor-pointer group" @click="openDay('{{ $day['date_str'] }}')">
+                    <div class="flex-1 min-w-0 border-r border-gray-100 relative last:border-r-0 cursor-pointer group" @click="openDay('{{ $day['date_str'] }}')">
                         <div class="absolute inset-0 bg-transparent group-hover:bg-indigo-50/20 transition-colors pointer-events-none"></div>
 
                         @php 
@@ -490,58 +498,15 @@
      class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" @click.self="showRecForm = false">
     <div x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
          class="bg-white rounded-2xl shadow-xl w-full max-w-lg" @click.stop>
-        <form action="{{ route('work.recording.store') }}" method="POST" class="p-6">
-            @csrf
-            <input type="hidden" name="_form" value="recording">
-            <input type="hidden" name="_redirect" value="{{ route('calendar.index', ['date' => $currentDate->format('Y-m-d')]) }}">
+        <div class="p-6">
             <h3 class="font-bold text-lg mb-4 text-amber-900 flex items-center gap-2">🎥 นัดหมายคิวถ่ายทำ</h3>
-            @if($errors->any() && old('_form') === 'recording')
-            <div class="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-                <ul class="text-xs text-red-700 list-disc pl-4">@foreach($errors->all() as $e)<li>{{ $e }}</li>@endforeach</ul>
+            <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                ฟีเจอร์คิวถ่ายถูกปิดใช้งานชั่วคราวตาม workflow ใหม่ ให้ใช้ Work Pipeline เฉพาะงานตัดต่อแทน
             </div>
-            @endif
-            <div class="grid grid-cols-2 gap-4 mb-4">
-                <div class="col-span-2">
-                    <label class="block text-xs font-bold text-gray-500 mb-1">ชื่องาน (Title) *</label>
-                    <input type="text" name="title" value="{{ old('title') }}" required class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-amber-500">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-gray-500 mb-1">วันที่นัดหมาย *</label>
-                    <input type="date" name="scheduled_date" x-model="selectedDate" required class="w-full px-3 py-2 border rounded-lg text-sm bg-gray-50">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-gray-500 mb-1">เวลา (Time)</label>
-                    <input type="time" name="scheduled_time" value="{{ old('scheduled_time') }}" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-amber-500">
-                </div>
-                <div class="col-span-2">
-                    <label class="block text-xs font-bold text-gray-500 mb-1">รายละเอียด (Notes)</label>
-                    <textarea name="notes" rows="2" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-amber-500">{{ old('notes') }}</textarea>
-                </div>
+            <div class="flex justify-end gap-2 mt-6">
+                <button type="button" @click="showRecForm = false" class="px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">ปิด</button>
             </div>
-            <div class="mb-6" x-data="{ assigneesSelected: [] }">
-                <label class="block text-xs font-bold text-gray-500 mb-2">เลือกคนถ่ายทำ *</label>
-                <div class="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto p-2 border rounded-lg bg-gray-50">
-                    @foreach($employees as $emp)
-                    <label class="flex items-center gap-2">
-                        <input type="checkbox"
-                               @change="$event.target.checked ? assigneesSelected.push({id: {{ $emp->id }}, role: 'crew'}) : assigneesSelected = assigneesSelected.filter(a => a.id != {{ $emp->id }})"
-                               class="rounded text-amber-600 focus:ring-amber-500">
-                        <span class="text-xs">{{ $emp->nickname ?: $emp->first_name }}</span>
-                    </label>
-                    @endforeach
-                </div>
-                <template x-for="(a, index) in assigneesSelected" :key="a.id">
-                    <div>
-                        <input type="hidden" :name="`assignees[${index}][employee_id]`" :value="a.id">
-                        <input type="hidden" :name="`assignees[${index}][role]`" :value="a.role">
-                    </div>
-                </template>
-            </div>
-            <div class="flex justify-end gap-2">
-                <button type="button" @click="showRecForm = false" class="px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">ยกเลิก</button>
-                <button type="submit" class="px-4 py-2 text-sm bg-amber-600 text-white rounded-lg hover:bg-amber-700">สร้างคิวถ่ายทำ</button>
-            </div>
-        </form>
+        </div>
     </div>
 </div>
 
@@ -551,58 +516,49 @@
      class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" @click.self="showEditForm = false">
     <div x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
          class="bg-white rounded-2xl shadow-xl w-full max-w-lg" @click.stop>
-        <form action="{{ route('work.edit-job.store') }}" method="POST" class="p-6">
+        <form action="{{ route('work.editing-job.store') }}" method="POST" class="p-6">
             @csrf
-            <input type="hidden" name="_form" value="edit_job">
+            <input type="hidden" name="_form" value="editing_job">
             <input type="hidden" name="_redirect" value="{{ route('calendar.index', ['date' => $currentDate->format('Y-m-d')]) }}">
             <h3 class="font-bold text-lg mb-4 text-sky-900 flex items-center gap-2">✂️ มอบหมายงานตัดต่อ</h3>
-            @if($errors->any() && old('_form') === 'edit_job')
+            @if($errors->any() && old('_form') === 'editing_job')
             <div class="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
                 <ul class="text-xs text-red-700 list-disc pl-4">@foreach($errors->all() as $e)<li>{{ $e }}</li>@endforeach</ul>
             </div>
             @endif
             <div class="grid grid-cols-2 gap-4 mb-4">
                 <div class="col-span-2">
-                    <label class="block text-xs font-bold text-gray-500 mb-1">ชื่องาน (Title) *</label>
-                    <input type="text" name="title" value="{{ old('title') }}" required placeholder="เช่น ตัดต่อคลิป XXX" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-sky-500">
+                    <label class="block text-xs font-bold text-gray-500 mb-1">ชื่องาน (Job Name) *</label>
+                    <input type="text" name="job_name" value="{{ old('job_name') }}" required placeholder="เช่น ตัดต่อคลิป XXX" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-sky-500">
                 </div>
                 <div class="col-span-2">
-                    <label class="block text-xs font-bold text-gray-500 mb-1">เลือกไฟล์ Media (Resource)</label>
-                    <select name="media_resource_id" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-sky-500">
-                        <option value="">-- เลือกไฟล์ --</option>
-                        @foreach($mediaResources as $mr)
-                            <option value="{{ $mr->id }}" {{ old('media_resource_id') == $mr->id ? 'selected' : '' }}>{{ $mr->footage_code }} - {{ $mr->title }}</option>
+                    <label class="block text-xs font-bold text-gray-500 mb-1">เกม (Game) *</label>
+                    <select name="game_id" required class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-sky-500">
+                        <option value="">-- เลือกเกม --</option>
+                        @foreach($games as $game)
+                            <option value="{{ $game->id }}" {{ old('game_id') == $game->id ? 'selected' : '' }}>{{ $game->game_name }}</option>
                         @endforeach
                     </select>
                 </div>
                 <div class="col-span-2">
                     <label class="block text-xs font-bold text-gray-500 mb-1">คนตัดต่อ (Editor)</label>
-                    <select name="assigned_to" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-sky-500">
-                        <option value="">-- เลือกช่อง/คนตัดต่อ --</option>
-                        <optgroup label="ฟรีแลนซ์/ตัดต่อ">
-                            @foreach($employees->whereIn('payroll_mode', ['freelance_layer', 'freelance_fixed']) as $emp)
-                                <option value="{{ $emp->id }}" {{ old('assigned_to') == $emp->id ? 'selected' : '' }}>{{ $emp->first_name }} ({{ $emp->payroll_mode === 'freelance_layer' ? 'Layer' : 'Fixed' }})</option>
-                            @endforeach
-                        </optgroup>
-                        <optgroup label="พนักงานประจำ / ช่อง">
-                            @foreach($employees->whereIn('payroll_mode', ['monthly_staff', 'youtuber_salary', 'youtuber_settlement']) as $emp)
-                                <option value="{{ $emp->id }}" {{ old('assigned_to') == $emp->id ? 'selected' : '' }}>{{ $emp->first_name }} ({{ $emp->payroll_mode }})</option>
-                            @endforeach
-                        </optgroup>
+                    <select name="assigned_to" required class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-sky-500">
+                        <option value="">-- เลือกผู้รับผิดชอบ --</option>
+                        @foreach($employees as $emp)
+                            <option value="{{ $emp->id }}" {{ old('assigned_to') == $emp->id ? 'selected' : '' }}>
+                                {{ $emp->nickname ?: $emp->first_name }} ({{ $emp->payroll_mode }})
+                            </option>
+                        @endforeach
                     </select>
                 </div>
                 <div>
-                    <label class="block text-xs font-bold text-gray-500 mb-1">วันหมดเขต (Due Date) *</label>
-                    <input type="date" name="due_date" x-model="selectedDate" required class="w-full px-3 py-2 border rounded-lg text-sm bg-gray-50">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-gray-500 mb-1">ราคาเหมา (Fixed Rate)</label>
-                    <input type="number" step="0.01" name="assigned_fixed_rate" value="{{ old('assigned_fixed_rate') }}" placeholder="เช่น 500" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-sky-500">
+                    <label class="block text-xs font-bold text-gray-500 mb-1">วันครบกำหนด (Deadline) *</label>
+                    <input type="date" name="deadline_date" x-model="selectedDate" required class="w-full px-3 py-2 border rounded-lg text-sm bg-gray-50">
                 </div>
             </div>
             <div class="flex justify-end gap-2 mt-6">
                 <button type="button" @click="showEditForm = false" class="px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">ยกเลิก</button>
-                <button type="submit" class="px-4 py-2 text-sm bg-sky-600 text-white rounded-lg hover:bg-sky-700">มอบหมายงานทันที</button>
+                <button type="submit" class="px-4 py-2 text-sm bg-sky-600 text-white rounded-lg hover:bg-sky-700">มอบหมายงาน</button>
             </div>
         </form>
     </div>

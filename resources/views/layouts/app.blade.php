@@ -17,10 +17,8 @@
 <body class="bg-gray-50 th-font text-gray-800 min-h-screen">
     @php
         $authUser = auth()->user();
-        $isAdmin = $authUser?->hasAnyRole(['admin']) ?? false;
-        $isHr = $authUser?->hasAnyRole(['hr']) ?? false;
-        $isManager = $authUser?->hasAnyRole(['manager']) ?? false;
-        $isEmployeeOnly = ($authUser?->hasAnyRole(['employee', 'viewer']) ?? false) && !($isAdmin || $isHr || $isManager);
+        $isAdmin = $authUser?->hasRole('admin') ?? false;
+        $isOwnerOnly = ($authUser?->hasRole('owner') ?? false) && !$isAdmin;
         $myEmployee = $authUser?->employee;
     @endphp
 
@@ -29,17 +27,19 @@
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between h-14">
                 <div class="flex items-center space-x-6">
-                    <a href="{{ $isEmployeeOnly ? route('workspace.my') : route('employees.index') }}" class="text-lg font-bold text-indigo-600">xHR Payroll</a>
+                    <a href="{{ $isOwnerOnly ? route('workspace.my') : route('employees.index') }}" class="text-lg font-bold text-indigo-600">xHR Payroll</a>
 
-                    @if($isEmployeeOnly)
+                    @if($isOwnerOnly)
                         <a href="{{ route('workspace.my') }}" class="text-sm text-gray-600 hover:text-indigo-600 {{ request()->routeIs('workspace.*') ? 'text-indigo-600 font-semibold' : '' }}">My Workspace</a>
+                        <a href="{{ route('calendar.index') }}" class="text-sm text-gray-600 hover:text-indigo-600 {{ request()->routeIs('calendar.*') ? 'text-indigo-600 font-semibold' : '' }}">ปฏิทินหลัก</a>
                     @else
-                        @if($isAdmin || $isHr || $isManager)
+                        @if($isAdmin)
                             <a href="{{ route('employees.index') }}" class="text-sm text-gray-600 hover:text-indigo-600 {{ request()->routeIs('employees.*') ? 'text-indigo-600 font-semibold' : '' }}">พนักงาน</a>
                             <a href="{{ route('calendar.index') }}" class="text-sm text-gray-600 hover:text-indigo-600 {{ request()->routeIs('calendar.*') ? 'text-indigo-600 font-semibold' : '' }}">ปฏิทินหลัก</a>
                         @endif
 
-                        @if($isAdmin || $isHr)
+                        @if($isAdmin)
+                            <a href="{{ route('payroll-batches.index') }}" class="text-sm text-gray-600 hover:text-indigo-600 {{ request()->routeIs('payroll-batches.*') ? 'text-indigo-600 font-semibold' : '' }}">รอบบิลเงินเดือน</a>
                             <a href="{{ route('company.finance') }}" class="text-sm text-gray-600 hover:text-indigo-600 {{ request()->routeIs('company.*') ? 'text-indigo-600 font-semibold' : '' }}">การเงินบริษัท</a>
                             <a href="{{ route('annual.index') }}" class="text-sm text-gray-600 hover:text-indigo-600 {{ request()->routeIs('annual.*') ? 'text-indigo-600 font-semibold' : '' }}">สรุปรายปี</a>
                             <a href="{{ route('work.index') }}" class="text-sm text-gray-600 hover:text-indigo-600 {{ request()->routeIs('work.*') || request()->routeIs('settings.works.*') ? 'text-indigo-600 font-semibold' : '' }}">WORK Center</a>
