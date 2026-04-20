@@ -97,7 +97,16 @@ class DatabaseSeeder extends Seeder
         ]);
         AttendanceRule::create([
             'rule_type' => 'ot_rate',
-            'config' => ['max_ot_hours' => 40, 'rate_multiplier' => 1.0],
+                'config' => [
+                    'max_ot_hours' => 40,
+                    'weekly_ot_limit_hours' => 36,
+                    'rate_multiplier' => 1.5,
+                    'rate_multiplier_workday' => 1.5,
+                    'rate_multiplier_holiday' => 3.0,
+                    'enable_holiday_legal_split' => true,
+                    'holiday_regular_multiplier_monthly' => 1.0,
+                    'requires_employee_consent' => true,
+                ],
             'effective_date' => '2024-01-01',
             'is_active' => true,
         ]);
@@ -109,7 +118,13 @@ class DatabaseSeeder extends Seeder
         ]);
         AttendanceRule::create([
             'rule_type' => 'working_hours',
-            'config' => ['target_check_in' => '09:30', 'target_check_out' => '18:30', 'target_minutes_per_day' => 540, 'working_days_per_month' => 22],
+            'config' => [
+                'target_check_in' => '09:30',
+                'target_check_out' => '18:30',
+                'target_minutes_per_day' => 540,
+                'lunch_break_minutes' => 60,
+                'working_days_per_month' => 22,
+            ],
             'effective_date' => '2024-01-01',
             'is_active' => true,
         ]);
@@ -160,6 +175,48 @@ class DatabaseSeeder extends Seeder
             'bank_name' => 'SCB',
             'account_number' => '1234567890',
             'account_name' => 'Owner Demo',
+            'is_primary' => true,
+        ]);
+
+        // 8. Monthly Staff test account (salary employee login)
+        $staffUser = User::create([
+            'name' => 'สมชาย ทดสอบ',
+            'email' => 'staff@xhr.local',
+            'password' => bcrypt('password'),
+        ]);
+        $staffUser->roles()->attach($ownerRole);
+
+        $staffEmployee = Employee::create([
+            'user_id' => $staffUser->id,
+            'employee_code' => 'STAFF-001',
+            'first_name' => 'สมชาย',
+            'last_name' => 'ทดสอบ',
+            'nickname' => 'ชาย',
+            'department_id' => $editDept->id,
+            'position_id' => $editorPos->id,
+            'payroll_mode' => 'monthly_staff',
+            'status' => 'active',
+            'is_active' => true,
+            'start_date' => '2025-01-01',
+            'probation_end_date' => '2025-04-01',
+        ]);
+
+        EmployeeProfile::create([
+            'employee_id' => $staffEmployee->id,
+        ]);
+
+        EmployeeSalaryProfile::create([
+            'employee_id' => $staffEmployee->id,
+            'base_salary' => 18000,
+            'effective_date' => '2025-01-01',
+            'is_current' => true,
+        ]);
+
+        EmployeeBankAccount::create([
+            'employee_id' => $staffEmployee->id,
+            'bank_name' => 'กสิกรไทย',
+            'account_number' => '0987654321',
+            'account_name' => 'สมชาย ทดสอบ',
             'is_primary' => true,
         ]);
     }

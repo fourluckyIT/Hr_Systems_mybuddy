@@ -19,6 +19,7 @@
                     <th class="px-2 py-2 text-center">สาย(น.)</th>
                     <th class="px-2 py-2 text-center">OT(น.)</th>
                     <th class="px-2 py-2 text-center w-8">OT</th>
+                    <th class="px-2 py-2 text-center">ประเภท OT</th>
                 </tr>
             </thead>
             <tbody>
@@ -26,11 +27,25 @@
                 @php
                     $colorClass = $dayTypeColors[$log->day_type] ?? 'bg-gray-100 text-gray-800';
                     $isWorkday = in_array($log->day_type, ['workday', 'ot_full_day']);
+                    $isHolidayOvertimeDay = in_array($log->day_type, ['holiday', 'company_holiday']);
                     $isLwop = $log->day_type === 'lwop';
                     $isHoliday = in_array($log->day_type, ['holiday', 'company_holiday', 'not_started']);
+                    $isTimeEntryDay = $isWorkday || $isHolidayOvertimeDay;
                     $date = \Carbon\Carbon::parse($log->log_date);
                     $bgClass = $isHoliday ? 'bg-gray-100/50' : ($isLwop ? 'bg-red-50/30' : 'bg-white');
-                    $showTimeInputs = !$isHoliday && !$isLwop;
+                    $showTimeInputs = $isTimeEntryDay && !$isLwop;
+                    $disableLateInput = !$isWorkday;
+                    $otTypeText = '-';
+                    $otTypeClass = 'bg-gray-100 text-gray-500';
+                    if ($log->ot_enabled && (int) $log->ot_minutes > 0) {
+                        if ($isHolidayOvertimeDay) {
+                            $otTypeText = 'OT วันหยุด';
+                            $otTypeClass = 'bg-purple-100 text-purple-700';
+                        } elseif ($isWorkday) {
+                            $otTypeText = 'OT ปกติ';
+                            $otTypeClass = 'bg-indigo-100 text-indigo-700';
+                        }
+                    }
                 @endphp
                 <tr class="{{ $bgClass }} border-t hover:bg-gray-50 transition-all attendance-row" data-log-id="{{ $log->id }}">
                     <td class="px-2 py-1">
@@ -68,7 +83,8 @@
                     <td class="px-2 py-1 text-center">
                         <input type="number" data-field="late_minutes"
                             value="{{ $log->late_minutes }}" min="0"
-                            class="late-minutes-input px-1 py-0.5 border rounded text-xs w-12 text-center">
+                            {{ $disableLateInput ? 'disabled' : '' }}
+                            class="late-minutes-input px-1 py-0.5 border rounded text-xs w-12 text-center {{ $disableLateInput ? 'bg-gray-100 text-gray-400' : '' }}">
                     </td>
                     <td class="px-2 py-1 text-center">
                         <input type="number" data-field="ot_minutes"
@@ -79,6 +95,9 @@
                         <input type="checkbox" data-field="ot_enabled"
                             {{ $log->ot_enabled ? 'checked' : '' }}
                             class="ot-enabled-input rounded border-gray-300 text-indigo-600 w-3 h-3">
+                    </td>
+                    <td class="px-2 py-1 text-center">
+                        <span class="ot-type-badge inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold {{ $otTypeClass }}">{{ $otTypeText }}</span>
                     </td>
                 </tr>
                 @endforeach
@@ -101,11 +120,14 @@
     const CSRF = document.querySelector('meta[name="csrf-token"]')?.content;
     const canManageWorkspace = {{ $canManageWorkspace ? 'true' : 'false' }};
     const targetCheckIn = "{{ $attendanceMeta['target_check_in'] ?? '09:30' }}";
+    const targetCheckOut = "{{ $attendanceMeta['target_check_out'] ?? '18:30' }}";
     const targetMinutesPerDay = Number("{{ $attendanceMeta['target_minutes_per_day'] ?? 540 }}");
+    const lunchBreakMinutes = Number("{{ $attendanceMeta['lunch_break_minutes'] ?? 60 }}");
 
     const dayTypeColors = @json($dayTypeColors);
     const holidayTypes = ['holiday', 'company_holiday', 'not_started'];
     const workdayTypes = ['workday', 'ot_full_day'];
+    const holidayOvertimeTypes = ['holiday', 'company_holiday'];
 
     function toMinutes(timeString) {
         if (!timeString || !timeString.includes(':')) return null;
@@ -115,6 +137,10 @@
     }
 
     const targetInMinutes = toMinutes(targetCheckIn) ?? 570;
+    const targetOutMinutes = toMinutes(targetCheckOut) ?? 1110;
+
+    let isInitializing = true;
+    setTimeout(() => { isInitializing = false; }, 1000);
 
     function formatMoney(n) {
         return Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -217,13 +243,15 @@
     }
 
     function scheduleRowSave(row) {
+        if (isInitializing) return;
         const logId = row.dataset.logId;
         if (pendingTimers[logId]) clearTimeout(pendingTimers[logId]);
         pendingTimers[logId] = setTimeout(() => saveRow(row), 400);
     }
 
     // Update the payroll summary panel + top summary cards
-    function updateSummary(summary, items) {
+    // Update the payroll summary panel + top summary cards
+    window.updateSummary = function(summary, items) {
         // Top summary cards
         const incomeCard = document.getElementById('summary-total-income');
         const deductionCard = document.getElementById('summary-total-deduction');
@@ -253,9 +281,13 @@
             incomeContainer.innerHTML = '';
             items.filter(i => i.category === 'income').forEach(item => {
                 const isManual = ['manual', 'override'].includes(item.source_flag);
+                const note = item.notes || item.note || '';
+                const tipAttr = note ? `title="${note}"` : '';
+                const tipClass = note ? 'cursor-help border-b border-dashed border-gray-300' : '';
+                
                 incomeContainer.innerHTML += `
                     <div class="flex justify-between text-sm py-1">
-                        <span class="text-gray-600 flex items-center gap-1">
+                        <span class="text-gray-600 flex items-center gap-1 ${tipClass}" ${tipAttr}>
                             ${item.label}
                             ${isManual && canManageWorkspace ? '<span class="text-[8px] bg-amber-100 text-amber-700 px-1 rounded font-bold uppercase">Manual</span>' : ''}
                         </span>
@@ -269,9 +301,13 @@
             deductionContainer.innerHTML = '';
             items.filter(i => i.category === 'deduction').forEach(item => {
                 const isManual = ['manual', 'override'].includes(item.source_flag);
+                const note = item.notes || item.note || '';
+                const tipAttr = note ? `title="${note}"` : '';
+                const tipClass = note ? 'cursor-help border-b border-dashed border-gray-300' : '';
+
                 deductionContainer.innerHTML += `
                     <div class="flex justify-between text-sm py-1">
-                        <span class="text-gray-600 flex items-center gap-1">
+                        <span class="text-gray-600 flex items-center gap-1 ${tipClass}" ${tipAttr}>
                             ${item.label}
                             ${isManual && canManageWorkspace ? '<span class="text-[8px] bg-amber-100 text-amber-700 px-1 rounded font-bold uppercase">Manual</span>' : ''}
                         </span>
@@ -287,10 +323,13 @@
         const dayType = row.querySelector('.day-type-select')?.value;
         const isHoliday = holidayTypes.includes(dayType);
         const isLwop = dayType === 'lwop';
-        const showTime = !isHoliday && !isLwop;
+        const isWorkday = workdayTypes.includes(dayType);
+        const isHolidayOvertimeDay = holidayOvertimeTypes.includes(dayType);
+        const showTime = (isWorkday || isHolidayOvertimeDay) && !isLwop;
 
         const checkIn = row.querySelector('.check-in-input');
         const checkOut = row.querySelector('.check-out-input');
+        const lateInput = row.querySelector('.late-minutes-input');
 
         if (checkIn) {
             checkIn.disabled = !showTime;
@@ -303,6 +342,13 @@
             checkOut.classList.toggle('bg-gray-100', !showTime);
             checkOut.classList.toggle('text-gray-400', !showTime);
             if (!showTime) checkOut.value = '';
+        }
+
+        if (lateInput) {
+            lateInput.disabled = !isWorkday;
+            lateInput.classList.toggle('bg-gray-100', !isWorkday);
+            lateInput.classList.toggle('text-gray-400', !isWorkday);
+            if (!isWorkday) lateInput.value = 0;
         }
 
         // Update row background
@@ -320,12 +366,15 @@
             dayTypeColors[dayType].split(' ').forEach(c => select.classList.add(c));
         }
 
+        updateOtTypeBadge(row);
+
         // Save immediately (no debounce for day type changes)
         saveRow(row);
     }
 
     // Local recalc for immediate feedback (before server response)
     function localRecalc(row) {
+        const dayType = row.querySelector('.day-type-select')?.value || 'workday';
         const checkIn = row.querySelector('.check-in-input');
         const checkOut = row.querySelector('.check-out-input');
         const lateInput = row.querySelector('.late-minutes-input');
@@ -342,13 +391,53 @@
         let outMin = outMinRaw;
         if (outMin <= inMin) outMin += 24 * 60;
 
-        const late = Math.max(0, inMin - targetInMinutes);
-        const worked = Math.max(0, outMin - inMin);
-        const ot = (otEnabled && otEnabled.checked) ? Math.max(0, worked - targetMinutesPerDay) : 0;
+        const isWorkday = workdayTypes.includes(dayType);
+        const isHolidayOvertimeDay = holidayOvertimeTypes.includes(dayType);
+        const late = isWorkday ? Math.max(0, inMin - targetInMinutes) : 0;
+        const worked = Math.max(0, (outMin - inMin) - lunchBreakMinutes);
+
+        let ot = 0;
+        if (otEnabled && otEnabled.checked) {
+            // NEW: Clock-based OT (After target out)
+            if (outMin > targetOutMinutes) {
+                ot = outMin - targetOutMinutes;
+            }
+        }
 
         lateInput.value = late;
         otInput.value = ot;
         if (latePreview) latePreview.textContent = late > 0 ? String(late) : '';
+    }
+
+    function updateOtTypeBadge(row) {
+        const dayType = row.querySelector('.day-type-select')?.value || 'workday';
+        const otEnabled = row.querySelector('.ot-enabled-input')?.checked;
+        const otMinutes = parseInt(row.querySelector('.ot-minutes-input')?.value || '0', 10);
+        const badge = row.querySelector('.ot-type-badge');
+        if (!badge) return;
+
+        badge.className = 'ot-type-badge inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold';
+
+        if (!otEnabled || otMinutes <= 0) {
+            badge.textContent = '-';
+            badge.classList.add('bg-gray-100', 'text-gray-500');
+            return;
+        }
+
+        if (holidayOvertimeTypes.includes(dayType)) {
+            badge.textContent = 'OT วันหยุด';
+            badge.classList.add('bg-purple-100', 'text-purple-700');
+            return;
+        }
+
+        if (workdayTypes.includes(dayType)) {
+            badge.textContent = 'OT ปกติ';
+            badge.classList.add('bg-indigo-100', 'text-indigo-700');
+            return;
+        }
+
+        badge.textContent = '-';
+        badge.classList.add('bg-gray-100', 'text-gray-500');
     }
 
     // Attach events
@@ -367,6 +456,7 @@
         [checkIn, checkOut].forEach(input => {
             input?.addEventListener('change', () => {
                 localRecalc(row);
+                updateOtTypeBadge(row);
                 scheduleRowSave(row);
             });
         });
@@ -374,13 +464,19 @@
         // OT checkbox → local recalc + debounced save
         otEnabled?.addEventListener('change', () => {
             localRecalc(row);
+            updateOtTypeBadge(row);
             scheduleRowSave(row);
         });
 
         // Manual late/ot inputs → debounced save
         [lateInput, otInput].forEach(input => {
-            input?.addEventListener('change', () => scheduleRowSave(row));
+            input?.addEventListener('change', () => {
+                updateOtTypeBadge(row);
+                scheduleRowSave(row);
+            });
         });
+
+        updateOtTypeBadge(row);
     });
 })();
 </script>

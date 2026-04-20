@@ -18,6 +18,10 @@
             <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight">การตั้งค่ากฎระบบ (Rule Dashboard) ⚙️</h1>
             <p class="text-gray-500 mt-1">จัดการเวลาทำงาน, ประกันสังคม และกฎเกณฑ์ต่างๆ ของบริษัท</p>
         </div>
+        <div class="flex items-center gap-2">
+            <a href="{{ route('settings.master-data') }}" class="px-3 py-1.5 text-xs font-semibold bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">Master Data</a>
+            <a href="{{ route('settings.bonus.index') }}" class="px-3 py-1.5 text-xs font-semibold bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200">Bonus Manager</a>
+        </div>
     </div>
 
     @if(session('success'))
@@ -28,169 +32,196 @@
     @endif
 
     <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-        
-        <!-- 1. Work Hours & Office Times -->
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
-            <div class="px-6 py-4 bg-indigo-50 border-b border-indigo-100 flex items-center justify-between">
-                <h3 class="font-bold text-indigo-900 flex items-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd" /></svg>
-                    เวลาทำงาน และวันทำงาน (Office Hours)
-                </h3>
-                <span class="text-[10px] text-indigo-400 font-bold uppercase tracking-widest cursor-help" title="กำหนดเวลาเข้า-ออกงานหลักของบริษัท">Helper (?)</span>
-            </div>
-            <div class="p-6 flex-grow">
-                @php $rule = $rules['working_hours']; $config = $rule?->config; @endphp
-                <form action="{{ route('settings.rules.update', 'working_hours') }}" method="POST" class="space-y-4">
-                    @csrf @method('PATCH')
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1 flex items-center gap-1">
-                                เวลาเข้างาน (In)
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-gray-300 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor" title="เวลาเป้าหมายที่พนักงานต้องเข้างาน"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                            </label>
-                            <input type="time" name="target_check_in" value="{{ $config['target_check_in'] ?? '09:00' }}" class="w-full px-3 py-2 border rounded-lg text-sm font-bold text-indigo-600 focus:ring-2 focus:ring-indigo-500">
-                        </div>
-                        <div>
-                            <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">เวลาออกงาน (Out)</label>
-                            <input type="time" name="target_check_out" value="{{ $config['target_check_out'] ?? '18:00' }}" class="w-full px-3 py-2 border rounded-lg text-sm font-bold text-indigo-600 focus:ring-2 focus:ring-indigo-500">
-                        </div>
-                    </div>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">ชั่วโมงทำงานจริง/วัน</label>
-                            <input type="number" name="target_minutes_per_day" value="{{ $config['target_minutes_per_day'] ?? 540 }}" class="w-full px-3 py-2 border rounded-lg text-sm font-bold">
-                        </div>
-                        <div>
-                            <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1 flex items-center gap-1">
-                                วันทำงานเฉลี่ย/เดือน
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-gray-300 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor" title="ใช้เป็นตัวหารเงินเดือนเพื่อคิดค่าแรงรายวัน หรือหักเงินขาดงาน"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                            </label>
-                            <input type="number" name="working_days_per_month" value="{{ $config['working_days_per_month'] ?? 22 }}" class="w-full px-3 py-2 border rounded-lg text-sm font-bold text-indigo-600">
-                        </div>
-                    </div>
-                    <button type="submit" class="w-full bg-indigo-600 text-white py-2.5 rounded-xl font-bold text-sm hover:bg-indigo-700 transition shadow-lg shadow-indigo-100">บันทึกเวลาทำงาน</button>
-                </form>
-            </div>
-        </div>
 
-        <!-- 2. Social Security Settings -->
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
-            <div class="px-6 py-4 bg-blue-50 border-b border-blue-100 flex items-center justify-between">
-                <h3 class="font-bold text-blue-900 flex items-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-500" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg>
-                    ประกันสังคม (Social Security)
-                </h3>
-            </div>
-            <div class="p-6 flex-grow">
-                @php $sso = $rules['social_security_config']; @endphp
-                <form action="{{ route('settings.rules.update', 'social_security') }}" method="POST" class="space-y-4">
-                    @csrf @method('PATCH')
-                    <div>
-                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1 flex items-center gap-1">
-                            เพดานเงินเดือน (Salary Ceiling)
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-gray-300 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor" title="ยอดเงินเดือนสูงสุดที่ใช้คิดประกันสังคม (เช่น 15,000 หรือ 17,500)"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                        </label>
-                        <div class="relative">
-                            <input type="number" name="salary_ceiling" value="{{ (int)($sso->salary_ceiling ?? 15000) }}" class="w-full pl-3 pr-10 py-2 border rounded-lg text-sm font-bold focus:ring-2 focus:ring-blue-500">
-                            <span class="absolute right-3 top-2 text-xs text-gray-400">บาท</span>
-                        </div>
-                    </div>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">อัตราหักพนักงาน (%)</label>
-                            <input type="number" step="0.1" name="employee_contribution_rate" value="{{ (float)($sso->employee_rate ?? 5) }}" class="w-full px-3 py-2 border rounded-lg text-sm font-bold text-blue-600 focus:ring-2 focus:ring-blue-500">
-                        </div>
-                        <div>
-                            <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">อัตราสมทบนายจ้าง (%)</label>
-                            <input type="number" step="0.1" name="employer_contribution_rate" value="{{ (float)($sso->employer_rate ?? 5) }}" class="w-full px-3 py-2 border rounded-lg text-sm font-bold text-blue-600 focus:ring-2 focus:ring-blue-500">
-                        </div>
-                    </div>
-                    <button type="submit" class="w-full bg-blue-600 text-white py-2.5 rounded-xl font-bold text-sm hover:bg-blue-700 transition shadow-lg shadow-blue-100">บันทึกตั้งค่าประกันสังคม</button>
-                </form>
-            </div>
-        </div>
-
-        <!-- 3. Multi-Tier Diligence Rules -->
+        <!-- Unified Payroll Rule Panel -->
         <div class="md:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
-            <div class="px-6 py-4 bg-orange-50 border-b border-orange-100 flex items-center justify-between">
-                <h3 class="font-bold text-orange-900 flex items-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-orange-500" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5 2a1 1 0 011 1v1h1a1 1 0 010 2H6v1a1 1 0 01-2 0V6H3a1 1 0 010-2h1V3a1 1 0 011-1zm0 10a1 1 0 011 1v1h1a1 1 0 110 2H6v1a1 1 0 11-2 0v-1H3a1 1 0 110-2h1v-1a1 1 0 011-1zM11 2a1 1 0 011-1h5a1 1 0 011 1v5a1 1 0 01-1 1h-5a1 1 0 01-1-1V2zm2 2v2h2V4h-2zM11 12a1 1 0 011-1h5a1 1 0 011 1v5a1 1 0 01-1 1h-5a1 1 0 01-1-1v-5zm2 2v2h2v-2h-2z" clip-rule="evenodd" /></svg>
-                    กฎเบี้ยขยันแบบ "ขั้นบันได" (Tiered Diligence)
+            <div class="px-6 py-4 bg-gradient-to-r from-indigo-50 via-blue-50 to-orange-50 border-b border-gray-100 flex items-center justify-between">
+                <h3 class="font-bold text-gray-900 flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-indigo-500" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.49 3.17a1 1 0 011.42 0l3.41 3.41a1 1 0 010 1.42l-7.78 7.78a1 1 0 01-.39.24l-3.5 1.17a1 1 0 01-1.26-1.26l1.17-3.5a1 1 0 01.24-.39l7.78-7.78z" clip-rule="evenodd" /></svg>
+                    กฎคำนวณเงินเดือน (รวมทุกส่วนที่เกี่ยวข้อง)
                 </h3>
-                <span class="text-[10px] text-orange-400 font-bold uppercase tracking-widest cursor-help" title="พนักงานจะได้เบี้ยขยันตามลำดับขั้นที่ระบุข้างล่างนี้ โดยระบบจะเลือกขั้นที่ดีที่สุด">Help (?)</span>
+                <span class="text-[10px] text-gray-500 font-bold uppercase">single workspace</span>
             </div>
-            <div class="p-6 flex-grow">
-                <form action="{{ route('settings.rules.update', 'diligence') }}" method="POST">
-                    @csrf @method('PATCH')
-                    
-                    <div class="space-y-3 mb-6">
-                        <template x-for="(tier, index) in diligenceTiers" :key="index">
-                            <div class="flex items-end gap-4 p-4 bg-orange-50/50 rounded-xl border border-orange-100 relative group animate-in slide-in-from-top duration-200">
-                                <div class="w-12 text-[10px] font-black text-orange-400 uppercase">ขั้นที่ <span x-text="index + 1"></span></div>
-                                <div class="flex-grow grid grid-cols-1 md:grid-cols-3 gap-4">
-                                    <div>
-                                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">สายไม่เกิน (ครั้ง)</label>
-                                        <input type="number" :name="'tiers['+index+'][late_count_max]'" x-model="tier.late_count_max" class="w-full px-3 py-1.5 border rounded-lg text-sm font-bold focus:ring-1 focus:ring-orange-500">
-                                    </div>
-                                    <div>
-                                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">ลา/ขาดไม่เกิน (วัน)</label>
-                                        <input type="number" :name="'tiers['+index+'][lwop_days_max]'" x-model="tier.lwop_days_max" class="w-full px-3 py-1.5 border rounded-lg text-sm font-bold focus:ring-1 focus:ring-orange-500">
-                                    </div>
-                                    <div>
-                                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">จำนวนเงิน</label>
-                                        <input type="number" :name="'tiers['+index+'][amount]'" x-model="tier.amount" class="w-full px-3 py-1.5 border rounded-lg text-sm font-bold text-orange-600 focus:ring-1 focus:ring-orange-500">
-                                    </div>
+
+            <div class="p-6 space-y-8">
+                @php $moduleDefaults = $rules['module_defaults']?->config ?? []; @endphp
+                <section class="rounded-xl border border-slate-100 bg-slate-50/50 p-4">
+                    <h4 class="text-sm font-bold text-slate-800 mb-3">1) ค่าเริ่มต้นโมดูล</h4>
+                    <form action="{{ route('settings.rules.update', 'module_defaults') }}" method="POST" class="space-y-4">
+                        @csrf @method('PATCH')
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <label class="flex items-center justify-between p-4 border rounded-xl bg-white">
+                                <div>
+                                    <p class="text-sm font-semibold text-gray-800">เปิดคำนวณ OT</p>
+                                    <p class="text-xs text-gray-500">ปิดแล้ว OT จะเป็น 0 ใน payroll</p>
                                 </div>
-                                <button type="button" @click="removeTier(index)" class="p-2 text-gray-300 hover:text-red-500 transition-colors">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                </button>
-                            </div>
-                        </template>
+                                <input type="hidden" name="enable_overtime" value="0">
+                                <input type="checkbox" name="enable_overtime" value="1" {{ ($moduleDefaults['enable_overtime'] ?? true) ? 'checked' : '' }} class="rounded border-gray-300 text-indigo-600">
+                            </label>
 
-                        <button type="button" @click="addTier()" class="w-full py-3 border-2 border-dashed border-orange-100 rounded-xl text-orange-400 font-bold text-sm hover:bg-orange-50 hover:border-orange-200 transition-all">
-                            + เพิ่มขั้นบันไดเบี้ยขยัน
-                        </button>
-                    </div>
+                            <label class="flex items-center justify-between p-4 border rounded-xl bg-white">
+                                <div>
+                                    <p class="text-sm font-semibold text-gray-800">เปิดคำนวณเบี้ยขยัน</p>
+                                    <p class="text-xs text-gray-500">ปิดแล้วรายการ diligence จะเป็น 0</p>
+                                </div>
+                                <input type="hidden" name="enable_diligence" value="0">
+                                <input type="checkbox" name="enable_diligence" value="1" {{ ($moduleDefaults['enable_diligence'] ?? true) ? 'checked' : '' }} class="rounded border-gray-300 text-indigo-600">
+                            </label>
 
-                    <div class="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-dashed border-gray-200 mb-6">
-                        <div class="flex items-center gap-3">
-                            <div class="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center text-orange-600">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            <label class="flex items-center justify-between p-4 border rounded-xl bg-white">
+                                <div>
+                                    <p class="text-sm font-semibold text-gray-800">ค่าเริ่มต้น SSO (พนักงานใหม่)</p>
+                                    <p class="text-xs text-gray-500">กำหนด default ของ toggle sso_deduction</p>
+                                </div>
+                                <input type="hidden" name="default_sso_deduction" value="0">
+                                <input type="checkbox" name="default_sso_deduction" value="1" {{ ($moduleDefaults['default_sso_deduction'] ?? true) ? 'checked' : '' }} class="rounded border-gray-300 text-indigo-600">
+                            </label>
+
+                            <label class="flex items-center justify-between p-4 border rounded-xl bg-white">
+                                <div>
+                                    <p class="text-sm font-semibold text-gray-800">ค่าเริ่มต้นหักมาสาย/ออกเร็ว (พนักงานใหม่)</p>
+                                    <p class="text-xs text-gray-500">กำหนด default ของ deduct_late และ deduct_early</p>
+                                </div>
+                                <div class="flex items-center gap-3">
+                                    <span class="text-[10px] text-gray-500">Late</span>
+                                    <input type="hidden" name="default_deduct_late" value="0">
+                                    <input type="checkbox" name="default_deduct_late" value="1" {{ ($moduleDefaults['default_deduct_late'] ?? true) ? 'checked' : '' }} class="rounded border-gray-300 text-indigo-600">
+                                    <span class="text-[10px] text-gray-500">Early</span>
+                                    <input type="hidden" name="default_deduct_early" value="0">
+                                    <input type="checkbox" name="default_deduct_early" value="1" {{ ($moduleDefaults['default_deduct_early'] ?? true) ? 'checked' : '' }} class="rounded border-gray-300 text-indigo-600">
+                                </div>
+                            </label>
+                        </div>
+                        <button type="submit" class="w-full bg-slate-700 text-white py-2.5 rounded-xl font-bold text-sm hover:bg-slate-800 transition">บันทึกค่าเริ่มต้นโมดูล</button>
+                    </form>
+                </section>
+
+                @php $rule = $rules['working_hours']; $config = $rule?->config; @endphp
+                <section class="rounded-xl border border-indigo-100 bg-indigo-50/40 p-4">
+                    <h4 class="text-sm font-bold text-indigo-900 mb-3">2) เวลาทำงาน และวันทำงาน</h4>
+                    <form action="{{ route('settings.rules.update', 'working_hours') }}" method="POST" class="space-y-4">
+                        @csrf @method('PATCH')
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1 flex items-center gap-1">
+                                    เวลาเข้างาน (In)
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-gray-300 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor" title="เวลาเป้าหมายที่พนักงานต้องเข้างาน"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                </label>
+                                <input type="time" name="target_check_in" value="{{ $config['target_check_in'] ?? '09:00' }}" class="w-full px-3 py-2 border rounded-lg text-sm font-bold text-indigo-600 focus:ring-2 focus:ring-indigo-500">
                             </div>
                             <div>
-                                <p class="text-[10px] font-bold text-orange-800 uppercase leading-none mb-1">โหมดการจ่าย</p>
-                                <p class="text-xs text-gray-500">ระบบจะคำนวณเบี้ยขยันให้อัตโนมัติในหน้า Workspace แต่คุณสามารถ<b>คลิกที่ยอดเงินเพื่อแก้เอง (Manual)</b> ได้ทุกเมื่อ</p>
+                                <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">เวลาออกงาน (Out)</label>
+                                <input type="time" name="target_check_out" value="{{ $config['target_check_out'] ?? '18:00' }}" class="w-full px-3 py-2 border rounded-lg text-sm font-bold text-indigo-600 focus:ring-2 focus:ring-indigo-500">
                             </div>
                         </div>
-                    </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">ชั่วโมงทำงานจริง/วัน</label>
+                                <input type="number" name="target_minutes_per_day" value="{{ $config['target_minutes_per_day'] ?? 540 }}" class="w-full px-3 py-2 border rounded-lg text-sm font-bold">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">พักเที่ยงอัตโนมัติ (นาที/วัน)</label>
+                                <input type="number" name="lunch_break_minutes" value="{{ $config['lunch_break_minutes'] ?? 60 }}" class="w-full px-3 py-2 border rounded-lg text-sm font-bold text-indigo-700 focus:ring-2 focus:ring-indigo-500">
+                                <p class="text-[10px] text-gray-500 mt-1">ระบบจะหักเวลานี้จากเวลาเข้า-ออกตอนคำนวณ OT</p>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1 flex items-center gap-1">
+                                    วันทำงานเฉลี่ย (Standard)
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-gray-300 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor" title="ใช้เป็นตัวแสดงผลเบื้องต้น (การคำนวณจริงจะใช้จำนวนวัน จ-ศ ในเดือนนั้นๆ)"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                </label>
+                                <input type="number" name="working_days_per_month" value="{{ $config['working_days_per_month'] ?? 22 }}" class="w-full px-3 py-2 border rounded-lg text-sm font-bold text-gray-400 bg-gray-50 cursor-not-allowed" readonly>
+                            </div>
+                        </div>
+                        <div class="p-3 bg-slate-50 border border-slate-100 rounded-xl mb-4">
+                            <p class="text-[10px] font-bold text-slate-400 uppercase mb-2">วันหยุดประจำสัปดาห์ (Standard Weekend)</p>
+                            <div class="flex flex-wrap gap-3">
+                                @php 
+                                    $days = [
+                                        0 => 'อา', 1 => 'จ', 2 => 'อ', 3 => 'พ', 4 => 'พฤ', 5 => 'ศ', 6 => 'ส'
+                                    ];
+                                    $standardHolidays = $config['standard_holidays'] ?? [0, 6];
+                                @endphp
+                                @foreach($days as $val => $label)
+                                <label class="flex items-center gap-1 cursor-pointer group">
+                                    <input type="checkbox" name="standard_holidays[]" value="{{ $val }}" 
+                                        {{ in_array($val, $standardHolidays) ? 'checked' : '' }}
+                                        class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                    <span class="text-xs {{ in_array($val, $standardHolidays) ? 'text-indigo-600 font-bold' : 'text-gray-500' }} group-hover:text-indigo-400 transition-colors">{{ $label }}</span>
+                                </label>
+                                @endforeach
+                            </div>
+                            <p class="text-[9px] text-gray-400 mt-2 italic">* ระบบจะใช้ค่านี้ในการสร้างตารางงานอัตโนมัติ (เช่น เสาร์-อาทิตย์)</p>
+                        </div>
+                        <label class="flex items-center justify-between p-3 bg-indigo-50/60 border border-indigo-100 rounded-xl">
+                            <div>
+                                <p class="text-xs font-bold text-indigo-800 uppercase">อนุญาตสลับวันหยุดตามประเพณี</p>
+                                <p class="text-[11px] text-indigo-600">เปิดเฉพาะกิจการที่กฎหมายยกเว้น เช่น โรงแรม/ร้านอาหาร/ขนส่ง</p>
+                            </div>
+                            <div>
+                                <input type="hidden" name="allow_company_holiday_swap" value="0">
+                                <input type="checkbox" name="allow_company_holiday_swap" value="1" {{ ($config['allow_company_holiday_swap'] ?? false) ? 'checked' : '' }} class="rounded border-gray-300 text-indigo-600">
+                            </div>
+                        </label>
+                        <button type="submit" class="w-full bg-indigo-600 text-white py-2.5 rounded-xl font-bold text-sm hover:bg-indigo-700 transition">บันทึกเวลาทำงาน</button>
+                    </form>
+                </section>
 
-                    <button type="submit" class="w-full bg-orange-600 text-white py-3 rounded-xl font-bold text-sm hover:bg-orange-700 transition shadow-lg shadow-orange-100">บันทึกกฎเบี้ยขยันทั้งหมด</button>
-                </form>
-            </div>
-        </div>
-
-        <!-- 4. OT & Late Rules -->
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
-            <div class="px-6 py-4 bg-red-50 border-b border-red-100 flex items-center justify-between">
-                <h3 class="font-bold text-red-900 flex items-center gap-2">
-                   <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-red-500" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" /></svg>
-                    OT และการหักเงินมาสาย (OT & Late Penalty)
-                </h3>
-            </div>
-            <div class="p-6 flex-grow space-y-6">
+                <section class="rounded-xl border border-red-100 bg-red-50/40 p-4">
+                    <h4 class="text-sm font-bold text-red-900 mb-3">3) OT และการหักสาย</h4>
                 <!-- OT Rate Card -->
                 @php $rule = $rules['ot_rate']; $config = $rule?->config; @endphp
                 <form action="{{ route('settings.rules.update', 'ot_rate') }}" method="POST" class="space-y-4">
                     @csrf @method('PATCH')
                     <div class="grid grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">ตัวคูณ OT (Multiplier)</label>
-                            <input type="number" step="0.1" name="rate_multiplier" value="{{ $config['rate_multiplier'] ?? 1.0 }}" class="w-full px-3 py-2 border rounded-lg text-sm font-bold text-red-600 focus:ring-2 focus:ring-red-500">
+                            <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">ตัวคูณ OT วันทำงานปกติ</label>
+                            <input type="number" step="0.1" name="rate_multiplier_workday" value="{{ $config['rate_multiplier_workday'] ?? ($config['rate_multiplier'] ?? 1.5) }}" class="w-full px-3 py-2 border rounded-lg text-sm font-bold text-red-600 focus:ring-2 focus:ring-red-500">
                         </div>
                         <div>
-                            <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">เพดานชั่วโมง/เดือน</label>
+                            <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">ตัวคูณ OT วันหยุด</label>
+                            <input type="number" step="0.1" name="rate_multiplier_holiday" value="{{ $config['rate_multiplier_holiday'] ?? 3.0 }}" class="w-full px-3 py-2 border rounded-lg text-sm font-bold text-red-600 focus:ring-2 focus:ring-red-500">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">เพดานชั่วโมง OT / สัปดาห์</label>
+                            <input type="number" step="0.5" name="weekly_ot_limit_hours" value="{{ $config['weekly_ot_limit_hours'] ?? 36 }}" class="w-full px-3 py-2 border rounded-lg text-sm font-bold text-red-600 focus:ring-2 focus:ring-red-500">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">เพดานชั่วโมง OT / เดือน (internal)</label>
                             <input type="number" name="max_ot_hours" value="{{ $config['max_ot_hours'] ?? 40 }}" class="w-full px-3 py-2 border rounded-lg text-sm font-bold text-red-600 focus:ring-2 focus:ring-red-500">
                         </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">ตัวคูณค่าทำงานวันหยุด (ชั่วโมงปกติ / รายเดือน)</label>
+                            <input type="number" step="0.1" name="holiday_regular_multiplier_monthly" value="{{ $config['holiday_regular_multiplier_monthly'] ?? 1.0 }}" class="w-full px-3 py-2 border rounded-lg text-sm font-bold text-red-600 focus:ring-2 focus:ring-red-500">
+                        </div>
+                        <label class="flex items-center justify-between p-3 bg-white border rounded-xl">
+                            <div>
+                                <p class="text-[10px] font-bold text-gray-500 uppercase">เปิดโหมดแยกค่าทำงานวันหยุดตามกฎหมาย</p>
+                                <p class="text-[11px] text-gray-500">ชั่วโมงปกติวันหยุด + ชม.เกิน (OT 3 เท่า)</p>
+                            </div>
+                            <div>
+                                <input type="hidden" name="enable_holiday_legal_split" value="0">
+                                <input type="checkbox" name="enable_holiday_legal_split" value="1" {{ ($config['enable_holiday_legal_split'] ?? true) ? 'checked' : '' }} class="rounded border-gray-300 text-red-600">
+                            </div>
+                        </label>
+                    </div>
+                    <label class="flex items-center justify-between p-3 bg-red-50/60 border border-red-100 rounded-xl">
+                        <div>
+                            <p class="text-xs font-bold text-red-800 uppercase">ต้องได้รับความยินยอมลูกจ้าง</p>
+                            <p class="text-[11px] text-red-600">ใช้เป็น policy flag เพื่อบันทึกกฎองค์กร/กฎหมาย</p>
+                        </div>
+                        <div>
+                            <input type="hidden" name="requires_employee_consent" value="0">
+                            <input type="checkbox" name="requires_employee_consent" value="1" {{ ($config['requires_employee_consent'] ?? true) ? 'checked' : '' }} class="rounded border-gray-300 text-red-600">
+                        </div>
+                    </label>
+                    <div class="text-[11px] text-red-500 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+                        กฎหมายแรงงานไทยทั่วไป: OT วันทำงานปกติ 1.5 เท่า, วันหยุด 3 เท่า และไม่ควรเกิน 36 ชั่วโมงต่อสัปดาห์โดยไม่มีความยินยอม
                     </div>
                     <button type="submit" class="w-full bg-red-600 text-white py-2 rounded-xl font-bold text-xs hover:bg-red-700 transition">อัปเดตกฎ OT</button>
                 </form>
@@ -203,16 +234,97 @@
                     @csrf @method('PATCH')
                     <div class="grid grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">หักต่อนำที (บาท)</label>
-                            <input type="number" name="rate_per_minute" value="{{ $config['rate_per_minute'] ?? 0 }}" class="w-full px-3 py-2 border rounded-lg text-sm font-bold text-gray-700 focus:ring-2 focus:ring-gray-400">
+                            <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">โหมดการหักมาสาย</label>
+                            <div class="px-3 py-2 bg-gray-50 border rounded-lg text-xs font-bold text-red-600">อิงตามสัดส่วนเงินเดือน (Proportional)</div>
                         </div>
                         <div>
-                            <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">อนุโลม (นาที)</label>
+                            <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">โควต้าอนุโลมมาสาย/เดือน (นาที)</label>
                             <input type="number" name="grace_period_minutes" value="{{ $config['grace_period_minutes'] ?? 0 }}" class="w-full px-3 py-2 border rounded-lg text-sm font-bold text-gray-700 focus:ring-2 focus:ring-gray-400">
+                            <p class="text-[10px] text-gray-500 mt-1">หักฟรีจากยอดสายรวมทั้งเดือนครั้งเดียว (ไม่ใช่ต่อครั้ง)</p>
                         </div>
                     </div>
                     <button type="submit" class="w-full bg-gray-100 text-gray-700 py-2 rounded-xl font-bold text-xs hover:bg-gray-200 transition">อัปเดตอัตราหักมาสาย</button>
                 </form>
+                </section>
+
+                <section class="rounded-xl border border-orange-100 bg-orange-50/40 p-4">
+                    <h4 class="text-sm font-bold text-orange-900 mb-3">4) กฎเบี้ยขยันแบบขั้นบันได</h4>
+                    <form action="{{ route('settings.rules.update', 'diligence') }}" method="POST">
+                        @csrf @method('PATCH')
+
+                        <div class="space-y-3 mb-6">
+                            <template x-for="(tier, index) in diligenceTiers" :key="index">
+                                <div class="flex items-end gap-4 p-4 bg-orange-50/50 rounded-xl border border-orange-100 relative group animate-in slide-in-from-top duration-200">
+                                    <div class="w-12 text-[10px] font-black text-orange-400 uppercase">ขั้นที่ <span x-text="index + 1"></span></div>
+                                    <div class="flex-grow grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <div>
+                                            <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">สายไม่เกิน (ครั้ง)</label>
+                                            <input type="number" :name="'tiers['+index+'][late_count_max]'" x-model="tier.late_count_max" class="w-full px-3 py-1.5 border rounded-lg text-sm font-bold focus:ring-1 focus:ring-orange-500">
+                                        </div>
+                                        <div>
+                                            <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">ลา/ขาดไม่เกิน (วัน)</label>
+                                            <input type="number" :name="'tiers['+index+'][lwop_days_max]'" x-model="tier.lwop_days_max" class="w-full px-3 py-1.5 border rounded-lg text-sm font-bold focus:ring-1 focus:ring-orange-500">
+                                        </div>
+                                        <div>
+                                            <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">จำนวนเงิน</label>
+                                            <input type="number" :name="'tiers['+index+'][amount]'" x-model="tier.amount" class="w-full px-3 py-1.5 border rounded-lg text-sm font-bold text-orange-600 focus:ring-1 focus:ring-orange-500">
+                                        </div>
+                                    </div>
+                                    <button type="button" @click="removeTier(index)" class="p-2 text-gray-300 hover:text-red-500 transition-colors">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                    </button>
+                                </div>
+                            </template>
+
+                            <button type="button" @click="addTier()" class="w-full py-3 border-2 border-dashed border-orange-100 rounded-xl text-orange-400 font-bold text-sm hover:bg-orange-50 hover:border-orange-200 transition-all">
+                                + เพิ่มขั้นบันไดเบี้ยขยัน
+                            </button>
+                        </div>
+
+                        <div class="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-dashed border-gray-200 mb-6">
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center text-orange-600">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                </div>
+                                <div>
+                                    <p class="text-[10px] font-bold text-orange-800 uppercase leading-none mb-1">โหมดการจ่าย</p>
+                                    <p class="text-xs text-gray-500">ระบบจะคำนวณเบี้ยขยันให้อัตโนมัติในหน้า Workspace แต่คุณสามารถ<b>คลิกที่ยอดเงินเพื่อแก้เอง (Manual)</b> ได้ทุกเมื่อ</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="w-full bg-orange-600 text-white py-3 rounded-xl font-bold text-sm hover:bg-orange-700 transition">บันทึกกฎเบี้ยขยันทั้งหมด</button>
+                    </form>
+                </section>
+
+                @php $sso = $rules['social_security_config']; @endphp
+                <section class="rounded-xl border border-blue-100 bg-blue-50/40 p-4">
+                    <h4 class="text-sm font-bold text-blue-900 mb-3">5) ประกันสังคม</h4>
+                    <form action="{{ route('settings.rules.update', 'social_security') }}" method="POST" class="space-y-4">
+                        @csrf @method('PATCH')
+                        <div>
+                            <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1 flex items-center gap-1">
+                                เพดานเงินเดือน (Salary Ceiling)
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-gray-300 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor" title="ยอดเงินเดือนสูงสุดที่ใช้คิดประกันสังคม (เช่น 15,000 หรือ 17,500)"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            </label>
+                            <div class="relative">
+                                <input type="number" name="salary_ceiling" value="{{ (int)($sso->salary_ceiling ?? 15000) }}" class="w-full pl-3 pr-10 py-2 border rounded-lg text-sm font-bold focus:ring-2 focus:ring-blue-500">
+                                <span class="absolute right-3 top-2 text-xs text-gray-400">บาท</span>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">อัตราหักพนักงาน (%)</label>
+                                <input type="number" step="0.1" name="employee_contribution_rate" value="{{ (float)($sso->employee_rate ?? 5) }}" class="w-full px-3 py-2 border rounded-lg text-sm font-bold text-blue-600 focus:ring-2 focus:ring-blue-500">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">อัตราสมทบนายจ้าง (%)</label>
+                                <input type="number" step="0.1" name="employer_contribution_rate" value="{{ (float)($sso->employer_rate ?? 5) }}" class="w-full px-3 py-2 border rounded-lg text-sm font-bold text-blue-600 focus:ring-2 focus:ring-blue-500">
+                            </div>
+                        </div>
+                        <button type="submit" class="w-full bg-blue-600 text-white py-2.5 rounded-xl font-bold text-sm hover:bg-blue-700 transition">บันทึกตั้งค่าประกันสังคม</button>
+                    </form>
+                </section>
             </div>
         </div>
 
@@ -223,11 +335,12 @@
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-purple-500" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd" /></svg>
                     จัดการวันหยุดบริษัท (Company Holidays)
                 </h3>
-                <form action="{{ route('settings.holidays.load-legal') }}" method="POST">
+                <form action="{{ route('settings.holidays.load-legal') }}" method="POST" class="flex items-center gap-2">
                     @csrf
+                    <input type="number" name="year" value="{{ now()->year }}" class="w-20 px-2 py-1 border rounded text-xs font-bold focus:ring-1 focus:ring-purple-500">
                     <button type="submit" class="px-3 py-1 bg-purple-600 text-white rounded-lg text-[10px] font-bold hover:bg-purple-700 transition flex items-center gap-1">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-                        ดึงข้อมูลวันหยุดราชการ 2026
+                        ดึงข้อมูลวันหยุดราชการ
                     </button>
                 </form>
             </div>

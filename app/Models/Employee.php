@@ -12,7 +12,7 @@ class Employee extends Model
     protected $fillable = [
         'user_id', 'employee_code', 'first_name', 'last_name', 'nickname',
         'department_id', 'position_id', 'payroll_mode', 'advance_ceiling_percent', 'status', 'is_active',
-        'start_date', 'probation_end_date', 'end_date',
+        'start_date', 'probation_end_date', 'end_date', 'vacation_entitlement',
     ];
 
     protected function casts(): array
@@ -133,7 +133,7 @@ class Employee extends Model
     public function isModuleEnabled(string $moduleName): bool
     {
         $toggle = $this->moduleToggles()->where('module_name', $moduleName)->first();
-        return $toggle ? $toggle->is_enabled : false;
+        return $toggle ? (bool) $toggle->is_enabled : true;
     }
 
     public function getAverageMinutesLast3MonthsAttribute(): float
@@ -160,5 +160,20 @@ class Employee extends Model
     public function scopeActive($query)
     {
         return $query->where('is_active', true);
+    }
+
+    public function getVacationBalance(int $year): array
+    {
+        $limit = (int) ($this->vacation_entitlement ?? 6);
+        $used = (int) $this->attendanceLogs()
+            ->whereYear('log_date', $year)
+            ->where('day_type', 'vacation_leave')
+            ->count();
+
+        return [
+            'limit' => $limit,
+            'used' => $used,
+            'remaining' => max(0, $limit - $used),
+        ];
     }
 }

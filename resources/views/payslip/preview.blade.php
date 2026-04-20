@@ -349,18 +349,27 @@
 </div>
 
 @if($canManagePayslip && $payslip && $payslip->status === 'finalized')
-<div class="print-hide bg-green-50 border border-green-200 text-green-700 px-4 py-2 rounded-lg text-sm mb-4 flex justify-between items-center">
-    <span>Finalized: {{ $payslip->finalized_at?->format('d/m/Y H:i') }}</span>
-    <form method="POST" action="{{ route('payslip.unfinalize', ['employee' => $employee->id, 'month' => $month, 'year' => $year]) }}" onsubmit="return confirm('คุณแน่ใจหรือว่าต้องการยกเลิก Finalize?');">
+<div class="print-hide bg-white border border-green-200 text-green-700 px-4 py-3 rounded-xl text-sm mb-4 flex justify-between items-center shadow-sm">
+    <div class="flex items-center gap-2">
+        <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+        <span class="font-bold">Finalized เมื่อ: {{ $payslip->finalized_at?->format('d/m/Y H:i') }}</span>
+    </div>
+    <form method="POST" action="{{ route('payslip.unfinalize', ['employee' => $employee->id, 'month' => $month, 'year' => $year]) }}" 
+          onsubmit="return confirm('คุณแน่ใจหรือว่าต้องการยกเลิก Finalize?\n\nสลิปนี้จะถูกเปลี่ยนสถานะเป็น Draft และข้อมูลจะกลับไปคำนวณสดเพื่อแก้ไขได้ครับ');">
         @csrf
-        <button type="submit" class="text-sm text-red-600 hover:text-red-800 underline font-semibold">ยกเลิก Finalize</button>
+        <button type="submit" class="px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg text-xs font-bold transition-all border border-red-100 flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+            ยกเลิก Finalize
+        </button>
     </form>
 </div>
 @else
-<div class="print-hide bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-2 rounded-lg text-sm mb-4">
+<div class="print-hide bg-amber-50 border border-amber-200 text-amber-700 px-4 py-3 rounded-xl text-sm mb-4 flex items-center gap-2 font-medium">
+    <span class="w-2 h-2 bg-amber-500 rounded-full"></span>
     Draft - ยังไม่ได้ Finalize (ข้อมูลคำนวณสด)
 </div>
 @endif
+
 
 <!-- Payslip Container -->
 <div class="max-w-5xl mx-auto mb-6">

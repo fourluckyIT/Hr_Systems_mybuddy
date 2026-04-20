@@ -29,27 +29,49 @@
                 <div class="flex items-center space-x-6">
                     <a href="{{ $isOwnerOnly ? route('workspace.my') : route('employees.index') }}" class="text-lg font-bold text-indigo-600">xHR Payroll</a>
 
+                    @php
+                        $navLink = 'text-sm text-gray-600 hover:text-indigo-600';
+                        $navActive = 'text-indigo-600 font-semibold';
+                        $dropItem = 'block px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-600';
+                    @endphp
+
                     @if($isOwnerOnly)
-                        <a href="{{ route('workspace.my') }}" class="text-sm text-gray-600 hover:text-indigo-600 {{ request()->routeIs('workspace.*') ? 'text-indigo-600 font-semibold' : '' }}">My Workspace</a>
-                        <a href="{{ route('calendar.index') }}" class="text-sm text-gray-600 hover:text-indigo-600 {{ request()->routeIs('calendar.*') ? 'text-indigo-600 font-semibold' : '' }}">ปฏิทินหลัก</a>
-                    @else
-                        @if($isAdmin)
-                            <a href="{{ route('employees.index') }}" class="text-sm text-gray-600 hover:text-indigo-600 {{ request()->routeIs('employees.*') ? 'text-indigo-600 font-semibold' : '' }}">พนักงาน</a>
-                            <a href="{{ route('calendar.index') }}" class="text-sm text-gray-600 hover:text-indigo-600 {{ request()->routeIs('calendar.*') ? 'text-indigo-600 font-semibold' : '' }}">ปฏิทินหลัก</a>
-                        @endif
+                        <a href="{{ route('workspace.my') }}" class="{{ $navLink }} {{ request()->routeIs('workspace.*') ? $navActive : '' }}">My Workspace</a>
+                        <a href="{{ route('calendar.index') }}" class="{{ $navLink }} {{ request()->routeIs('calendar.*') ? $navActive : '' }}">ปฏิทินหลัก</a>
+                    @elseif($isAdmin)
+                        {{-- Primary (daily use) --}}
+                        <a href="{{ route('employees.index') }}" class="{{ $navLink }} {{ request()->routeIs('employees.*') ? $navActive : '' }}">พนักงาน</a>
+                        <a href="{{ route('work.index') }}" class="{{ $navLink }} {{ request()->routeIs('work.*') || request()->routeIs('settings.works.*') ? $navActive : '' }}">WORK Center</a>
+                        <a href="{{ route('payroll-batches.index') }}" class="{{ $navLink }} {{ request()->routeIs('payroll-batches.*') ? $navActive : '' }}">รอบบิลเงินเดือน</a>
+                        <a href="{{ route('company.finance') }}" class="{{ $navLink }} {{ request()->routeIs('company.*') ? $navActive : '' }}">การเงินบริษัท</a>
 
-                        @if($isAdmin)
-                            <a href="{{ route('payroll-batches.index') }}" class="text-sm text-gray-600 hover:text-indigo-600 {{ request()->routeIs('payroll-batches.*') ? 'text-indigo-600 font-semibold' : '' }}">รอบบิลเงินเดือน</a>
-                            <a href="{{ route('company.finance') }}" class="text-sm text-gray-600 hover:text-indigo-600 {{ request()->routeIs('company.*') ? 'text-indigo-600 font-semibold' : '' }}">การเงินบริษัท</a>
-                            <a href="{{ route('annual.index') }}" class="text-sm text-gray-600 hover:text-indigo-600 {{ request()->routeIs('annual.*') ? 'text-indigo-600 font-semibold' : '' }}">สรุปรายปี</a>
-                            <a href="{{ route('work.index') }}" class="text-sm text-gray-600 hover:text-indigo-600 {{ request()->routeIs('work.*') || request()->routeIs('settings.works.*') ? 'text-indigo-600 font-semibold' : '' }}">WORK Center</a>
-                            <a href="{{ route('audit-logs.index') }}" class="text-sm text-gray-600 hover:text-indigo-600 {{ request()->routeIs('audit-logs.*') ? 'text-indigo-600 font-semibold' : '' }}">Audit Log</a>
-                        @endif
+                        {{-- รายงาน dropdown --}}
+                        @php $reportsActive = request()->routeIs('calendar.*') || request()->routeIs('annual.*') || request()->routeIs('audit-logs.*'); @endphp
+                        <div x-data="{ open: false }" class="relative" @click.outside="open = false">
+                            <button @click="open = !open" class="{{ $navLink }} flex items-center gap-1 {{ $reportsActive ? $navActive : '' }}">
+                                รายงาน
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </button>
+                            <div x-show="open" x-cloak x-transition class="absolute left-0 mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-50">
+                                <a href="{{ route('calendar.index') }}" class="{{ $dropItem }}">ปฏิทินหลัก</a>
+                                <a href="{{ route('annual.index') }}" class="{{ $dropItem }}">สรุปรายปี</a>
+                                <a href="{{ route('audit-logs.index') }}" class="{{ $dropItem }}">Audit Log</a>
+                            </div>
+                        </div>
 
-                        @if($isAdmin)
-                            <a href="{{ route('settings.master-data') }}" class="text-sm text-gray-600 hover:text-indigo-600 {{ request()->routeIs('settings.master-data*') ? 'text-indigo-600 font-semibold' : '' }}">Master Data</a>
-                            <a href="{{ route('settings.rules') }}" class="text-sm text-gray-600 hover:text-indigo-600 {{ request()->routeIs('settings.rules*') ? 'text-indigo-600 font-semibold' : '' }}">ตั้งค่า</a>
-                        @endif
+                        {{-- ตั้งค่า dropdown --}}
+                        @php $settingsActive = request()->routeIs('settings.*'); @endphp
+                        <div x-data="{ open: false }" class="relative" @click.outside="open = false">
+                            <button @click="open = !open" class="{{ $navLink }} flex items-center gap-1 {{ $settingsActive ? $navActive : '' }}">
+                                ตั้งค่า
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </button>
+                            <div x-show="open" x-cloak x-transition class="absolute left-0 mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-50">
+                                <a href="{{ route('settings.master-data') }}" class="{{ $dropItem }}">Master Data</a>
+                                <a href="{{ route('settings.bonus.index') }}" class="{{ $dropItem }}">Bonus Manager</a>
+                                <a href="{{ route('settings.rules') }}" class="{{ $dropItem }}">กติกาคำนวณ</a>
+                            </div>
+                        </div>
                     @endif
                 </div>
                 <div class="flex items-center space-x-3">
@@ -66,8 +88,24 @@
     <!-- Flash Messages -->
     @if(session('success'))
     <div class="max-w-7xl mx-auto px-4 mt-4">
-        <div class="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm">
+        <div class="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
+            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
             {{ session('success') }}
+        </div>
+    </div>
+    @endif
+
+    @if($errors->any() || session('error'))
+    <div class="max-w-7xl mx-auto px-4 mt-4">
+        <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm flex items-start gap-2">
+            <svg class="w-4 h-4 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M12 3a9 9 0 100 18A9 9 0 0012 3z"></path></svg>
+            <div>
+                @if(session('error'))
+                    {{ session('error') }}
+                @else
+                    @foreach($errors->all() as $err) <div>{{ $err }}</div> @endforeach
+                @endif
+            </div>
         </div>
     </div>
     @endif

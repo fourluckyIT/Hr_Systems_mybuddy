@@ -183,7 +183,9 @@
             <div>
                 <label class="text-xs font-medium text-gray-600">พนักงาน</label>
                 <select name="employee_id" required class="mt-1 block w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
-                    @foreach($employees as $emp)<option value="{{ $emp->id }}">{{ $emp->full_name }}</option>@endforeach
+                    @foreach($employees as $emp)
+                        <option value="{{ $emp->id }}" {{ (int) request('employee_id') === (int) $emp->id ? 'selected' : '' }}>{{ $emp->full_name }}</option>
+                    @endforeach
                 </select>
             </div>
             @else
@@ -243,4 +245,14 @@
         </form>
     </div>
 </div>
+@if(request('open') === 'swap')
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const modal = document.getElementById('modal-swap');
+    if (modal) {
+        modal.classList.remove('hidden');
+    }
+});
+</script>
+@endif
 @endsection

@@ -21,6 +21,8 @@ class EditingJob extends Model
         'started_at',
         'review_ready_at',
         'finalized_at',
+        'video_duration_minutes',
+        'video_duration_seconds',
         'notes',
         'is_deleted',
     ];
@@ -35,6 +37,8 @@ class EditingJob extends Model
             'started_at'       => 'datetime',
             'review_ready_at'  => 'datetime',
             'finalized_at'     => 'datetime',
+            'video_duration_minutes' => 'integer',
+            'video_duration_seconds' => 'integer',
             'is_deleted'       => 'boolean',
         ];
     }

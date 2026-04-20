@@ -6,10 +6,13 @@ use App\Models\AttendanceLog;
 use App\Models\DaySwapRequest;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
+use App\Models\AttendanceRule;
+use App\Models\CompanyHoliday;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class LeaveRequestController extends Controller
 {
@@ -166,6 +169,13 @@ class LeaveRequestController extends Controller
             $this->applySwapToAttendance(DaySwapRequest::latest()->first());
         }
 
+        if ($request->wantsJson()) {
+            return response()->json([
+                'status' => 'success',
+                'message' => $isAdmin ? 'บันทึกการสลับวันและอนุมัติแล้ว' : 'ส่งคำขอสลับวันสำเร็จ รอแอดมินตรวจสอบ'
+            ]);
+        }
+
         return back()->with('success', $isAdmin ? 'บันทึกการสลับวันและอนุมัติแล้ว' : 'ส่งคำขอสลับวันสำเร็จ รอแอดมินตรวจสอบ');
     }
 
@@ -178,18 +188,26 @@ class LeaveRequestController extends Controller
             'review_note' => ['nullable', 'string', 'max:500'],
         ]);
 
-        DB::transaction(function () use ($daySwapRequest, $validated) {
-            $daySwapRequest->update([
-                'status'      => $validated['action'],
-                'reviewed_by' => Auth::id(),
-                'reviewed_at' => now(),
-                'review_note' => $validated['review_note'],
-            ]);
+        try {
+            DB::transaction(function () use ($daySwapRequest, $validated) {
+                if ($validated['action'] === 'approved') {
+                    $this->validateSwapPolicyForApproval($daySwapRequest);
+                }
 
-            if ($validated['action'] === 'approved') {
-                $this->applySwapToAttendance($daySwapRequest);
-            }
-        });
+                $daySwapRequest->update([
+                    'status'      => $validated['action'],
+                    'reviewed_by' => Auth::id(),
+                    'reviewed_at' => now(),
+                    'review_note' => $validated['review_note'] ?? null,
+                ]);
+
+                if ($validated['action'] === 'approved') {
+                    $this->applySwapToAttendance($daySwapRequest);
+                }
+            });
+        } catch (ValidationException $e) {
+            return back()->withErrors($e->errors());
+        }
 
         return back()->with('success', $validated['action'] === 'approved' ? 'อนุมัติการสลับวันแล้ว' : 'ปฏิเสธการสลับวันแล้ว');
     }
@@ -225,7 +243,7 @@ class LeaveRequestController extends Controller
         } else {
             AttendanceLog::create([
                 'employee_id' => $leaveRequest->employee_id,
-                'log_date'    => $leaveRequest->leave_date,
+                'log_date'    => Carbon::parse($leaveRequest->leave_date)->toDateString(),
                 'day_type'    => $leaveRequest->leave_type,
             ]);
         }
@@ -251,11 +269,109 @@ class LeaveRequestController extends Controller
             } else {
                 AttendanceLog::create([
                     'employee_id'           => $swap->employee_id,
-                    'log_date'              => $entry['date'],
+                    'log_date'              => Carbon::parse($entry['date'])->toDateString(),
                     'day_type'              => $entry['type'],
                     'is_swapped_day'        => true,
                 ]);
             }
         }
+    }
+
+    protected function validateSwapPolicyForApproval(DaySwapRequest $swap): void
+    {
+        $workDateType = $this->resolveDayTypeForDate($swap->employee_id, Carbon::parse($swap->work_date));
+        $offDateType = $this->resolveDayTypeForDate($swap->employee_id, Carbon::parse($swap->off_date));
+
+        if (!in_array($workDateType, ['holiday', 'company_holiday'], true)) {
+            throw ValidationException::withMessages([
+                'work_date' => 'วันที่จะมาทำงานต้องเป็นวันหยุดเท่านั้น (weekly/company holiday)',
+            ]);
+        }
+
+        if (!in_array($offDateType, ['workday', 'ot_full_day'], true)) {
+            throw ValidationException::withMessages([
+                'off_date' => 'วันที่จะหยุดแทนต้องเป็นวันทำงานปกติ',
+            ]);
+        }
+
+        if ($workDateType === 'company_holiday' && !$this->allowCompanyHolidaySwap()) {
+            throw ValidationException::withMessages([
+                'work_date' => 'วันหยุดตามประเพณีไม่สามารถสลับได้สำหรับกิจการทั่วไป (ยกเว้นกิจการที่กฎหมายกำหนด)',
+            ]);
+        }
+
+        if ($this->wouldExceedSixConsecutiveWorkdays($swap)) {
+            throw ValidationException::withMessages([
+                'off_date' => 'การสลับนี้จะทำให้ทำงานติดต่อกันเกิน 6 วัน',
+            ]);
+        }
+    }
+
+    protected function allowCompanyHolidaySwap(): bool
+    {
+        $workingHoursRule = AttendanceRule::getActiveRule('working_hours');
+        return (bool) ($workingHoursRule?->config['allow_company_holiday_swap'] ?? false);
+    }
+
+    protected function resolveDayTypeForDate(int $employeeId, Carbon $date): string
+    {
+        $dateString = $date->toDateString();
+
+        $log = AttendanceLog::where('employee_id', $employeeId)
+            ->whereDate('log_date', $dateString)
+            ->first();
+
+        if ($log) {
+            return (string) $log->day_type;
+        }
+
+        $isCompanyHoliday = CompanyHoliday::where('is_active', true)
+            ->whereDate('holiday_date', $dateString)
+            ->exists();
+
+        if ($isCompanyHoliday) {
+            return 'company_holiday';
+        }
+
+        return $date->isWeekend() ? 'holiday' : 'workday';
+    }
+
+    protected function wouldExceedSixConsecutiveWorkdays(DaySwapRequest $swap): bool
+    {
+        $isWorkday = static fn(?string $dayType): bool => in_array((string) $dayType, ['workday', 'ot_full_day'], true);
+
+        $workDate = Carbon::parse($swap->work_date)->startOfDay();
+        $offDate = Carbon::parse($swap->off_date)->startOfDay();
+        $startPivot = $workDate->lessThanOrEqualTo($offDate) ? $workDate : $offDate;
+        $endPivot = $workDate->greaterThanOrEqualTo($offDate) ? $workDate : $offDate;
+        $start = $startPivot->copy()->subDays(14);
+        $end = $endPivot->copy()->addDays(14);
+
+        $logs = AttendanceLog::where('employee_id', $swap->employee_id)
+            ->whereBetween('log_date', [$start->toDateString(), $end->toDateString()])
+            ->get()
+            ->keyBy(fn(AttendanceLog $log) => Carbon::parse($log->log_date)->toDateString());
+
+        $overrides = [
+            $workDate->toDateString() => 'workday',
+            $offDate->toDateString() => 'holiday',
+        ];
+
+        $maxStreak = 0;
+        $streak = 0;
+
+        for ($date = $start->copy(); $date <= $end; $date->addDay()) {
+            $dateKey = $date->toDateString();
+            $dayType = $overrides[$dateKey] ?? ($logs[$dateKey]->day_type ?? $this->resolveDayTypeForDate($swap->employee_id, $date));
+
+            if ($isWorkday($dayType)) {
+                $streak++;
+                $maxStreak = max($maxStreak, $streak);
+            } else {
+                $streak = 0;
+            }
+        }
+
+        return $maxStreak > 6;
     }
 }

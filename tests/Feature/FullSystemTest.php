@@ -15,6 +15,7 @@ use App\Models\ModuleToggle;
 use App\Models\PayrollBatch;
 use App\Models\PayrollItem;
 use App\Models\Payslip;
+use App\Models\DaySwapRequest;
 use App\Models\PayslipItem;
 use App\Models\Role;
 use App\Models\SocialSecurityConfig;
@@ -71,7 +72,7 @@ class FullSystemTest extends TestCase
         // Create attendance rules
         AttendanceRule::create([
             'rule_type' => 'working_hours',
-            'config' => ['target_minutes_per_day' => 540, 'working_days_per_month' => 22],
+            'config' => ['target_minutes_per_day' => 540, 'lunch_break_minutes' => 60, 'working_days_per_month' => 22],
             'effective_date' => '2024-01-01',
             'is_active' => true,
         ]);
@@ -262,6 +263,7 @@ class FullSystemTest extends TestCase
     {
         $response = $this->actingAs($this->user)->get("/workspace/{$this->monthlyEmployee->id}/4/2026");
         $response->assertStatus(200);
+        $response->assertSee('ขอ Swap วันหยุด');
     }
 
     public function test_workspace_loads_when_first_day_attendance_log_already_exists(): void
@@ -753,6 +755,164 @@ class FullSystemTest extends TestCase
                 ],
             ]);
         $response->assertRedirect();
+    }
+
+    public function test_workspace_allows_time_entry_and_holiday_ot_calculation(): void
+    {
+        $log = AttendanceLog::create([
+            'employee_id' => $this->monthlyEmployee->id,
+            'log_date' => '2026-04-05',
+            'day_type' => 'holiday',
+            'late_minutes' => 0,
+            'ot_minutes' => 0,
+            'ot_enabled' => false,
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->postJson("/workspace/{$this->monthlyEmployee->id}/4/2026/attendance-row", [
+                'log_id' => $log->id,
+                'data' => [
+                    'day_type' => 'holiday',
+                    'check_in' => '09:00',
+                    'check_out' => '18:00',
+                    'ot_enabled' => 1,
+                ],
+            ]);
+
+        $response->assertOk();
+        $response->assertJsonPath('ok', true);
+        $response->assertJsonPath('row.ot_minutes', 480);
+    }
+
+    public function test_workspace_recalculate_normalizes_stale_ot_minutes_from_old_formula(): void
+    {
+        AttendanceRule::where('rule_type', 'working_hours')
+            ->where('is_active', true)
+            ->first()
+            ?->update([
+                'config' => [
+                    'target_check_in' => '09:30',
+                    'target_check_out' => '18:30',
+                    'target_minutes_per_day' => 540,
+                    'lunch_break_minutes' => 60,
+                    'working_days_per_month' => 22,
+                ],
+            ]);
+
+        $log = AttendanceLog::create([
+            'employee_id' => $this->monthlyEmployee->id,
+            'log_date' => '2026-04-16',
+            'day_type' => 'workday',
+            'check_in' => '09:20',
+            'check_out' => '19:30',
+            'late_minutes' => 0,
+            'early_leave_minutes' => 0,
+            'ot_minutes' => 70,
+            'ot_enabled' => true,
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->post("/workspace/{$this->monthlyEmployee->id}/4/2026/recalculate");
+
+        $response->assertRedirect();
+        $log->refresh();
+        $this->assertSame(10, $log->ot_minutes);
+    }
+
+    public function test_workspace_blocks_company_holiday_swap_when_not_exempt(): void
+    {
+        $log = AttendanceLog::create([
+            'employee_id' => $this->monthlyEmployee->id,
+            'log_date' => '2026-04-08',
+            'day_type' => 'company_holiday',
+            'late_minutes' => 0,
+            'ot_minutes' => 0,
+            'ot_enabled' => false,
+        ]);
+
+        $blocked = $this->actingAs($this->user)
+            ->postJson("/workspace/{$this->monthlyEmployee->id}/4/2026/attendance-row", [
+                'log_id' => $log->id,
+                'data' => [
+                    'day_type' => 'workday',
+                    'check_in' => '09:00',
+                    'check_out' => '18:00',
+                    'ot_enabled' => 1,
+                ],
+            ]);
+
+        $blocked->assertStatus(422);
+        $blocked->assertJsonPath('ok', false);
+
+        $workingHoursRule = AttendanceRule::where('rule_type', 'working_hours')->where('is_active', true)->first();
+        $config = $workingHoursRule->config;
+        $config['allow_company_holiday_swap'] = true;
+        $workingHoursRule->update(['config' => $config]);
+
+        $allowed = $this->actingAs($this->user)
+            ->postJson("/workspace/{$this->monthlyEmployee->id}/4/2026/attendance-row", [
+                'log_id' => $log->id,
+                'data' => [
+                    'day_type' => 'workday',
+                    'check_in' => '09:00',
+                    'check_out' => '18:00',
+                    'ot_enabled' => 1,
+                ],
+            ]);
+
+        $allowed->assertOk();
+        $allowed->assertJsonPath('ok', true);
+    }
+
+    public function test_leave_swap_approval_blocks_company_holiday_when_not_exempt(): void
+    {
+        $swap = DaySwapRequest::create([
+            'employee_id' => $this->monthlyEmployee->id,
+            'work_date' => '2026-04-13',
+            'off_date' => '2026-04-14',
+            'reason' => 'test legal policy',
+            'status' => 'pending',
+            'requested_by' => $this->user->id,
+        ]);
+
+        AttendanceLog::create([
+            'employee_id' => $this->monthlyEmployee->id,
+            'log_date' => '2026-04-13',
+            'day_type' => 'company_holiday',
+            'late_minutes' => 0,
+            'ot_minutes' => 0,
+            'ot_enabled' => false,
+        ]);
+
+        AttendanceLog::create([
+            'employee_id' => $this->monthlyEmployee->id,
+            'log_date' => '2026-04-14',
+            'day_type' => 'workday',
+            'late_minutes' => 0,
+            'ot_minutes' => 0,
+            'ot_enabled' => false,
+        ]);
+
+        $blocked = $this->actingAs($this->user)
+            ->patch("/leave/swap/{$swap->id}/review", [
+                'action' => 'approved',
+            ]);
+
+        $blocked->assertSessionHasErrors('work_date');
+
+        $workingHoursRule = AttendanceRule::where('rule_type', 'working_hours')->where('is_active', true)->first();
+        $config = $workingHoursRule->config;
+        $config['allow_company_holiday_swap'] = true;
+        $workingHoursRule->update(['config' => $config]);
+
+        $allowed = $this->actingAs($this->user)
+            ->patch("/leave/swap/{$swap->id}/review", [
+                'action' => 'approved',
+            ]);
+
+        $allowed->assertRedirect();
+        $swap->refresh();
+        $this->assertEquals('approved', $swap->status);
     }
 
     public function test_workspace_toggle_module(): void

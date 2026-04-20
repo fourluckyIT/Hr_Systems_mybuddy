@@ -9,6 +9,8 @@ use App\Models\Role;
 use App\Models\EmployeeProfile;
 use App\Models\EmployeeSalaryProfile;
 use App\Models\EmployeeBankAccount;
+use App\Models\AttendanceRule;
+use App\Models\ModuleToggle;
 use App\Services\AuditLogService;
 use Illuminate\Http\Request;
 
@@ -17,8 +19,30 @@ class EmployeeController extends Controller
     public function index(Request $request)
     {
         $showInactive = $request->boolean('show_inactive', false);
+        $sortBy = $request->get('sort_by', 'first_name');
+        $sortDir = $request->get('sort_dir', 'asc');
+        $groupBy = $request->get('group_by', 'none');
 
-        $query = Employee::with(['department', 'position', 'salaryProfile', 'payslips']);
+        $query = Employee::with(['department', 'position', 'salaryProfile', 'payslips'])
+            ->select('employees.*');
+
+        // Joins for sorting if needed
+        if ($sortBy === 'department') {
+            $query->leftJoin('departments', 'employees.department_id', '=', 'departments.id')
+                  ->orderBy('departments.name', $sortDir);
+        } elseif ($sortBy === 'salary') {
+            $query->leftJoin('employee_salary_profiles', function($join) {
+                $join->on('employees.id', '=', 'employee_salary_profiles.employee_id')
+                     ->where('employee_salary_profiles.is_current', true);
+            })->orderBy('employee_salary_profiles.base_salary', $sortDir);
+        } elseif ($sortBy === 'employee_code') {
+            $query->orderBy('employee_code', $sortDir);
+        } elseif ($sortBy === 'payroll_mode') {
+            $query->orderBy('payroll_mode', $sortDir);
+        } else {
+            // Default sort: first_name then last_name
+            $query->orderBy('first_name', $sortDir)->orderBy('last_name', $sortDir);
+        }
 
         if (!$showInactive) {
             $query->where('is_active', true);
@@ -41,11 +65,14 @@ class EmployeeController extends Controller
             $query->where('department_id', $dept);
         }
 
-        $employees = $query->orderBy('first_name')->get();
+        $employees = $query->get();
         $departments = Department::where('is_active', true)->get();
         $positions = Position::where('is_active', true)->with('department')->get();
 
-        return view('employees.index', compact('employees', 'departments', 'positions', 'showInactive'));
+        return view('employees.index', compact(
+            'employees', 'departments', 'positions', 'showInactive', 
+            'sortBy', 'sortDir', 'groupBy'
+        ));
     }
 
     public function toggleStatus(Employee $employee)
@@ -133,6 +160,23 @@ class EmployeeController extends Controller
 
         if ($employee->user) {
             $employee->user->roles()->sync([$validated['role_id']]);
+        }
+
+        if (in_array($employee->payroll_mode, ['monthly_staff', 'office_staff', 'youtuber_salary'], true)) {
+            $moduleDefaults = AttendanceRule::getActiveRule('module_defaults')?->config ?? [];
+
+            $toggleDefaults = [
+                'sso_deduction' => (bool) ($moduleDefaults['default_sso_deduction'] ?? true),
+                'deduct_late' => (bool) ($moduleDefaults['default_deduct_late'] ?? true),
+                'deduct_early' => (bool) ($moduleDefaults['default_deduct_early'] ?? true),
+            ];
+
+            foreach ($toggleDefaults as $moduleName => $isEnabled) {
+                ModuleToggle::updateOrCreate(
+                    ['employee_id' => $employee->id, 'module_name' => $moduleName],
+                    ['is_enabled' => $isEnabled]
+                );
+            }
         }
 
         AuditLogService::logCreated($employee, 'Employee created');

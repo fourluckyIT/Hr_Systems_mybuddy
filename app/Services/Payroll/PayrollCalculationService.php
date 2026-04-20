@@ -116,6 +116,7 @@ class PayrollCalculationService
                     'amount' => $item['amount'],
                     'source_flag' => $item['source_flag'],
                     'sort_order' => $item['sort_order'],
+                    'notes' => $item['note'] ?? null,
                 ]);
             }
 

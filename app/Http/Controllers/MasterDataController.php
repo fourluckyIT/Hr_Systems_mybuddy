@@ -372,8 +372,9 @@ class MasterDataController extends Controller
             $validated['game_slug'] = \Illuminate\Support\Str::slug($validated['game_slug']);
         }
 
+        $old = $game->toArray();
         $game->update($validated);
-        $this->audit->logUpdated($game, 'อัปเดตเกม: ' . $game->game_name);
+        $this->audit->logUpdated($game, collect($old)->only(array_keys($validated))->toArray(), 'อัปเดตเกม: ' . $game->game_name);
 
         return back()->with('success', 'อัปเดตเกม "' . $game->game_name . '" สำเร็จ');
     }

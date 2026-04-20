@@ -10,6 +10,7 @@ use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\WorkManagerController;
 use App\Http\Controllers\MasterDataController;
+use App\Http\Controllers\BonusManagementController;
 use App\Http\Controllers\AnnualSummaryController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\LeaveRequestController;
@@ -55,6 +56,10 @@ Route::prefix('workspace')->name('workspace.')->group(function () {
     Route::post('/{employee}/{month}/{year}/claims', [WorkspaceController::class, 'storeClaim'])
         ->middleware('role:admin,owner')
         ->name('claims.store');
+
+    Route::get('/{employee}/{month}/{year}/grid-refresh', [WorkspaceController::class, 'getGridRefresh'])
+        ->middleware('role:admin,owner')
+        ->name('grid.refresh');
 
     Route::middleware('role:admin')->group(function () {
         Route::post('/{employee}/{month}/{year}/recalculate', [WorkspaceController::class, 'recalculate'])->name('recalculate');
@@ -142,6 +147,7 @@ Route::prefix('work')->name('work.')->middleware('role:admin')->group(function (
 
     // Editing Jobs (Consolidated Pipeline)
     Route::post('/job', [WorkCommandController::class, 'storeEditingJob'])->name('editing-job.store');
+    Route::patch('/job/{editingJob}', [WorkCommandController::class, 'updateEditingJob'])->name('editing-job.update');
     Route::delete('/job/{editingJob}', [WorkCommandController::class, 'deleteEditingJob'])->name('editing-job.delete');
 });
 
@@ -155,6 +161,13 @@ Route::prefix('work')->name('work.')->middleware('role:admin,owner')->group(func
 Route::prefix('settings')->name('settings.')->middleware('role:admin')->group(function () {
     Route::get('/rules', [SettingsController::class, 'rules'])->name('rules');
     Route::patch('/rules/{type}', [SettingsController::class, 'updateRule'])->name('rules.update');
+    Route::get('/bonus', [BonusManagementController::class, 'index'])->name('bonus.index');
+    Route::post('/bonus/cycles', [BonusManagementController::class, 'storeCycle'])->name('bonus.cycles.store');
+    Route::patch('/bonus/cycles/{cycle}', [BonusManagementController::class, 'updateCycle'])->name('bonus.cycles.update');
+    Route::post('/bonus/calculate', [BonusManagementController::class, 'calculate'])->name('bonus.calculate');
+    Route::post('/bonus/batch-calculate', [BonusManagementController::class, 'batchCalculate'])->name('bonus.batch-calculate');
+    Route::post('/bonus/approve', [BonusManagementController::class, 'approve'])->name('bonus.approve');
+    Route::put('/bonus/cycles/{cycle}/months', [BonusManagementController::class, 'updateSelectedMonths'])->name('bonus.cycles.months.update');
     Route::post('/holidays', [SettingsController::class, 'addHoliday'])->name('holidays.add');
     Route::post('/holidays/load-legal', [SettingsController::class, 'loadLegalHolidays'])->name('holidays.load-legal');
     Route::delete('/holidays/{holiday}', [SettingsController::class, 'deleteHoliday'])->name('holidays.delete');

@@ -83,142 +83,9 @@ class WorkspaceController extends Controller
     public function show(Employee $employee, int $month, int $year)
     {
         $this->ensureCanAccessEmployeeWorkspace($employee);
-
-        $employee->load(['department', 'position', 'salaryProfile', 'bankAccount', 'profile']);
-
-        $dayTypeLabels = [
-            'workday' => 'วันทำงาน',
-            'holiday' => 'วันหยุด',
-            'sick_leave' => 'ลาป่วย',
-            'personal_leave' => 'ลากิจ',
-            'vacation_leave' => 'ลาพักร้อน',
-            'ot_full_day' => 'OT เต็มวัน',
-            'lwop' => 'LWOP',
-            'not_started' => 'ยังไม่เริ่มงาน',
-            'company_holiday' => 'วันหยุดบริษัท',
-        ];
-
-        $dayTypeColors = [
-            'workday' => 'bg-green-100 text-green-800',
-            'holiday' => 'bg-orange-100 text-orange-800',
-            'sick_leave' => 'bg-blue-100 text-blue-800',
-            'personal_leave' => 'bg-yellow-100 text-yellow-800',
-            'vacation_leave' => 'bg-teal-100 text-teal-800',
-            'ot_full_day' => 'bg-indigo-100 text-indigo-800',
-            'lwop' => 'bg-red-100 text-red-800',
-            'not_started' => 'bg-gray-200 text-gray-500',
-            'company_holiday' => 'bg-purple-100 text-purple-800',
-        ];
-
-        // Generate attendance logs for monthly-attendance based modes
-        if (in_array($employee->payroll_mode, ['monthly_staff', 'office_staff', 'youtuber_salary'])) {
-            $this->ensureAttendanceLogs($employee, $month, $year);
-        }
-
-        $attendanceLogs = AttendanceLog::where('employee_id', $employee->id)
-            ->whereMonth('log_date', $month)
-            ->whereYear('log_date', $year)
-            ->orderBy('log_date')
-            ->get();
-
-        // Attendance history visibility rule:
-        // - Current month: hidden from owner role (prevent confusion on partial data)
-        // - Past months: always visible
-        // - Admin: always has full access
-        $isCurrentMonth = ($month === (int) now()->month && $year === (int) now()->year);
-        $isAdmin = auth()->user()?->hasRole('admin') ?? false;
-        $attendanceReadOnly = !$isAdmin && $isCurrentMonth;
-
-        $workLogs = WorkLog::where('employee_id', $employee->id)
-            ->where('month', $month)
-            ->where('year', $year)
-            ->orderBy('sort_order')
-            ->get();
-
-        $layerRates = LayerRateRule::where('employee_id', $employee->id)
-            ->where('is_active', true)
-            ->orderBy('layer_from')
-            ->get();
-
-        $workingHoursRule = AttendanceRule::getActiveRule('working_hours');
-        $attendanceMeta = [
-            'target_check_in' => $workingHoursRule?->config['target_check_in'] ?? '09:30',
-            'target_check_out' => $workingHoursRule?->config['target_check_out'] ?? '18:30',
-            'target_minutes_per_day' => (int) ($workingHoursRule?->config['target_minutes_per_day'] ?? 540),
-        ];
-
-        // Calculate payroll
-        $result = $this->payrollService->calculateForEmployee($employee, $month, $year);
-
-        // Get existing payroll items
-        $batch = PayrollBatch::where('month', $month)->where('year', $year)->first();
-        $payrollItems = $batch
-            ? PayrollItem::where('employee_id', $employee->id)
-                ->where('payroll_batch_id', $batch->id)
-                ->get()
-            : collect();
-
-        $payslip = Payslip::where('employee_id', $employee->id)
-            ->where('month', $month)
-            ->where('year', $year)
-            ->first();
-
-        $proofs = PaymentProof::where('employee_id', $employee->id)
-            ->whereHas('payslip', function($q) use ($month, $year) {
-                $q->where('month', $month)->where('year', $year);
-            })->orWhere(function($q) use ($employee, $month, $year) {
-                $q->where('employee_id', $employee->id)
-                  ->whereNull('payslip_id')
-                  ->whereMonth('created_at', $month)
-                  ->whereYear('created_at', $year);
-            })->get();
-
-        $claims = ExpenseClaim::where('employee_id', $employee->id)
-            ->where('month', $month)
-            ->where('year', $year)
-            ->get();
-
-        $panel = 'edit_jobs';
-
-        // Check for assignments (Editing Pipeline)
-        $hasEditAssignments = EditingJob::where('assigned_to', $employee->id)->active()->exists();
-
-        if (in_array($employee->payroll_mode, ['freelance_layer', 'freelance_fixed'], true)) {
-            if ($hasEditAssignments) {
-                $panel = 'edit_jobs';
-            } else {
-                $panel = 'none';
-            }
-        }
-
-        // Editing jobs assigned to this employee
-        $assignedEditJobs = $hasEditAssignments
-            ? EditingJob::with('game')
-                ->where('assigned_to', $employee->id)
-                ->active()
-                ->orderByRaw("CASE status
-                    WHEN 'assigned' THEN 1
-                    WHEN 'in_progress' THEN 2
-                    WHEN 'review_ready' THEN 3
-                    WHEN 'final' THEN 4
-                    ELSE 99
-                END")
-                ->orderBy('deadline_date')
-                ->get()
-            : collect();
-
-        $recordingAssignments = collect();
-
-        $workspaceEditEnabled = $this->isWorkspaceEditingEnabled($employee);
-
-        return view('workspace.show', compact(
-            'employee', 'month', 'year',
-            'attendanceLogs', 'workLogs', 'layerRates',
-            'result', 'payrollItems', 'payslip', 'proofs', 'claims',
-            'dayTypeLabels', 'dayTypeColors', 'attendanceMeta',
-            'attendanceReadOnly', 'isAdmin',
-            'assignedEditJobs', 'recordingAssignments', 'panel', 'workspaceEditEnabled'
-        ));
+        $data = $this->getWorkspaceViewData($employee, $month, $year);
+        
+        return view('workspace.show', array_merge(['employee' => $employee, 'month' => $month, 'year' => $year], $data));
     }
 
     public function storeClaim(Request $request, Employee $employee, int $month, int $year)
@@ -449,6 +316,7 @@ class WorkspaceController extends Controller
     {
         try {
             return DB::transaction(function () use ($employee, $month, $year) {
+                $this->syncAttendanceDerivedMetrics($employee, $month, $year);
                 $result = $this->payrollService->calculateForEmployee($employee, $month, $year);
                 $this->payrollService->savePayrollItems($employee, $month, $year, $result);
                 $this->payrollService->syncWorkLogAmounts($employee, $month, $year);
@@ -494,6 +362,7 @@ class WorkspaceController extends Controller
                 $targetCheckIn = $workingHoursRule?->config['target_check_in'] ?? '09:30';
                 $targetCheckOut = $workingHoursRule?->config['target_check_out'] ?? '18:30';
                 $targetMinutesPerDay = (int) ($workingHoursRule?->config['target_minutes_per_day'] ?? 540);
+                $lunchBreakMinutes = (int) ($workingHoursRule?->config['lunch_break_minutes'] ?? 60);
 
                 foreach ($logs as $logId => $data) {
                     $log = AttendanceLog::findOrFail($logId);
@@ -501,48 +370,34 @@ class WorkspaceController extends Controller
                     $oldDayType = $log->day_type;
 
                     $dayType = $data['day_type'] ?? 'workday';
-                    $isWorkday = in_array($dayType, ['workday', 'ot_full_day']);
+                    $this->validateSwapPolicy($log, $dayType);
+
+                    $isWorkday = in_array($dayType, ['workday', 'ot_full_day'], true);
+                    $isHolidayOvertimeDay = in_array($dayType, ['holiday', 'company_holiday'], true);
+                    $isTimeEntryDay = $isWorkday || $isHolidayOvertimeDay;
                     $isLwop = $dayType === 'lwop' || isset($data['lwop_flag']);
 
+                    $isLwop = $dayType === 'lwop' || isset($data['lwop_flag']);
                     $checkIn = $data['check_in'] ?? null;
                     $checkOut = $data['check_out'] ?? null;
 
-                    $lateMinutes = 0;
-                    $otMinutes = 0;
-                    $earlyLeaveMinutes = 0;
-
-                    if ($isWorkday && !$isLwop && $checkIn && $checkOut) {
-                        $inAt = Carbon::parse("{$log->log_date->format('Y-m-d')} {$checkIn}:00");
-                        $outAt = Carbon::parse("{$log->log_date->format('Y-m-d')} {$checkOut}:00");
-
-                        if ($outAt->lessThanOrEqualTo($inAt)) {
-                            $outAt->addDay();
-                        }
-
-                        $targetInAt = Carbon::parse("{$log->log_date->format('Y-m-d')} {$targetCheckIn}:00");
-                        $targetOutAt = Carbon::parse("{$log->log_date->format('Y-m-d')} {$targetCheckOut}:00");
-
-                        if ($inAt->greaterThan($targetInAt)) {
-                            $lateMinutes = $targetInAt->diffInMinutes($inAt);
-                        }
-
-                        if ($outAt->lessThan($targetOutAt)) {
-                            $earlyLeaveMinutes = $outAt->diffInMinutes($targetOutAt);
-                        }
-
-                        $workedMinutes = max(0, $inAt->diffInMinutes($outAt));
-                        if (isset($data['ot_enabled'])) {
-                            $otMinutes = max(0, $workedMinutes - $targetMinutesPerDay);
-                        }
+                    if ($isTimeEntryDay && !$isLwop && $checkIn && $checkOut) {
+                        $derived = $this->calculateAttendanceDerivedValues($log, [
+                            'target_check_in' => $targetCheckIn,
+                            'target_check_out' => $targetCheckOut,
+                            'target_minutes_per_day' => $targetMinutesPerDay,
+                            'lunch_break_minutes' => $lunchBreakMinutes,
+                        ], $data);
+                        
+                        $lateMinutes = $derived['late_minutes'];
+                        $earlyLeaveMinutes = $derived['early_leave_minutes'];
+                        $otMinutes = $derived['ot_minutes'];
                     } else {
                         $checkIn = null;
                         $checkOut = null;
-                    }
-
-                    // Allow manual fallback when no check in/out is provided
-                    if (!$checkIn || !$checkOut) {
                         $lateMinutes = (int) ($data['late_minutes'] ?? 0);
-                        $otMinutes = isset($data['ot_enabled']) ? (int) ($data['ot_minutes'] ?? 0) : 0;
+                        $otMinutes = !empty($data['ot_enabled']) ? (int) ($data['ot_minutes'] ?? 0) : 0;
+                        $earlyLeaveMinutes = 0;
                     }
 
                     $isSwapToWorkday = $dayType === 'workday' && in_array($oldDayType, ['holiday', 'company_holiday']);
@@ -612,6 +467,14 @@ class WorkspaceController extends Controller
                 $result = $this->payrollService->calculateForEmployee($employee, $month, $year);
                 $this->payrollService->savePayrollItems($employee, $month, $year, $result);
 
+                if ($request->wantsJson()) {
+                    return response()->json([
+                        'ok' => true,
+                        'summary' => $result['summary'],
+                        'items' => $result['items']
+                    ]);
+                }
+
                 return redirect()
                     ->route('workspace.show', ['employee' => $employee->id, 'month' => $month, 'year' => $year])
                     ->with('success', 'บันทึกข้อมูลการเข้างานสำเร็จ');
@@ -641,55 +504,33 @@ class WorkspaceController extends Controller
                     ->firstOrFail();
 
                 $workingHoursRule = AttendanceRule::getActiveRule('working_hours');
-                $targetCheckIn = $workingHoursRule?->config['target_check_in'] ?? '09:30';
-                $targetCheckOut = $workingHoursRule?->config['target_check_out'] ?? '18:30';
-                $targetMinutesPerDay = (int) ($workingHoursRule?->config['target_minutes_per_day'] ?? 540);
+                $meta = [
+                    'target_check_in' => $workingHoursRule?->config['target_check_in'] ?? '09:30',
+                    'target_check_out' => $workingHoursRule?->config['target_check_out'] ?? '18:30',
+                    'target_minutes_per_day' => (int) ($workingHoursRule?->config['target_minutes_per_day'] ?? 540),
+                    'lunch_break_minutes' => (int) ($workingHoursRule?->config['lunch_break_minutes'] ?? 60),
+                ];
 
                 $oldData = $log->getAttributes();
                 $oldDayType = $log->day_type;
-
                 $dayType = $data['day_type'] ?? $log->day_type;
-                $isWorkday = in_array($dayType, ['workday', 'ot_full_day']);
-                $isLwop = $dayType === 'lwop' || isset($data['lwop_flag']);
+                $this->validateSwapPolicy($log, $dayType);
 
                 $checkIn = $data['check_in'] ?? null;
                 $checkOut = $data['check_out'] ?? null;
+                $isLwop = ($dayType === 'lwop' || !empty($data['lwop_flag']));
 
-                $lateMinutes = 0;
-                $otMinutes = 0;
-                $earlyLeaveMinutes = 0;
-
-                if ($isWorkday && !$isLwop && $checkIn && $checkOut) {
-                    $inAt = Carbon::parse("{$log->log_date->format('Y-m-d')} {$checkIn}:00");
-                    $outAt = Carbon::parse("{$log->log_date->format('Y-m-d')} {$checkOut}:00");
-
-                    if ($outAt->lessThanOrEqualTo($inAt)) {
-                        $outAt->addDay();
-                    }
-
-                    $targetInAt = Carbon::parse("{$log->log_date->format('Y-m-d')} {$targetCheckIn}:00");
-                    $targetOutAt = Carbon::parse("{$log->log_date->format('Y-m-d')} {$targetCheckOut}:00");
-
-                    if ($inAt->greaterThan($targetInAt)) {
-                        $lateMinutes = $targetInAt->diffInMinutes($inAt);
-                    }
-
-                    if ($outAt->lessThan($targetOutAt)) {
-                        $earlyLeaveMinutes = $outAt->diffInMinutes($targetOutAt);
-                    }
-
-                    $workedMinutes = max(0, $inAt->diffInMinutes($outAt));
-                    if (!empty($data['ot_enabled'])) {
-                        $otMinutes = max(0, $workedMinutes - $targetMinutesPerDay);
-                    }
+                if ($checkIn && $checkOut && !$isLwop) {
+                    $derived = $this->calculateAttendanceDerivedValues($log, $meta, $data);
+                    $lateMinutes = $derived['late_minutes'];
+                    $earlyLeaveMinutes = $derived['early_leave_minutes'];
+                    $otMinutes = $derived['ot_minutes'];
                 } else {
                     $checkIn = null;
                     $checkOut = null;
-                }
-
-                if (!$checkIn || !$checkOut) {
                     $lateMinutes = (int) ($data['late_minutes'] ?? 0);
                     $otMinutes = !empty($data['ot_enabled']) ? (int) ($data['ot_minutes'] ?? 0) : 0;
+                    $earlyLeaveMinutes = 0;
                 }
 
                 $isSwapToWorkday = $dayType === 'workday' && in_array($oldDayType, ['holiday', 'company_holiday']);
@@ -865,11 +706,13 @@ class WorkspaceController extends Controller
             ->map(fn($d) => Carbon::parse($d)->format('Y-m-d'))
             ->toArray();
 
+        $workingHoursRule = AttendanceRule::getActiveRule('working_hours');
         $newLogs = [];
         for ($date = $startDate->copy(); $date <= $endDate; $date->addDay()) {
             $dateStr = $date->format('Y-m-d');
             if (!in_array($dateStr, $existingDates)) {
-                $isWeekend = $date->isWeekend();
+                $standardHolidays = $workingHoursRule?->config['standard_holidays'] ?? [0, 6];
+                $isWeekend = in_array($date->dayOfWeek, $standardHolidays);
                 $isHoliday = in_array($dateStr, $holidays);
 
                 $dayType = 'workday';
@@ -889,5 +732,294 @@ class WorkspaceController extends Controller
         if (!empty($newLogs)) {
             AttendanceLog::query()->insertOrIgnore($newLogs);
         }
+    }
+
+    protected function getAttendanceRuleMeta(): array
+    {
+        $workingHoursRule = AttendanceRule::getActiveRule('working_hours');
+
+        return [
+            'target_check_in' => $workingHoursRule?->config['target_check_in'] ?? '09:30',
+            'target_check_out' => $workingHoursRule?->config['target_check_out'] ?? '18:30',
+            'target_minutes_per_day' => (int) ($workingHoursRule?->config['target_minutes_per_day'] ?? 540),
+            'lunch_break_minutes' => (int) ($workingHoursRule?->config['lunch_break_minutes'] ?? 60),
+        ];
+    }
+
+    protected function calculateAttendanceDerivedValues(AttendanceLog $log, array $meta, array $inputs = []): array
+    {
+        $dayType = (string) ($inputs['day_type'] ?? $log->day_type);
+        $otEnabled = isset($inputs['ot_enabled']) ? (bool)$inputs['ot_enabled'] : (bool)$log->ot_enabled;
+        
+        $isWorkday = in_array($dayType, ['workday', 'ot_full_day'], true);
+        $isHolidayOvertimeDay = in_array($dayType, ['holiday', 'company_holiday'], true);
+        $isTimeEntryDay = $isWorkday || $isHolidayOvertimeDay;
+        
+        // Check for LWOP in inputs OR model
+        $isLwop = $dayType === 'lwop' || ($inputs['lwop_flag'] ?? $log->lwop_flag);
+
+        $checkIn = $inputs['check_in'] ?? $log->check_in;
+        $checkOut = $inputs['check_out'] ?? $log->check_out;
+
+        $lateMinutes = 0;
+        $earlyLeaveMinutes = 0;
+        $otMinutes = 0;
+
+        if (!$isTimeEntryDay || $isLwop || !$checkIn || !$checkOut) {
+            return [
+                'late_minutes' => $lateMinutes,
+                'early_leave_minutes' => $earlyLeaveMinutes,
+                'ot_minutes' => $otMinutes,
+            ];
+        }
+
+        $inAt = Carbon::parse("{$log->log_date->format('Y-m-d')} {$checkIn}:00");
+        $outAt = Carbon::parse("{$log->log_date->format('Y-m-d')} {$checkOut}:00");
+
+        if ($outAt->lessThanOrEqualTo($inAt)) {
+            $outAt->addDay();
+        }
+
+        $targetInAt = Carbon::parse("{$log->log_date->format('Y-m-d')} {$meta['target_check_in']}:00");
+        $targetOutAt = Carbon::parse("{$log->log_date->format('Y-m-d')} {$meta['target_check_out']}:00");
+
+        if ($isWorkday) {
+            // Late: Based on Target Start
+            if ($inAt->greaterThan($targetInAt)) {
+                $lateMinutes = $targetInAt->diffInMinutes($inAt);
+            }
+
+            // Early Leave: Based on Target End
+            if ($outAt->lessThan($targetOutAt)) {
+                $earlyLeaveMinutes = $outAt->diffInMinutes($targetOutAt);
+            }
+        }
+
+        // OT Calculation
+        if ($otEnabled) {
+            $gross = $inAt->diffInMinutes($outAt);
+            if ($isHolidayOvertimeDay) {
+                // §63: every net minute on a holiday is OT
+                $otMinutes = max(0, $gross - $meta['lunch_break_minutes']);
+            } else {
+                // §61: workday OT = net minutes beyond the standard day
+                $net = $gross - $meta['lunch_break_minutes'];
+                $otMinutes = max(0, $net - $meta['target_minutes_per_day']);
+            }
+        }
+
+        return [
+            'late_minutes' => $lateMinutes,
+            'early_leave_minutes' => $earlyLeaveMinutes,
+            'ot_minutes' => $otMinutes,
+        ];
+    }
+
+    protected function syncAttendanceDerivedMetrics(Employee $employee, int $month, int $year): void
+    {
+        $meta = $this->getAttendanceRuleMeta();
+
+        AttendanceLog::where('employee_id', $employee->id)
+            ->whereMonth('log_date', $month)
+            ->whereYear('log_date', $year)
+            ->get()
+            ->each(function (AttendanceLog $log) use ($meta) {
+                $derived = $this->calculateAttendanceDerivedValues($log, $meta);
+
+                $updates = [];
+                foreach ($derived as $field => $value) {
+                    if ((int) $log->{$field} !== (int) $value) {
+                        $updates[$field] = $value;
+                    }
+                }
+
+                if (!empty($updates)) {
+                    $log->update($updates);
+                }
+            });
+    }
+
+    protected function validateSwapPolicy(AttendanceLog $log, string $newDayType): void
+    {
+        $oldDayType = (string) $log->day_type;
+        $isSwapToWorkday = $newDayType === 'workday' && in_array($oldDayType, ['holiday', 'company_holiday'], true);
+
+        if (!$isSwapToWorkday) {
+            return;
+        }
+
+        if ($oldDayType === 'company_holiday' && !$this->allowCompanyHolidaySwap()) {
+            throw new \RuntimeException('ไม่สามารถสลับวันหยุดตามประเพณีเป็นวันทำงานได้: เปิดสิทธิ์เฉพาะกิจการที่กฎหมายยกเว้นในหน้า Rules ก่อน');
+        }
+
+        if ($this->wouldExceedSixConsecutiveWorkdays($log, $newDayType)) {
+            throw new \RuntimeException('ไม่สามารถสลับวันได้: จะทำให้ทำงานติดต่อกันเกิน 6 วันโดยไม่มีวันหยุด');
+        }
+    }
+
+    protected function allowCompanyHolidaySwap(): bool
+    {
+        $workingHoursRule = AttendanceRule::getActiveRule('working_hours');
+        return (bool) ($workingHoursRule?->config['allow_company_holiday_swap'] ?? false);
+    }
+
+    protected function wouldExceedSixConsecutiveWorkdays(AttendanceLog $targetLog, string $overrideDayType): bool
+    {
+        $isWorkday = static fn(?string $dayType): bool => in_array((string) $dayType, ['workday', 'ot_full_day'], true);
+
+        $targetDate = Carbon::parse($targetLog->log_date)->startOfDay();
+        $start = $targetDate->copy()->subDays(14);
+        $end = $targetDate->copy()->addDays(14);
+
+        $logs = AttendanceLog::where('employee_id', $targetLog->employee_id)
+            ->whereBetween('log_date', [$start->toDateString(), $end->toDateString()])
+            ->get()
+            ->keyBy(fn(AttendanceLog $log) => Carbon::parse($log->log_date)->toDateString());
+
+        $streak = 1;
+
+        for ($i = 1; $i <= 14; $i++) {
+            $date = $targetDate->copy()->subDays($i)->toDateString();
+            $dayType = $logs[$date]->day_type ?? null;
+            if ($isWorkday($dayType)) {
+                $streak++;
+            } else {
+                break;
+            }
+        }
+
+        for ($i = 1; $i <= 14; $i++) {
+            $date = $targetDate->copy()->addDays($i)->toDateString();
+            $dayType = $logs[$date]->day_type ?? null;
+            if ($isWorkday($dayType)) {
+                $streak++;
+            } else {
+                break;
+            }
+        }
+
+        return $isWorkday($overrideDayType) && $streak > 6;
+    }
+
+    /**
+     * AJAX endpoint to get only the attendance grid partial.
+     */
+    public function getGridRefresh(Employee $employee, int $month, int $year)
+    {
+        $this->ensureCanAccessEmployeeWorkspace($employee);
+        $data = $this->getWorkspaceViewData($employee, $month, $year);
+
+        $viewFile = match($employee->payroll_mode) {
+            'monthly_staff', 'office_staff', 'youtuber_salary' => 'workspace.partials.attendance-grid',
+            'freelance_layer' => 'workspace.partials.freelance-layer-grid',
+            'freelance_fixed' => 'workspace.partials.freelance-fixed-grid',
+            'youtuber_settlement' => 'workspace.partials.youtuber-settlement-grid',
+            default => null
+        };
+
+        if (!$viewFile) return response()->json(['error' => 'No grid for this mode'], 400);
+
+        $html = view($viewFile, array_merge(['employee' => $employee, 'month' => $month, 'year' => $year], $data))->render();
+
+        return response()->json([
+            'html' => $html,
+            'summary' => $data['result']['summary'] ?? [],
+            'items' => $data['result']['items'] ?? [],
+            'vacationBalance' => $data['vacationBalance'] ?? null
+        ]);
+    }
+
+    protected function getWorkspaceViewData(Employee $employee, int $month, int $year)
+    {
+        $employee->load(['department', 'position', 'salaryProfile', 'bankAccount', 'profile']);
+
+        $dayTypeLabels = [
+            'workday' => 'วันทำงาน', 'holiday' => 'วันหยุด', 'sick_leave' => 'ลาป่วย',
+            'personal_leave' => 'ลากิจ', 'vacation_leave' => 'ลาพักร้อน', 
+            'ot_full_day' => 'OT เต็มวัน', 'lwop' => 'LWOP',
+            'not_started' => 'ยังไม่เริ่มงาน', 'company_holiday' => 'วันหยุดบริษัท',
+        ];
+
+        $dayTypeColors = [
+            'workday' => 'bg-green-100 text-green-800',
+            'holiday' => 'bg-orange-100 text-orange-800',
+            'sick_leave' => 'bg-blue-100 text-blue-800',
+            'personal_leave' => 'bg-yellow-100 text-yellow-800',
+            'vacation_leave' => 'bg-teal-100 text-teal-800',
+            'ot_full_day' => 'bg-indigo-100 text-indigo-800',
+            'lwop' => 'bg-red-100 text-red-800',
+            'not_started' => 'bg-gray-200 text-gray-500',
+            'company_holiday' => 'bg-purple-100 text-purple-800',
+        ];
+
+        if (in_array($employee->payroll_mode, ['monthly_staff', 'office_staff', 'youtuber_salary'])) {
+            $this->ensureAttendanceLogs($employee, $month, $year);
+            $this->syncAttendanceDerivedMetrics($employee, $month, $year);
+        }
+
+        $attendanceLogs = AttendanceLog::where('employee_id', $employee->id)
+            ->whereMonth('log_date', $month)->whereYear('log_date', $year)
+            ->orderBy('log_date')->get();
+
+        $isCurrentMonth = ($month === (int) now()->month && $year === (int) now()->year);
+        $isAdmin = auth()->user()?->hasRole('admin') ?? false;
+        $attendanceReadOnly = !$isAdmin && $isCurrentMonth;
+
+        $workLogs = WorkLog::where('employee_id', $employee->id)
+            ->where('month', $month)->where('year', $year)
+            ->orderBy('sort_order')->get();
+
+        $layerRates = LayerRateRule::where('employee_id', $employee->id)->where('is_active', true)->get();
+
+        $workingHoursRule = AttendanceRule::getActiveRule('working_hours');
+        $attendanceMeta = [
+            'target_check_in' => $workingHoursRule?->config['target_check_in'] ?? '09:30',
+            'target_check_out' => $workingHoursRule?->config['target_check_out'] ?? '18:30',
+            'target_minutes_per_day' => (int) ($workingHoursRule?->config['target_minutes_per_day'] ?? 540),
+            'lunch_break_minutes' => (int) ($workingHoursRule?->config['lunch_break_minutes'] ?? 60),
+        ];
+
+        $result = $this->payrollService->calculateForEmployee($employee, $month, $year);
+        $batch = PayrollBatch::where('month', $month)->where('year', $year)->first();
+        $payrollItems = $batch ? PayrollItem::where('employee_id', $employee->id)->where('payroll_batch_id', $batch->id)->get() : collect();
+        $payslip = Payslip::where('employee_id', $employee->id)->where('month', $month)->where('year', $year)->first();
+        $proofs = PaymentProof::where('employee_id', $employee->id)->whereHas('payslip', function($q) use ($month, $year) {
+            $q->where('month', $month)->where('year', $year);
+        })->orWhere(function($q) use ($employee, $month, $year) {
+            $q->where('employee_id', $employee->id)->whereNull('payslip_id')->whereMonth('created_at', $month)->whereYear('created_at', $year);
+        })->get();
+
+        $claims = ExpenseClaim::where('employee_id', $employee->id)->where('month', $month)->where('year', $year)->get();
+        $panel = 'edit_jobs';
+        $hasEditAssignments = EditingJob::where('assigned_to', $employee->id)->active()->exists();
+        if (in_array($employee->payroll_mode, ['freelance_layer', 'freelance_fixed'], true)) {
+            $panel = $hasEditAssignments ? 'edit_jobs' : 'none';
+        }
+        $assignedEditJobs = $hasEditAssignments ? EditingJob::with('game')->where('assigned_to', $employee->id)->active()
+            ->orderByRaw("CASE status WHEN 'assigned' THEN 1 WHEN 'in_progress' THEN 2 WHEN 'review_ready' THEN 3 WHEN 'final' THEN 4 ELSE 99 END")
+            ->orderBy('deadline_date')->get() : collect();
+
+        $recordingAssignments = collect();
+        $monthlyFinalJobs = EditingJob::where('assigned_to', $employee->id)->where('status', 'final')
+            ->whereMonth('finalized_at', $month)->whereYear('finalized_at', $year)->get();
+
+        $totalMonthlySeconds = $monthlyFinalJobs->sum(fn($j) => ($j->video_duration_minutes * 60) + $j->video_duration_seconds);
+        $performanceSummary = [
+            'total_duration_hms' => DurationInput::formatSecondsAsHms($totalMonthlySeconds),
+            'final_count' => $monthlyFinalJobs->count()
+        ];
+        $workspaceEditEnabled = $this->isWorkspaceEditingEnabled($employee);
+        $vacationBalance = $employee->getVacationBalance($year);
+
+        return [
+            'attendanceLogs' => $attendanceLogs, 'workLogs' => $workLogs, 'layerRates' => $layerRates,
+            'result' => $result, 'payrollItems' => $payrollItems, 'payslip' => $payslip,
+            'proofs' => $proofs, 'claims' => $claims, 'dayTypeLabels' => $dayTypeLabels,
+            'dayTypeColors' => $dayTypeColors, 'attendanceMeta' => $attendanceMeta,
+            'attendanceReadOnly' => $attendanceReadOnly, 'isAdmin' => $isAdmin,
+            'assignedEditJobs' => $assignedEditJobs, 'recordingAssignments' => $recordingAssignments,
+            'panel' => $panel, 'workspaceEditEnabled' => $workspaceEditEnabled, 'performanceSummary' => $performanceSummary,
+            'vacationBalance' => $vacationBalance
+        ];
     }
 }

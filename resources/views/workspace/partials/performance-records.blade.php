@@ -21,7 +21,7 @@
         $statusTH = [
             'assigned' => 'ได้รับมอบหมาย',
             'in_progress' => 'กำลังตัดต่อ',
-            'review_ready' => 'รอตรวจทรู',
+            'review_ready' => 'รอตรวจ',
             'final' => 'ปิดงาน/Final',
         ];
     @endphp
@@ -72,8 +72,17 @@
                                     <button class="px-2 py-1 rounded bg-blue-600 text-white text-[11px] font-semibold hover:bg-blue-700">ส่งงาน</button>
                                 </form>
                             @elseif($job->status === 'review_ready')
-                                <form action="{{ route('work.editing-job.finalize', $job) }}" method="POST" class="inline">@csrf
-                                    <button class="px-2 py-1 rounded bg-emerald-600 text-white text-[11px] font-semibold hover:bg-emerald-700">ปิดงาน</button>
+                                <form action="{{ route('work.editing-job.finalize', $job) }}" method="POST" class="flex flex-col gap-1 items-start">
+                                    @csrf
+                                    <div class="flex items-center gap-1">
+                                        <input type="number" name="video_duration_minutes" class="w-14 border border-gray-300 rounded px-1.5 py-1 text-[11px]" placeholder="นาที" title="ความยาววิดีโอ (นาที)">
+                                        <span class="text-[11px] text-gray-500">:</span>
+                                        <input type="number" name="video_duration_seconds" class="w-14 border border-gray-300 rounded px-1.5 py-1 text-[11px]" placeholder="วินาที" min="0" max="59" title="ความยาววิดีโอ (วินาที)">
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <input type="date" name="finalized_at" value="{{ date('Y-m-d') }}" class="w-28 border border-gray-300 rounded px-2 py-1 text-[11px]" required title="วันที่ปิดงาน (Final)">
+                                        <button class="px-2 py-1 rounded bg-emerald-600 text-white text-[11px] font-semibold hover:bg-emerald-700 whitespace-nowrap">ปิดงาน</button>
+                                    </div>
                                 </form>
                             @endif
                         @else

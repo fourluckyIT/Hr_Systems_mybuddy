@@ -25,6 +25,7 @@ class SettingsController extends Controller
             'diligence' => AttendanceRule::getActiveRule('diligence'),
             'late_deduction' => AttendanceRule::getActiveRule('late_deduction'),
             'ot_rate' => AttendanceRule::getActiveRule('ot_rate'),
+            'module_defaults' => AttendanceRule::getActiveRule('module_defaults'),
             'social_security_config' => $ssoConfig,
         ];
 
@@ -53,6 +54,33 @@ class SettingsController extends Controller
             AuditLogService::log($sso, 'updated', 'sso_config', $oldSso, $sso->getAttributes(), 'SSO config updated');
 
             return back()->with('success', 'อัปเดตตั้งค่าประกันสังคมสำเร็จ');
+        }
+
+        if ($type === 'module_defaults') {
+            $rule = AttendanceRule::where('rule_type', $type)->where('is_active', true)->first();
+
+            if (!$rule) {
+                $rule = AttendanceRule::create([
+                    'rule_type' => 'module_defaults',
+                    'config' => [],
+                    'effective_date' => now()->toDateString(),
+                    'is_active' => true,
+                ]);
+            }
+
+            $oldConfig = $rule->config ?? [];
+            $config = [
+                'enable_overtime' => $request->boolean('enable_overtime', true),
+                'enable_diligence' => $request->boolean('enable_diligence', true),
+                'default_sso_deduction' => $request->boolean('default_sso_deduction', true),
+                'default_deduct_late' => $request->boolean('default_deduct_late', true),
+                'default_deduct_early' => $request->boolean('default_deduct_early', true),
+            ];
+
+            $rule->update(['config' => $config]);
+            AuditLogService::log($rule, 'updated', 'config', $oldConfig, $config, "Rule '{$type}' updated");
+
+            return back()->with('success', 'อัปเดตค่าเริ่มต้นของโมดูลสำเร็จ');
         }
 
         $rule = AttendanceRule::where('rule_type', $type)->where('is_active', true)->first();
@@ -84,13 +112,15 @@ class SettingsController extends Controller
             }
         }
 
+        $oldConfig = $rule->config;
+
         foreach ($inputs as $key => $value) {
             $config[$key] = $value;
         }
 
         $rule->update(['config' => $config]);
 
-        AuditLogService::log($rule, 'updated', 'config', $rule->getOriginal('config'), $config, "Rule '{$type}' updated");
+        AuditLogService::log($rule, 'updated', 'config', $oldConfig, $config, "Rule '{$type}' updated");
 
         return back()->with('success', 'อัปเดตกฎการทำงานสำเร็จ');
     }
@@ -113,7 +143,7 @@ class SettingsController extends Controller
             }
         }
 
-        return back()->with('success', "ดึงข้อมูลวันหยุดราชการเรียบร้อยแล้ว เข้ามาทั้งหมด $count วันครับ");
+        return back()->with('success', "ดึงข้อมูลวันหยุดราชการประจำปี $year เรียบร้อยแล้ว เข้ามาทั้งหมด $count วันครับ");
     }
 
     public function addHoliday(Request $request)

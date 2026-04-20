@@ -24,6 +24,8 @@ class WorkCommandController extends Controller
     public function index(Request $request)
     {
         $tab = $request->get('tab', 'editing');
+        $month = (int) $request->get('month', now()->month);
+        $year = (int) $request->get('year', now()->year);
 
         $employees = Employee::where('is_active', true)->orderBy('first_name')->get();
         $youtubers = Employee::where('is_active', true)
@@ -38,6 +40,14 @@ class WorkCommandController extends Controller
 
         $editingJobs = EditingJob::with(['game', 'assignee'])
             ->active()
+            ->where(function ($query) use ($month, $year) {
+                $query->where('status', '!=', 'final')
+                      ->orWhere(function ($q) use ($month, $year) {
+                          $q->where('status', 'final')
+                            ->whereMonth('finalized_at', $month)
+                            ->whereYear('finalized_at', $year);
+                      });
+            })
             ->orderByRaw("CASE status
                 WHEN 'assigned' THEN 1
                 WHEN 'in_progress' THEN 2
@@ -48,20 +58,29 @@ class WorkCommandController extends Controller
             ->orderBy('assigned_at', 'desc')
             ->get();
 
+        $finalJobs = $editingJobs->where('status', 'final');
+        $totalSeconds = $finalJobs->sum(fn($j) => ($j->video_duration_minutes * 60) + $j->video_duration_seconds);
+
         $summary = [
             'recording_active' => 0,
             'recording_total' => 0,
             'resource_ready' => 0,
             'resource_total' => 0,
-            'editing_active' => $editingJobs->whereIn('status', ['assigned', 'in_progress', 'review_ready'])->count(),
+            'editing_active' => EditingJob::active()->whereIn('status', ['assigned', 'in_progress', 'review_ready'])->count(),
+            'editing_final' => $finalJobs->count(),
             'editing_total' => $editingJobs->count(),
+            'total_duration_hms' => DurationInput::formatSecondsAsHms($totalSeconds),
         ];
 
         $recordings = collect();
         $resources = collect();
         $recordingStatusLogs = collect();
 
-        return view('work.index', compact('tab', 'recordings', 'resources', 'employees', 'youtubers', 'summary', 'recordingStatusLogs', 'editingJobs', 'games', 'editors'));
+        return view('work.index', compact(
+            'tab', 'recordings', 'resources', 'employees', 'youtubers', 
+            'summary', 'recordingStatusLogs', 'editingJobs', 'games', 'editors',
+            'month', 'year'
+        ));
     }
 
     // === Recording Jobs ===
@@ -160,13 +179,29 @@ class WorkCommandController extends Controller
     {
         $validated = $request->validate([
             'job_name' => 'required|string|max:255',
-            'game_id' => 'required|exists:games,id',
+            'game_id' => 'required|string', // Can be numeric ID or 'other'
+            'new_game_name' => 'required_if:game_id,other|nullable|string|max:255',
             'game_link' => 'nullable|url|max:500',
             'deadline_days' => 'nullable|integer|min:1',
             'deadline_date' => 'nullable|date',
             'assigned_to' => 'required|exists:employees,id',
             'notes' => 'nullable|string|max:1000',
         ]);
+
+        if ($validated['game_id'] === 'other' && !empty($validated['new_game_name'])) {
+            $gameName = $validated['new_game_name'];
+            $game = Game::firstOrCreate(
+                ['game_name' => $gameName],
+                [
+                    'game_slug' => \Illuminate\Support\Str::slug($gameName),
+                    'is_active' => true
+                ]
+            );
+            $validated['game_id'] = $game->id;
+        } else {
+            // Validate that it exists if not 'other'
+            $request->validate(['game_id' => 'exists:games,id']);
+        }
 
         if (empty($validated['deadline_days']) && !empty($validated['deadline_date'])) {
             $deadlineDate = Carbon::parse($validated['deadline_date']);
@@ -185,16 +220,66 @@ class WorkCommandController extends Controller
         return back()->with('success', 'มอบหมายงานสำเร็จ');
     }
 
+    public function updateEditingJob(Request $request, EditingJob $editingJob)
+    {
+        $validated = $request->validate([
+            'job_name' => 'required|string|max:255',
+            'game_id' => 'required|string', // Can be numeric ID or 'other'
+            'new_game_name' => 'required_if:game_id,other|nullable|string|max:255',
+            'game_link' => 'nullable|url|max:500',
+            'deadline_days' => 'nullable|integer|min:1',
+            'deadline_date' => 'nullable|date',
+            'assigned_to' => 'required|exists:employees,id',
+            'layer_count' => 'nullable|integer|min:0',
+            'video_duration_minutes' => 'nullable|integer|min:0',
+            'video_duration_seconds' => 'nullable|integer|min:0|max:59',
+            'notes' => 'nullable|string|max:1000',
+        ]);
+
+        if ($validated['game_id'] === 'other' && !empty($validated['new_game_name'])) {
+            $gameName = $validated['new_game_name'];
+            $game = Game::firstOrCreate(
+                ['game_name' => $gameName],
+                [
+                    'game_slug' => \Illuminate\Support\Str::slug($gameName),
+                    'is_active' => true
+                ]
+            );
+            $validated['game_id'] = $game->id;
+        } else {
+            $request->validate(['game_id' => 'exists:games,id']);
+        }
+
+        if (empty($validated['deadline_days']) && !empty($validated['deadline_date'])) {
+            $deadlineDate = Carbon::parse($validated['deadline_date']);
+            $validated['deadline_days'] = max(1, now()->startOfDay()->diffInDays($deadlineDate->startOfDay()));
+        }
+
+        if (empty($validated['deadline_days'])) {
+            $validated['deadline_days'] = 3;
+        }
+
+        $service = app(EditingJobService::class);
+        $service->updateJob($editingJob, $validated);
+
+        return back()->with('success', 'แก้ไขข้อมูลงานสำเร็จ');
+    }
+
     public function startEditingJob(EditingJob $editingJob)
     {
         $this->assertCanActOnEditingJob($editingJob);
 
-        $service = app(EditingJobService::class);
-        $service->startJob($editingJob);
+        try {
+            $service = app(EditingJobService::class);
+            $editorId = auth()->user()->employee?->id ?? $editingJob->assigned_to;
+            $service->startJob($editingJob->id, $editorId);
 
-        AuditLogService::log($editingJob, 'updated', 'status', 'assigned', 'in_progress', 'Started job');
+            AuditLogService::log($editingJob->fresh(), 'updated', 'status', 'assigned', 'in_progress', 'Started job');
 
-        return back()->with('success', 'เริ่มงานแล้ว');
+            return back()->with('success', 'เริ่มงานแล้ว');
+        } catch (\DomainException $e) {
+            return back()->withErrors(['error' => $e->getMessage()]);
+        }
     }
 
     public function markEditingJobReady(Request $request, EditingJob $editingJob)
@@ -209,30 +294,52 @@ class WorkCommandController extends Controller
             $editingJob->update(['layer_count' => $validated['layer_count']]);
         }
 
-        $service = app(EditingJobService::class);
-        $service->markReviewReady($editingJob);
+        try {
+            $service = app(EditingJobService::class);
+            $editorId = auth()->user()->employee?->id ?? $editingJob->assigned_to;
+            $service->markReviewReady($editingJob->id, $editorId);
 
-        AuditLogService::log($editingJob, 'updated', 'status', 'in_progress', 'review_ready', 'Marked as review ready');
+            AuditLogService::log($editingJob->fresh(), 'updated', 'status', 'in_progress', 'review_ready', 'Marked as review ready');
 
-        return back()->with('success', 'ส่งงานพร้อมตรวจแล้ว');
+            return back()->with('success', 'ส่งงานพร้อมตรวจแล้ว');
+        } catch (\DomainException $e) {
+            return back()->withErrors(['error' => $e->getMessage()]);
+        }
     }
 
-    public function finalizeEditingJob(EditingJob $editingJob)
+    public function finalizeEditingJob(Request $request, EditingJob $editingJob)
     {
         $this->assertCanActOnEditingJob($editingJob);
 
-        $service = app(EditingJobService::class);
-        $service->finalizeJob($editingJob);
+        $validated = $request->validate([
+            'finalized_at' => 'nullable|date',
+            'video_duration_minutes' => 'nullable|integer|min:0',
+            'video_duration_seconds' => 'nullable|integer|min:0|max:59',
+        ]);
 
-        AuditLogService::log($editingJob, 'updated', 'status', 'review_ready', 'final', 'Finalized job');
+        try {
+            $service = app(EditingJobService::class);
+            $editorId = auth()->user()->employee?->id ?? $editingJob->assigned_to;
+            $service->finalizeJob(
+                $editingJob->id,
+                $editorId,
+                $validated['finalized_at'] ?? null,
+                $validated['video_duration_minutes'] ?? null,
+                $validated['video_duration_seconds'] ?? null
+            );
 
-        return back()->with('success', 'ปิดงานสำเร็จ');
+            AuditLogService::log($editingJob->fresh(), 'updated', 'status', 'review_ready', 'final', 'Finalized job');
+
+            return back()->with('success', 'ปิดงานสำเร็จ');
+        } catch (\DomainException $e) {
+            return back()->withErrors(['error' => 'ไม่สามารถปิดงานได้ ต้องเปลี่ยนสถานะงานเป็น Review Ready ก่อน']);
+        }
     }
 
     public function deleteEditingJob(EditingJob $editingJob)
     {
         $service = app(EditingJobService::class);
-        $service->deleteJob($editingJob);
+        $service->deleteJob($editingJob->id);
 
         AuditLogService::logDeleted($editingJob, 'Deleted job');
 

@@ -80,6 +80,18 @@
             <option value="{{ $dept->id }}">{{ $dept->name }}</option>
             @endforeach
         </select>
+        
+        <div class="h-8 w-px bg-gray-300 mx-1"></div>
+
+        <div class="flex items-center gap-2">
+            <span class="text-xs font-semibold text-gray-500 uppercase">จัดกลุ่ม:</span>
+            <select name="group_by" class="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-indigo-50 border-indigo-200 text-indigo-700" onchange="this.form.submit()">
+                <option value="none" {{ $groupBy === 'none' ? 'selected' : '' }}>ไม่มี</option>
+                <option value="department" {{ $groupBy === 'department' ? 'selected' : '' }}>แผนก</option>
+                <option value="payroll_mode" {{ $groupBy === 'payroll_mode' ? 'selected' : '' }}>Payroll Mode</option>
+            </select>
+        </div>
+
         <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
             <input type="checkbox" name="show_inactive" value="1" {{ $showInactive ? 'checked' : '' }} class="rounded border-gray-300 text-indigo-600" onchange="this.form.submit()">
             แสดงพนักงานที่ระงับ
@@ -111,50 +123,85 @@
             <table class="min-w-full text-sm">
                 <thead class="bg-gray-50 border-b border-gray-200">
                     <tr class="text-left text-gray-600">
-                        <th class="px-4 py-3 font-semibold">ชื่อ</th>
-                        <th class="px-4 py-3 font-semibold">รหัส</th>
-                        <th class="px-4 py-3 font-semibold">Payroll Mode</th>
-                        <th class="px-4 py-3 font-semibold">แผนก</th>
+                        @php
+                            $sortLink = function($field, $label) use ($sortBy, $sortDir) {
+                                $isCurrent = $sortBy === $field;
+                                $newDir = ($isCurrent && $sortDir === 'asc') ? 'desc' : 'asc';
+                                $icon = '';
+                                if ($isCurrent) {
+                                    $icon = $sortDir === 'asc' 
+                                        ? '<svg class="w-3 h-3 ml-1 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 15l7-7 7 7"></path></svg>'
+                                        : '<svg class="w-3 h-3 ml-1 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M19 9l-7 7-7-7"></path></svg>';
+                                }
+                                $url = route('employees.index', array_merge(request()->query(), ['sort_by' => $field, 'sort_dir' => $newDir]));
+                                return '<a href="'.$url.'" class="hover:text-indigo-600 flex items-center">'.$label.$icon.'</a>';
+                            };
+                        @endphp
+                        <th class="px-4 py-3 font-semibold">{!! $sortLink('first_name', 'ชื่อ') !!}</th>
+                        <th class="px-4 py-3 font-semibold">{!! $sortLink('employee_code', 'รหัส') !!}</th>
+                        <th class="px-4 py-3 font-semibold text-center">{!! $sortLink('payroll_mode', 'Payroll Mode') !!}</th>
+                        <th class="px-4 py-3 font-semibold">{!! $sortLink('department', 'แผนก') !!}</th>
                         <th class="px-4 py-3 font-semibold">ตำแหน่ง</th>
-                        <th class="px-4 py-3 font-semibold text-right">เงินเดือนฐาน</th>
-                        <th class="px-4 py-3 font-semibold">สถานะ</th>
+                        <th class="px-4 py-3 font-semibold text-right">{!! $sortLink('salary', 'เงินเดือนฐาน') !!}</th>
+                        <th class="px-4 py-3 font-semibold text-center">สถานะ</th>
                         <th class="px-4 py-3 font-semibold text-right">จัดการ</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
-                    @forelse($employees as $emp)
-                    <tr class="{{ !$emp->is_active ? 'bg-gray-50 text-gray-500' : '' }}">
-                        <td class="px-4 py-3 font-medium">{{ $emp->display_name }}</td>
-                        <td class="px-4 py-3 font-mono text-xs">{{ $emp->employee_code ?: 'NO-CODE' }}</td>
-                        <td class="px-4 py-3">
-                            <span class="inline-block px-2 py-0.5 rounded-full text-xs font-medium {{ $modeMeta[$emp->payroll_mode]['badge'] ?? 'bg-gray-100 text-gray-700' }}">
-                                {{ $modeMeta[$emp->payroll_mode]['label'] ?? $emp->payroll_mode }}
-                            </span>
-                        </td>
-                        <td class="px-4 py-3">{{ $emp->department?->name ?? '-' }}</td>
-                        <td class="px-4 py-3">{{ $emp->position?->name ?? '-' }}</td>
-                        <td class="px-4 py-3 text-right">{{ $emp->salaryProfile ? number_format($emp->salaryProfile->base_salary, 0) . ' ฿' : '-' }}</td>
-                        <td class="px-4 py-3">
-                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold {{ $emp->is_active ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600' }}">
-                                {{ $emp->is_active ? 'ใช้งาน' : 'ระงับ' }}
-                            </span>
-                        </td>
-                        <td class="px-4 py-3">
-                            <div class="flex items-center justify-end gap-2">
-                                <a href="{{ route('workspace.show', ['employee' => $emp->id, 'month' => now()->month, 'year' => now()->year]) }}"
-                                   class="px-2.5 py-1.5 rounded-md bg-indigo-50 text-indigo-700 text-xs font-semibold hover:bg-indigo-100">
-                                    Workspace
-                                </a>
-                                <a href="{{ route('employees.edit', $emp->id) }}"
-                                   class="px-2.5 py-1.5 rounded-md bg-white border border-gray-300 text-gray-700 text-xs font-semibold hover:bg-gray-50">
-                                    Edit
-                                </a>
-                            </div>
-                        </td>
-                    </tr>
+                    @php
+                        if ($groupBy === 'department') {
+                            $employeesGrouped = $employees->groupBy(fn($emp) => $emp->department?->name ?? 'ไม่ระบุแผนก');
+                        } elseif ($groupBy === 'payroll_mode') {
+                            $employeesGrouped = $employees->groupBy(fn($emp) => $modeMeta[$emp->payroll_mode]['label'] ?? $emp->payroll_mode);
+                        } else {
+                            $employeesGrouped = ['ทั้งหมด' => $employees];
+                        }
+                    @endphp
+
+                    @forelse($employeesGrouped as $groupName => $groupContent)
+                        @if($groupBy !== 'none')
+                        <tr class="bg-gray-100/50">
+                            <td colspan="8" class="px-4 py-2 font-bold text-gray-700 border-l-4 border-indigo-500">
+                                {{ $groupName }} 
+                                <span class="ml-2 px-2 py-0.5 rounded-full bg-white border text-[10px] text-gray-500">{{ $groupContent->count() }} คน</span>
+                            </td>
+                        </tr>
+                        @endif
+
+                        @foreach($groupContent as $emp)
+                        <tr class="{{ !$emp->is_active ? 'bg-gray-50 text-gray-500' : '' }} hover:bg-slate-50 transition">
+                            <td class="px-4 py-3 font-medium">{{ $emp->display_name }}</td>
+                            <td class="px-4 py-3 font-mono text-xs text-gray-500">{{ $emp->employee_code ?: 'NO-CODE' }}</td>
+                            <td class="px-4 py-3 text-center">
+                                <span class="inline-block px-2 py-0.5 rounded-full text-xs font-medium {{ $modeMeta[$emp->payroll_mode]['badge'] ?? 'bg-gray-100 text-gray-700' }}">
+                                    {{ $modeMeta[$emp->payroll_mode]['label'] ?? $emp->payroll_mode }}
+                                </span>
+                            </td>
+                            <td class="px-4 py-3">{{ $emp->department?->name ?? '-' }}</td>
+                            <td class="px-4 py-3">{{ $emp->position?->name ?? '-' }}</td>
+                            <td class="px-4 py-3 text-right font-mono">{{ $emp->salaryProfile ? number_format($emp->salaryProfile->base_salary, 0) . ' ฿' : '-' }}</td>
+                            <td class="px-4 py-3 text-center">
+                                <span class="inline-flex items-center px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider {{ $emp->is_active ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600' }}">
+                                    {{ $emp->is_active ? 'ใช้งาน' : 'ระงับ' }}
+                                </span>
+                            </td>
+                            <td class="px-4 py-3">
+                                <div class="flex items-center justify-end gap-2">
+                                    <a href="{{ route('workspace.show', ['employee' => $emp->id, 'month' => now()->month, 'year' => now()->year]) }}"
+                                       class="px-2.5 py-1.5 rounded-md bg-indigo-50 text-indigo-700 text-xs font-semibold hover:bg-indigo-600 hover:text-white transition">
+                                        Workspace
+                                    </a>
+                                    <a href="{{ route('employees.edit', $emp->id) }}"
+                                       class="px-2.5 py-1.5 rounded-md bg-white border border-gray-300 text-gray-700 text-xs font-semibold hover:bg-gray-50">
+                                        Edit
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        @endforeach
                     @empty
                     <tr>
-                        <td colspan="8" class="px-4 py-8 text-center text-gray-500">ไม่พบพนักงานตามเงื่อนไขที่ค้นหา</td>
+                        <td colspan="8" class="px-4 py-8 text-center text-gray-500 italic">ไม่พบพนักงานตามเงื่อนไขที่ค้นหา</td>
                     </tr>
                     @endforelse
                 </tbody>

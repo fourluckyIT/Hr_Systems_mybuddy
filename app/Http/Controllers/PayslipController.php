@@ -13,6 +13,7 @@ use App\Services\Payroll\PayrollCalculationService;
 use App\Services\AuditLogService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class PayslipController extends Controller
 {
@@ -210,33 +211,54 @@ class PayslipController extends Controller
     public function unfinalize(Employee $employee, int $month, int $year)
     {
         try {
-            $payslip = Payslip::where('employee_id', $employee->id)
-                ->where('month', $month)
-                ->where('year', $year)
-                ->first();
+            return DB::transaction(function () use ($employee, $month, $year) {
+                $payslip = Payslip::where('employee_id', $employee->id)
+                    ->where('month', $month)
+                    ->where('year', $year)
+                    ->lockForUpdate() // Prevent concurrent modifications
+                    ->first();
 
-            if ($payslip && $payslip->status === 'finalized') {
-                $payslip->update([
-                    'status'       => 'draft',
-                    'finalized_at' => null,
-                ]);
+                if (!$payslip) {
+                    throw new \Exception('ไม่พบข้อมูลสลิปเงินเดือน');
+                }
 
-                AuditLogService::log($payslip, 'unfinalized', 'status', 'finalized', 'draft', 'Payslip unfinalized');
-            }
+                if ($payslip->status === 'finalized') {
+                    $oldStatus = $payslip->status;
+                    $payslip->update([
+                        'status'       => 'draft',
+                        'finalized_at' => null,
+                        'finalized_by' => null, // Clear finalizer info
+                    ]);
 
-            return redirect()
-                ->route('payslip.preview', ['employee' => $employee->id, 'month' => $month, 'year' => $year])
-                ->with('success', 'ยกเลิก Finalize payslip สำเร็จ');
+                    AuditLogService::log(
+                        $payslip, 
+                        'unfinalized', 
+                        'status', 
+                        $oldStatus, 
+                        'draft', 
+                        'Payslip unfinalized by ' . (auth()->user()?->name ?? 'system')
+                    );
+
+                    // Note: We keep the snapshot items in payslip_items, but they will be 
+                    // overwritten/ignored when the user re-finalizes later.
+                }
+
+                return redirect()
+                    ->back() // Redirect back (could be from preview or workspace)
+                    ->with('success', 'ยกเลิก Finalize payslip สำเร็จ');
+            });
         } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::error('unfinalize error', [
                 'employee_id' => $employee->id,
                 'month'       => $month,
                 'year'        => $year,
                 'error'       => $e->getMessage(),
+                'trace'       => $e->getTraceAsString()
             ]);
             return back()->withErrors(['error' => 'เกิดข้อผิดพลาดในการยกเลิก Finalize: ' . $e->getMessage()]);
         }
     }
+
 
     protected function buildYearToDateSummary(Employee $employee, int $month, int $year): array
     {

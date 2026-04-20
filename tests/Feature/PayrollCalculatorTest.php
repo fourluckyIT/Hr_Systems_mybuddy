@@ -154,6 +154,128 @@ class PayrollCalculatorTest extends TestCase
         $this->assertEquals(150.00, $ot['amount']);
     }
 
+    public function test_monthly_staff_holiday_regular_and_ot_split(): void
+    {
+        $employee = $this->createEmployee('monthly_staff', 19800);
+        $this->createWorkingHoursRule(22, 540);
+        $this->createOtRule(1.5, 3.0, 36, 40);
+
+        AttendanceLog::create([
+            'employee_id' => $employee->id,
+            'log_date' => '2026-01-10',
+            'day_type' => 'holiday',
+            'working_minutes' => 0,
+            'late_minutes' => 0,
+            'ot_minutes' => 600,
+            'ot_enabled' => true,
+            'lwop_flag' => false,
+            'is_disabled' => false,
+        ]);
+
+        $calc = app(MonthlyStaffCalculator::class);
+        $result = $calc->calculate($employee, 1, 2026);
+
+        $items = collect($result['items']);
+        $holidayWorkPay = $items->firstWhere('item_type_code', 'holiday_work_pay');
+        $ot = $items->firstWhere('item_type_code', 'overtime');
+
+        // rate per minute = 19800 / (22*540) = 1.6667
+        // holiday regular = 540 * 1.6667 * 1.0 = 900.00
+        // holiday OT excess = (600 - 540) * 1.6667 * 3.0 = 300.00
+        $this->assertEquals(900.00, $holidayWorkPay['amount']);
+        $this->assertEquals(300.00, $ot['amount']);
+    }
+
+    public function test_monthly_staff_ot_is_capped_by_weekly_limit(): void
+    {
+        $employee = $this->createEmployee('monthly_staff', 19800);
+        $this->createWorkingHoursRule(22, 540);
+        $this->createOtRule(1.5, 3.0, 2, 40);
+
+        AttendanceLog::create([
+            'employee_id' => $employee->id,
+            'log_date' => '2026-01-05',
+            'day_type' => 'workday',
+            'working_minutes' => 540,
+            'late_minutes' => 0,
+            'ot_minutes' => 90,
+            'ot_enabled' => true,
+            'lwop_flag' => false,
+            'is_disabled' => false,
+        ]);
+
+        AttendanceLog::create([
+            'employee_id' => $employee->id,
+            'log_date' => '2026-01-06',
+            'day_type' => 'workday',
+            'working_minutes' => 540,
+            'late_minutes' => 0,
+            'ot_minutes' => 90,
+            'ot_enabled' => true,
+            'lwop_flag' => false,
+            'is_disabled' => false,
+        ]);
+
+        $calc = app(MonthlyStaffCalculator::class);
+        $result = $calc->calculate($employee, 1, 2026);
+
+        $items = collect($result['items']);
+        $ot = $items->firstWhere('item_type_code', 'overtime');
+
+        // Weekly cap 2h = 120 minutes, workday multiplier 1.5
+        // OT = 120 * 1.6667 * 1.5 = 300.00
+        $this->assertEquals(300.00, $ot['amount']);
+    }
+
+    public function test_monthly_staff_late_grace_is_monthly_quota(): void
+    {
+        $employee = $this->createEmployee('monthly_staff', 19800);
+        $this->createWorkingHoursRule(22, 540);
+
+        AttendanceRule::create([
+            'rule_type' => 'late_deduction',
+            'is_active' => true,
+            'effective_date' => '2025-01-01',
+            'config' => [
+                'type' => 'per_minute',
+                'grace_period_minutes' => 10,
+            ],
+        ]);
+
+        AttendanceLog::create([
+            'employee_id' => $employee->id,
+            'log_date' => '2026-01-06',
+            'day_type' => 'workday',
+            'working_minutes' => 540,
+            'late_minutes' => 8,
+            'ot_minutes' => 0,
+            'ot_enabled' => false,
+            'lwop_flag' => false,
+            'is_disabled' => false,
+        ]);
+
+        AttendanceLog::create([
+            'employee_id' => $employee->id,
+            'log_date' => '2026-01-07',
+            'day_type' => 'workday',
+            'working_minutes' => 540,
+            'late_minutes' => 7,
+            'ot_minutes' => 0,
+            'ot_enabled' => false,
+            'lwop_flag' => false,
+            'is_disabled' => false,
+        ]);
+
+        $calc = app(MonthlyStaffCalculator::class);
+        $result = $calc->calculate($employee, 1, 2026);
+
+        $late = collect($result['items'])->firstWhere('item_type_code', 'late_deduction');
+
+        // total late = 15 minutes, monthly grace = 10 minutes => billable = 5
+        // rate per minute = 19800 / (22*540) = 1.6667 => deduction = 8.33
+        $this->assertEquals(8.33, $late['amount']);
+    }
+
     public function test_monthly_staff_sso_deduction(): void
     {
         $employee = $this->createEmployee('monthly_staff', 20000);
@@ -459,15 +581,20 @@ class PayrollCalculatorTest extends TestCase
         ]);
     }
 
-    private function createOtRule(float $multiplier): void
+    private function createOtRule(float $workdayMultiplier, float $holidayMultiplier = 3.0, float $weeklyOtLimitHours = 36, float $maxOtHours = 40): void
     {
         AttendanceRule::create([
             'rule_type' => 'ot_rate',
             'is_active' => true,
             'effective_date' => '2025-01-01',
             'config' => [
-                'rate_multiplier' => $multiplier,
-                'max_ot_hours' => 40,
+                'rate_multiplier' => $workdayMultiplier,
+                'rate_multiplier_workday' => $workdayMultiplier,
+                'rate_multiplier_holiday' => $holidayMultiplier,
+                'enable_holiday_legal_split' => true,
+                'holiday_regular_multiplier_monthly' => 1.0,
+                'weekly_ot_limit_hours' => $weeklyOtLimitHours,
+                'max_ot_hours' => $maxOtHours,
             ],
         ]);
     }

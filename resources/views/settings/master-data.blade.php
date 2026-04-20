@@ -12,6 +12,7 @@
         </div>
         <div class="flex items-center gap-2">
             <a href="{{ route('settings.rules') }}" class="px-3 py-1.5 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">← กฎระบบ</a>
+            <a href="{{ route('settings.bonus.index') }}" class="px-3 py-1.5 text-sm text-indigo-700 bg-indigo-100 rounded-lg hover:bg-indigo-200">Bonus</a>
             <a href="{{ route('settings.company') }}" class="px-3 py-1.5 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">บริษัท</a>
         </div>
     </div>
@@ -43,6 +44,10 @@
         <button @click="activeTab = 'positions'" :class="activeTab === 'positions' ? 'border-indigo-500 text-indigo-600 bg-indigo-50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'" class="px-4 py-2.5 text-sm font-semibold border-b-2 rounded-t-lg transition-all">
             ตำแหน่ง
             <span class="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-gray-200 text-gray-600">{{ $positions->count() }}</span>
+        </button>
+        <button @click="activeTab = 'job_stages'" :class="activeTab === 'job_stages' ? 'border-indigo-500 text-indigo-600 bg-indigo-50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'" class="px-4 py-2.5 text-sm font-semibold border-b-2 rounded-t-lg transition-all">
+            Job Stages
+            <span class="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-gray-200 text-gray-600">{{ $jobStages->count() }}</span>
         </button>
         <button @click="activeTab = 'games'" :class="activeTab === 'games' ? 'border-indigo-500 text-indigo-600 bg-indigo-50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'" class="px-4 py-2.5 text-sm font-semibold border-b-2 rounded-t-lg transition-all">
             เกม
@@ -468,6 +473,103 @@
                             @endforelse
                         </tbody>
                     </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================== TAB: Job Stages ===================== -->
+    <div x-show="activeTab === 'job_stages'" x-cloak>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="bg-white rounded-2xl shadow-sm border p-5">
+                <h3 class="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
+                    <span class="w-6 h-6 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs">+</span>
+                    เพิ่มสถานะงานใหม่
+                </h3>
+                <form action="{{ route('settings.master-data.job-stages.store') }}" method="POST" class="space-y-3">
+                    @csrf
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">ประเภทงาน</label>
+                        <select name="type" required class="w-full px-3 py-2 border rounded-lg text-sm">
+                            <option value="edit">Editing</option>
+                            <option value="recording">Recording</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Code</label>
+                        <input type="text" name="code" required class="w-full px-3 py-2 border rounded-lg text-sm" placeholder="เช่น review_ready">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">ชื่อสถานะ</label>
+                        <input type="text" name="name" required class="w-full px-3 py-2 border rounded-lg text-sm" placeholder="เช่น รอตรวจงาน">
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">สี</label>
+                            <input type="text" name="color" value="slate" required class="w-full px-3 py-2 border rounded-lg text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Sort</label>
+                            <input type="number" name="sort_order" value="99" min="0" class="w-full px-3 py-2 border rounded-lg text-sm">
+                        </div>
+                    </div>
+                    <button type="submit" class="w-full bg-indigo-600 text-white py-2.5 rounded-xl font-bold text-sm hover:bg-indigo-700 transition">เพิ่มสถานะงาน</button>
+                </form>
+            </div>
+
+            <div class="lg:col-span-2 bg-white rounded-2xl shadow-sm border overflow-hidden">
+                <div class="px-5 py-3 bg-sky-50 border-b border-sky-100">
+                    <h3 class="font-bold text-sky-800 text-sm">รายการสถานะงานทั้งหมด</h3>
+                </div>
+                <div class="divide-y">
+                    @forelse($jobStages as $stage)
+                    <div class="px-5 py-3 group hover:bg-gray-50 transition" x-data="{ editing: false }">
+                        <div x-show="!editing" class="flex items-center justify-between gap-4">
+                            <div class="flex items-center gap-4">
+                                <span class="inline-block px-2 py-0.5 rounded text-[10px] font-bold {{ $stage->type === 'edit' ? 'bg-indigo-100 text-indigo-700' : 'bg-amber-100 text-amber-700' }}">{{ $stage->type }}</span>
+                                <code class="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">{{ $stage->code }}</code>
+                                <span class="text-sm font-semibold text-gray-800">{{ $stage->name }}</span>
+                                <span class="text-xs text-gray-400">สี: {{ $stage->color }}</span>
+                                <span class="text-xs text-gray-400">sort: {{ $stage->sort_order }}</span>
+                                @if($stage->is_core)
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700">CORE</span>
+                                @endif
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold {{ $stage->is_active ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600' }}">{{ $stage->is_active ? 'Active' : 'Inactive' }}</span>
+                            </div>
+                            <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button @click="editing = true" class="px-2 py-1 text-[10px] font-bold text-indigo-600 bg-indigo-50 rounded border border-indigo-200 hover:bg-indigo-100">แก้ไข</button>
+                                @if(!$stage->is_core)
+                                <form action="{{ route('settings.master-data.job-stages.delete', $stage->id) }}" method="POST" onsubmit="return confirm('ลบสถานะ {{ $stage->name }} ?')">
+                                    @csrf @method('DELETE')
+                                    <button type="submit" class="px-2 py-1 text-[10px] font-bold text-red-600 bg-red-50 rounded border border-red-200 hover:bg-red-100">ลบ</button>
+                                </form>
+                                @endif
+                            </div>
+                        </div>
+
+                        <form x-show="editing" x-cloak action="{{ route('settings.master-data.job-stages.update', $stage->id) }}" method="POST" class="grid grid-cols-1 md:grid-cols-6 gap-2 mt-1">
+                            @csrf @method('PATCH')
+                            @if(!$stage->is_core)
+                            <input type="text" name="code" value="{{ $stage->code }}" class="px-2 py-1.5 border rounded text-sm" required>
+                            @else
+                            <div class="px-2 py-1.5 border rounded text-sm bg-gray-50 text-gray-500">{{ $stage->code }}</div>
+                            @endif
+                            <input type="text" name="name" value="{{ $stage->name }}" class="px-2 py-1.5 border rounded text-sm" required>
+                            <input type="text" name="color" value="{{ $stage->color }}" class="px-2 py-1.5 border rounded text-sm" required>
+                            <input type="number" name="sort_order" value="{{ $stage->sort_order }}" min="0" class="px-2 py-1.5 border rounded text-sm">
+                            <label class="inline-flex items-center gap-2 text-xs text-gray-600 px-2 py-1.5 border rounded">
+                                <input type="checkbox" name="is_active" value="1" {{ $stage->is_active ? 'checked' : '' }} class="rounded border-gray-300 text-indigo-600">
+                                Active
+                            </label>
+                            <div class="flex items-center gap-2 justify-end">
+                                <button type="button" @click="editing = false" class="px-3 py-1.5 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200">ยกเลิก</button>
+                                <button type="submit" class="px-3 py-1.5 text-xs text-white bg-indigo-600 rounded hover:bg-indigo-700">บันทึก</button>
+                            </div>
+                        </form>
+                    </div>
+                    @empty
+                    <div class="px-5 py-8 text-center text-gray-400 italic">ยังไม่มีสถานะงาน</div>
+                    @endforelse
                 </div>
             </div>
         </div>

@@ -1,0 +1,51 @@
+<?php
+
+/**
+ * Example route group showing how to apply BUG-18 + BUG-30 fixes.
+ * Drop these route blocks into your existing routes/web.php.
+ *
+ * Prerequisite: in bootstrap/app.php (Laravel 11) register middleware aliases:
+ *
+ *   ->withMiddleware(function (\Illuminate\Foundation\Configuration\Middleware $middleware) {
+ *       $middleware->alias([
+ *           'role'          => \App\Http\Middleware\EnsureRole::class,
+ *           '2fa.required' => \App\Http\Middleware\Require2fa::class,
+ *       ]);
+ *   })
+ */
+
+use App\Http\Controllers\PayslipController;
+use App\Http\Controllers\CompanyFinanceController;
+use App\Http\Controllers\BonusManagementController;
+use App\Http\Controllers\WorkspaceController;
+use App\Http\Controllers\WorkCommandController;
+use Illuminate\Support\Facades\Route;
+
+// -------- admin + owner only, 2FA enforced -----------------
+Route::middleware(['auth', 'role:admin|owner', '2fa.required'])->group(function () {
+
+    Route::post('/payslips/{payslip}/finalize', [PayslipController::class, 'finalize'])
+         ->name('payslips.finalize');
+
+    Route::post('/payslips/{payslip}/reset-to-auto', [PayslipController::class, 'resetToAuto'])
+         ->name('payslips.reset');
+
+    Route::post('/bonus-cycles/{cycle}/calculate', [BonusManagementController::class, 'calculate']);
+    Route::post('/bonus-cycles/{cycle}/approve',   [BonusManagementController::class, 'approve']);
+    Route::post('/bonus-cycles/{cycle}/pay',       [BonusManagementController::class, 'pay']);
+
+    Route::resource('company-finance', CompanyFinanceController::class);
+});
+
+// -------- admin only (no 2FA blanket, but individually guarded sensitive ones above) ----
+Route::middleware(['auth', 'role:admin'])->group(function () {
+    Route::resource('workspace', WorkspaceController::class);
+    Route::resource('work-command', WorkCommandController::class);
+});
+
+// -------- editor portal (future — placeholder shows explicit deny) ------
+Route::middleware(['auth', 'role:editor'])->group(function () {
+    // Add editor-safe routes here once the portal exists.
+    // Until then, editor accounts land on a read-only dashboard.
+    Route::get('/editor', fn () => view('editor.dashboard'));
+});

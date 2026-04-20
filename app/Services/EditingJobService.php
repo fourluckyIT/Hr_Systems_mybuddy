@@ -63,6 +63,32 @@ class EditingJobService
         return $job->load(['game', 'assignee', 'assigner']);
     }
 
+    public function updateJob(EditingJob $job, array $data): EditingJob
+    {
+        $old = $job->toArray();
+
+        $job->update([
+            'job_name'      => $data['job_name'],
+            'game_id'       => $data['game_id'],
+            'game_link'     => $data['game_link'] ?? null,
+            'assigned_to'   => $data['assigned_to'],
+            'deadline_days' => $data['deadline_days'],
+            'deadline_date' => $data['deadline_date'] ?? null,
+            'layer_count'   => $data['layer_count'] ?? $job->layer_count,
+            'video_duration_minutes' => $data['video_duration_minutes'] ?? $job->video_duration_minutes,
+            'video_duration_seconds' => $data['video_duration_seconds'] ?? $job->video_duration_seconds,
+            'notes'         => $data['notes'] ?? null,
+        ]);
+
+        \App\Services\AuditLogService::logUpdated(
+            $job->fresh(),
+            collect($old)->only(['job_name', 'game_id', 'assigned_to', 'deadline_days', 'notes'])->toArray(),
+            'Updated editing job details'
+        );
+
+        return $job->load(['game', 'assignee', 'assigner']);
+    }
+
     // ─── Status Transitions ──────────────────────────────────────────
 
     public function startJob(int $jobId, int $editorId): EditingJob
@@ -105,18 +131,32 @@ class EditingJobService
         return $job->fresh(['game', 'assignee']);
     }
 
-    public function finalizeJob(int $jobId, int $editorId, ?string $finalizedAt = null): array
-    {
+    public function finalizeJob(
+        int $jobId,
+        int $editorId,
+        ?string $finalizedAt = null,
+        ?int $durationMinutes = null,
+        ?int $durationSeconds = null
+    ): array {
         $job = EditingJob::findOrFail($jobId);
 
         $this->assertTransition($job, 'final');
 
         $finalizedDate = $finalizedAt ? Carbon::parse($finalizedAt) : now();
 
-        $job->update([
+        $updateData = [
             'status'       => 'final',
             'finalized_at' => $finalizedDate,
-        ]);
+        ];
+
+        if ($durationMinutes !== null) {
+            $updateData['video_duration_minutes'] = $durationMinutes;
+        }
+        if ($durationSeconds !== null) {
+            $updateData['video_duration_seconds'] = $durationSeconds;
+        }
+
+        $job->update($updateData);
 
         $job->load(['game', 'assignee']);
 

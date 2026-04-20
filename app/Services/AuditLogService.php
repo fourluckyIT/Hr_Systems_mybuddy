@@ -67,10 +67,10 @@ class AuditLogService
         return static::log($model, 'created', null, null, null, $reason);
     }
 
-    public static function logUpdated(Model $model, array $changes, ?string $reason = null): void
+    public static function logUpdated(Model $model, array $oldValues, ?string $reason = null): void
     {
-        foreach ($changes as $field => $newValue) {
-            $oldValue = $model->getOriginal($field);
+        foreach ($oldValues as $field => $oldValue) {
+            $newValue = $model->getAttribute($field);
             if ($oldValue !== $newValue) {
                 static::log($model, 'updated', $field, $oldValue, $newValue, $reason);
             }
