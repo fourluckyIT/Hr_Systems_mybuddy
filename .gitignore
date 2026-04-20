@@ -1,0 +1,33 @@
+# Laravel
+/vendor/
+/node_modules/
+.env
+.env.local
+.env.*.local
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Testing
+/bootstrap/cache/
+/storage/logs/
+.phpunit.result.cache
+
+# Build
+/public/hot
+/public/storage
+/storage/
+/bootstrap/cache/
+
+# Claude
+.claude/
+HrX/
+
+# Temporary
+*.tmp
+*.bak
