@@ -209,6 +209,13 @@ Route::prefix('settings')->name('settings.')->middleware('role:admin')->group(fu
     Route::post('/bonus/batch-calculate', [BonusManagementController::class, 'batchCalculate'])->name('bonus.batch-calculate');
     Route::post('/bonus/approve', [BonusManagementController::class, 'approve'])->name('bonus.approve');
     Route::put('/bonus/cycles/{cycle}/months', [BonusManagementController::class, 'updateSelectedMonths'])->name('bonus.cycles.months.update');
+    
+    // Performance Tiers
+    Route::get('/tiers', [\App\Http\Controllers\PerformanceTierController::class, 'index'])->name('tiers.index');
+    Route::post('/tiers', [\App\Http\Controllers\PerformanceTierController::class, 'store'])->name('tiers.store');
+    Route::patch('/tiers/{tier}', [\App\Http\Controllers\PerformanceTierController::class, 'update'])->name('tiers.update');
+    Route::delete('/tiers/{tier}', [\App\Http\Controllers\PerformanceTierController::class, 'destroy'])->name('tiers.destroy');
+
     Route::post('/holidays', [SettingsController::class, 'addHoliday'])->name('holidays.add');
     Route::post('/holidays/load-legal', [SettingsController::class, 'loadLegalHolidays'])->name('holidays.load-legal');
     Route::delete('/holidays/{holiday}', [SettingsController::class, 'deleteHoliday'])->name('holidays.delete');

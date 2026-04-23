@@ -38,13 +38,13 @@
 
                     @if($isOwnerOnly)
                         <a href="{{ route('workspace.my') }}" class="{{ $navLink }} {{ request()->routeIs('workspace.*') ? $navActive : '' }}">My Workspace</a>
-                        <a href="{{ route('leave.index') }}" class="{{ $navLink }} {{ request()->routeIs('leave.*') ? $navActive : '' }}">ลา/สลับวัน</a>
-                        <a href="{{ route('calendar.index') }}" class="{{ $navLink }} {{ request()->routeIs('calendar.*') ? $navActive : '' }}">ปฏิทินหลัก</a>
+                        <a href="{{ route('leave.index') }}" class="{{ $navLink }} {{ request()->routeIs('leave.*') ? $navActive : '' }}">ลา / OT / สลับวัน</a>
+                        <a href="{{ route('calendar.index') }}" class="{{ $navLink }} {{ request()->routeIs('calendar.*') ? $navActive : '' }}">ปฏิทินบริษัท</a>
                     @elseif($isAdmin)
                         {{-- Primary (daily use) --}}
                         <a href="{{ route('employees.index') }}" class="{{ $navLink }} {{ request()->routeIs('employees.*') ? $navActive : '' }}">พนักงาน</a>
                         <a href="{{ route('work.index') }}" class="{{ $navLink }} {{ request()->routeIs('work.*') || request()->routeIs('settings.works.*') ? $navActive : '' }}">WORK Center</a>
-                        <a href="{{ route('leave.index') }}" class="{{ $navLink }} {{ request()->routeIs('leave.*') ? $navActive : '' }}">การลา</a>
+                        <a href="{{ route('leave.index') }}" class="{{ $navLink }} {{ request()->routeIs('leave.*') ? $navActive : '' }}">การลา/สลับวัน</a>
                         <a href="{{ route('payroll-batches.index') }}" class="{{ $navLink }} {{ request()->routeIs('payroll-batches.*') ? $navActive : '' }}">รอบบิลเงินเดือน</a>
                         <a href="{{ route('company.finance') }}" class="{{ $navLink }} {{ request()->routeIs('company.*') || request()->routeIs('expense-tracker.*') ? $navActive : '' }}">การเงิน</a>
 
@@ -56,7 +56,7 @@
                                 <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                             </button>
                             <div x-show="open" x-cloak x-transition class="absolute left-0 mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-50">
-                                <a href="{{ route('calendar.index') }}" class="{{ $dropItem }}">ปฏิทินหลัก</a>
+                                <a href="{{ route('calendar.index') }}" class="{{ $dropItem }}">ปฏิทินบริษัท</a>
                                 <a href="{{ route('annual.index') }}" class="{{ $dropItem }}">สรุปรายปี</a>
                                 <a href="{{ route('expense-tracker.index') }}" class="{{ $dropItem }}">รายรับ-จ่าย (Tracker)</a>
                                 <a href="{{ route('audit-logs.index') }}" class="{{ $dropItem }}">Audit Log</a>
@@ -81,11 +81,12 @@
                     @endif
                 </div>
                 <div class="flex items-center space-x-3">
-                    {{-- OT Request quick link for all users --}}
+                    {{-- OT Request quick link --}}
                     @if($authUser)
-                        <a href="{{ route('ot.request') }}" class="text-xs text-gray-500 hover:text-indigo-600 {{ request()->routeIs('ot.request') ? 'text-indigo-600 font-semibold' : '' }}" title="ขอ OT">📝 ขอ OT</a>
                         @if($isAdmin)
-                            <a href="{{ route('ot.inbox') }}" class="text-xs text-gray-500 hover:text-indigo-600 {{ request()->routeIs('ot.inbox') ? 'text-indigo-600 font-semibold' : '' }}" title="OT Inbox">📥 OT</a>
+                            <a href="{{ route('ot.inbox') }}" class="text-xs text-gray-500 hover:text-indigo-600 {{ request()->routeIs('ot.inbox') ? 'text-indigo-600 font-semibold' : '' }}" title="OT Inbox">📥 จัดการ OT</a>
+                        @else
+                            <a href="{{ route('ot.request') }}" class="text-xs text-gray-500 hover:text-indigo-600 {{ request()->routeIs('ot.request') ? 'text-indigo-600 font-semibold' : '' }}" title="ประวัติ OT">📋 ประวัติ OT</a>
                         @endif
 
                         {{-- Notification Bell --}}

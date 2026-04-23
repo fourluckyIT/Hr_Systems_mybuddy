@@ -44,12 +44,26 @@ class LeaveRequestController extends Controller
             $swapQuery->where('employee_id', $employeeId);
         }
 
+        $leaveRequests = $leaveQuery->get();
+        $swapRequests  = $swapQuery->get();
+
+        $stats = [
+            'leave_pending'  => $leaveRequests->where('status', 'pending')->count(),
+            'leave_approved' => $leaveRequests->where('status', 'approved')->count(),
+            'leave_rejected' => $leaveRequests->where('status', 'rejected')->count(),
+            'leave_total'    => $leaveRequests->count(),
+            'swap_pending'   => $swapRequests->where('status', 'pending')->count(),
+            'swap_approved'  => $swapRequests->where('status', 'approved')->count(),
+            'swap_total'     => $swapRequests->count(),
+        ];
+
         return view('leave.index', [
-            'leaveRequests' => $leaveQuery->get(),
-            'swapRequests'  => $swapQuery->get(),
+            'leaveRequests' => $leaveRequests,
+            'swapRequests'  => $swapRequests,
             'leaveTypes'    => $this->leaveTypes,
             'employees'     => $isAdmin ? Employee::active()->orderBy('first_name')->get() : collect(),
             'isAdmin'       => $isAdmin,
+            'stats'         => $stats,
         ]);
     }
 

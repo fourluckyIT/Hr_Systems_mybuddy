@@ -3,13 +3,24 @@
 @section('title', 'Bonus Manager')
 
 @section('content')
-<div class="space-y-6">
+<div class="space-y-6" x-data="{
+    tierListModal: false,
+    editModal: false,
+    editTier: null,
+    openEdit(tier) {
+        this.editTier = tier;
+        this.editModal = true;
+    }
+}">
     <div class="flex items-center justify-between">
         <div>
             <h1 class="text-2xl font-bold text-gray-900">Bonus Manager</h1>
             <p class="text-sm text-gray-500">จัดการรอบโบนัส, เลือกเดือนคำนวณ, คำนวณรายคน/รายกลุ่ม และอนุมัติการจ่าย</p>
         </div>
-        <a href="{{ route('settings.rules') }}" class="px-3 py-1.5 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">กลับหน้า Rules</a>
+        <div class="flex gap-2">
+            <button @click="tierListModal = true" class="px-3 py-1.5 text-sm font-semibold text-indigo-700 bg-indigo-50 rounded-lg hover:bg-indigo-100 border border-indigo-200">จัดการ Tiers</button>
+            <a href="{{ route('settings.rules') }}" class="px-3 py-1.5 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">กลับหน้า Rules</a>
+        </div>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -156,12 +167,23 @@
                         <input type="number" step="0.01" min="0" name="base_reference" value="0" required class="w-full px-3 py-2 border rounded-lg text-sm">
                     </div>
                     <div>
-                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Tier</label>
-                        <select name="tier_code" required class="w-full px-3 py-2 border rounded-lg text-sm">
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Tier (เว้นว่าง = ให้ระบบออโต้)</label>
+                        <select name="tier_code" class="w-full px-3 py-2 border rounded-lg text-sm">
+                            <option value="">-- ให้ระบบประเมินอัตโนมัติ --</option>
                             @foreach($tiers as $tier)
                                 <option value="{{ $tier->tier_code }}">{{ $tier->tier_code }} ({{ $tier->multiplier }})</option>
                             @endforeach
                         </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3 bg-blue-50/50 p-3 rounded-xl border border-blue-100 mb-3">
+                    <div>
+                        <label class="block text-[10px] font-bold text-blue-500 uppercase mb-1">เฉลี่ยนาทีตัดต่อ (สำหรับ Auto-tier)</label>
+                        <input type="number" name="clip_duration_minutes_per_month" value="" placeholder="เช่น 500" class="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-blue-500 uppercase mb-1">เดือนที่ผ่านเกณฑ์ (Qualified)</label>
+                        <input type="number" name="qualified_months" value="" placeholder="เช่น 6" class="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm focus:border-blue-500">
                     </div>
                 </div>
                 <div class="grid grid-cols-3 gap-3">
@@ -188,12 +210,23 @@
                 @csrf
                 <input type="hidden" name="cycle_id" value="{{ $selectedCycle->id }}">
                 <div>
-                    <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Tier สำหรับ batch</label>
+                    <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Tier สำหรับ batch (เว้นว่าง = Auto)</label>
                     <select name="tier_code" class="w-full px-3 py-2 border rounded-lg text-sm">
+                        <option value="">-- ให้ระบบประเมินอัตโนมัติ (ใช้ค่าด้านล่าง) --</option>
                         @foreach($tiers as $tier)
                             <option value="{{ $tier->tier_code }}">{{ $tier->tier_code }} ({{ $tier->multiplier }})</option>
                         @endforeach
                     </select>
+                </div>
+                <div class="grid grid-cols-2 gap-3 bg-blue-50/50 p-3 rounded-xl border border-blue-100">
+                    <div>
+                        <label class="block text-[10px] font-bold text-blue-500 uppercase mb-1">เฉลี่ยนาทีตัดต่อ (ทั้งกลุ่ม)</label>
+                        <input type="number" name="clip_duration_minutes_per_month" value="" placeholder="เช่น 500" class="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-blue-500 uppercase mb-1">เดือนที่ผ่านเกณฑ์ (ทั้งกลุ่ม)</label>
+                        <input type="number" name="qualified_months" value="" placeholder="เช่น 6" class="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm focus:border-blue-500">
+                    </div>
                 </div>
                 <div class="max-h-44 overflow-y-auto border rounded-lg p-3 space-y-1">
                     @foreach($employees as $emp)
@@ -261,5 +294,8 @@
         </form>
     </div>
     @endif
+
+    {{-- Modals --}}
+    @include('settings.partials.tiers-modal')
 </div>
 @endsection
