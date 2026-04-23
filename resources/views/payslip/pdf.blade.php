@@ -161,7 +161,7 @@
             ->get();
     @endphp
 
-    @if($workLogs->count() > 0 && in_array($employee->payroll_mode, ['freelance_layer', 'freelance_fixed', 'youtuber_settlement', 'youtuber_salary']))
+    @if($workLogs->count() > 0 && in_array($employee->payroll_mode, ['freelance_layer', 'youtuber_settlement', 'youtuber_salary']))
     <div style="margin-top:20px">
         <p style="font-size:12px; font-weight:bold; margin-bottom:5px;">รายละเอียดการทำงาน / สรุปรายการ (Details)</p>
         <table class="payslip-table" style="width:100%">

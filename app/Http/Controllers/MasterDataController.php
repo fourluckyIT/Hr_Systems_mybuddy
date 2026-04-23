@@ -9,8 +9,10 @@ use App\Models\Position;
 use App\Models\Employee;
 use App\Models\ModuleToggle;
 use App\Models\LayerRateRule;
+use App\Models\LayerRateTemplate;
 use App\Models\Game;
 use App\Services\AuditLogService;
+use Illuminate\Support\Facades\Auth;
 
 class MasterDataController extends Controller
 {
@@ -39,6 +41,8 @@ class MasterDataController extends Controller
             ->orderByDesc('effective_date')
             ->get();
 
+        $layerRateTemplates = LayerRateTemplate::orderBy('layer_from')->get();
+
         $games = Game::orderBy('game_name')->get();
 
         return view('settings.master-data', compact(
@@ -49,8 +53,14 @@ class MasterDataController extends Controller
             'employees',
             'freelanceLayerEmployees',
             'layerRateRules',
+            'layerRateTemplates',
             'games'
         ));
+    }
+
+    protected function requireAdmin(): void
+    {
+        abort_unless(Auth::user()?->hasRole('admin'), 403, 'เฉพาะ admin เท่านั้น');
     }
 
     public function updateWorkspaceAccess(Request $request, Employee $employee)
@@ -80,10 +90,54 @@ class MasterDataController extends Controller
         return back()->with('success', 'อัปเดตสิทธิ์แก้ไข Workspace สำเร็จ');
     }
 
+    // === FL Layer Rate — Global Templates (admin only) ===
+
+    public function storeLayerRateTemplate(Request $request)
+    {
+        $this->requireAdmin();
+        $validated = $request->validate([
+            'label' => 'nullable|string|max:100',
+            'layer_from' => 'required|integer|min:1',
+            'layer_to' => 'required|integer|gte:layer_from',
+            'rate_per_minute' => 'required|numeric|min:0',
+            'is_active' => 'nullable|boolean',
+        ]);
+        $validated['is_active'] = $request->boolean('is_active', true);
+        $tpl = LayerRateTemplate::create($validated);
+        $this->audit->logCreated($tpl, 'เพิ่มเทมเพลตราคาเลเยอร์ (global)');
+        return back()->with('success', 'เพิ่มเทมเพลตราคาเลเยอร์สำเร็จ');
+    }
+
+    public function updateLayerRateTemplate(Request $request, LayerRateTemplate $layerRateTemplate)
+    {
+        $this->requireAdmin();
+        $validated = $request->validate([
+            'label' => 'nullable|string|max:100',
+            'layer_from' => 'required|integer|min:1',
+            'layer_to' => 'required|integer|gte:layer_from',
+            'rate_per_minute' => 'required|numeric|min:0',
+            'is_active' => 'nullable|boolean',
+        ]);
+        $validated['is_active'] = $request->boolean('is_active');
+        $old = $layerRateTemplate->toArray();
+        $layerRateTemplate->update($validated);
+        $this->audit->logUpdated($layerRateTemplate, collect($old)->only(array_keys($validated))->toArray(), 'แก้ไขเทมเพลตราคาเลเยอร์ (global)');
+        return back()->with('success', 'อัปเดตเทมเพลตราคาเลเยอร์สำเร็จ');
+    }
+
+    public function deleteLayerRateTemplate(LayerRateTemplate $layerRateTemplate)
+    {
+        $this->requireAdmin();
+        $this->audit->logDeleted($layerRateTemplate, 'ลบเทมเพลตราคาเลเยอร์ (global)');
+        $layerRateTemplate->delete();
+        return back()->with('success', 'ลบเทมเพลตราคาเลเยอร์สำเร็จ');
+    }
+
     // === FL Layer Rate Templates (Per Employee) ===
 
     public function storeLayerRateRule(Request $request)
     {
+        $this->requireAdmin();
         $validated = $request->validate([
             'employee_id' => 'required|exists:employees,id',
             'layer_from' => 'required|integer|min:1',
@@ -108,6 +162,7 @@ class MasterDataController extends Controller
 
     public function updateLayerRateRule(Request $request, LayerRateRule $layerRateRule)
     {
+        $this->requireAdmin();
         $validated = $request->validate([
             'layer_from' => 'required|integer|min:1',
             'layer_to' => 'required|integer|gte:layer_from',
@@ -131,6 +186,7 @@ class MasterDataController extends Controller
 
     public function deleteLayerRateRule(LayerRateRule $layerRateRule)
     {
+        $this->requireAdmin();
         $this->audit->logDeleted($layerRateRule, 'ลบเทมเพลตราคาเลเยอร์รายคน');
         $layerRateRule->delete();
 

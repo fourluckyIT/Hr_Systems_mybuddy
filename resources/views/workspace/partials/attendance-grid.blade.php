@@ -92,12 +92,27 @@
                             class="ot-minutes-input px-1 py-0.5 border rounded text-xs w-12 text-center">
                     </td>
                     <td class="px-2 py-1 text-center">
-                        <input type="checkbox" data-field="ot_enabled"
-                            {{ $log->ot_enabled ? 'checked' : '' }}
-                            class="ot-enabled-input rounded border-gray-300 text-indigo-600 w-3 h-3">
+                        <div class="inline-flex items-center gap-1">
+                            <input type="checkbox" data-field="ot_enabled"
+                                {{ $log->ot_enabled ? 'checked' : '' }}
+                                class="ot-enabled-input rounded border-gray-300 text-indigo-600 w-3 h-3">
+                            @if(($log->ot_status ?? 'none') === 'requested' && $log->ot_request_id)
+                                <button type="button"
+                                        class="ot-request-info w-4 h-4 rounded-full bg-sky-500 text-white text-[9px] font-bold inline-flex items-center justify-center hover:bg-sky-600 cursor-pointer"
+                                        title="คำขอจากพนักงาน — คลิกเพื่อ Approve"
+                                        data-ot-request-id="{{ $log->ot_request_id }}"
+                                        data-ot-request-note="{{ e($log->ot_request_note) }}"
+                                        data-ot-request-minutes="{{ $log->otRequest?->requested_minutes ?? $log->ot_minutes }}">i</button>
+                            @elseif(($log->ot_status ?? 'none') === 'approved')
+                                <span class="w-4 h-4 rounded-full bg-green-500 text-white text-[9px] font-bold inline-flex items-center justify-center" title="Approved by admin">✓</span>
+                            @endif
+                        </div>
                     </td>
                     <td class="px-2 py-1 text-center">
                         <span class="ot-type-badge inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold {{ $otTypeClass }}">{{ $otTypeText }}</span>
+                        @if(!empty($log->ot_request_note) && ($log->ot_status ?? 'none') !== 'approved')
+                            <div class="text-[9px] text-sky-700 mt-0.5 truncate max-w-[160px]" title="{{ $log->ot_request_note }}">📝 {{ $log->ot_request_note }}</div>
+                        @endif
                     </td>
                 </tr>
                 @endforeach
@@ -477,6 +492,32 @@
         });
 
         updateOtTypeBadge(row);
+    });
+
+    // OT request (i) click → approve popup
+    document.querySelectorAll('.ot-request-info').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const id = btn.dataset.otRequestId;
+            const note = btn.dataset.otRequestNote || '';
+            const mins = btn.dataset.otRequestMinutes || '0';
+            if (!confirm(`คำขอ OT จากพนักงาน (${mins} นาที):\n\n"${note}"\n\nกด OK เพื่อ Approve`)) return;
+
+            fetch(`/ot/request/${id}/approve`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+                    'Accept': 'application/json'
+                }
+            }).then(r => {
+                if (r.ok || r.redirected) {
+                    window.toast && window.toast('อนุมัติ OT แล้ว', 'success');
+                    setTimeout(() => window.location.reload(), 400);
+                } else {
+                    window.toast && window.toast('อนุมัติไม่สำเร็จ', 'error');
+                }
+            });
+        });
     });
 })();
 </script>

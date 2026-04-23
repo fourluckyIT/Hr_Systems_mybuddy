@@ -16,6 +16,10 @@ use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\LeaveRequestController;
 use App\Http\Controllers\WorkCommandController;
 use App\Http\Controllers\PayrollBatchController;
+use App\Http\Controllers\OtRequestController;
+use App\Http\Controllers\ExpenseTrackerController;
+use App\Http\Controllers\ExtraIncomeController;
+use App\Http\Controllers\NotificationController;
 
 // Auth
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
@@ -66,12 +70,8 @@ Route::prefix('workspace')->name('workspace.')->group(function () {
         Route::post('/{employee}/{month}/{year}/attendance', [WorkspaceController::class, 'saveAttendance'])->name('saveAttendance');
         Route::post('/{employee}/{month}/{year}/attendance-row', [WorkspaceController::class, 'saveAttendanceRow'])->name('saveAttendanceRow');
         Route::post('/{employee}/{month}/{year}/worklogs', [WorkspaceController::class, 'saveWorkLogs'])->name('saveWorkLogs');
-        Route::post('/{employee}/{month}/{year}/items', [WorkspaceController::class, 'updatePayrollItem'])->name('updateItem');
-        Route::patch('/{employee}/{month}/{year}/payroll', [WorkspaceController::class, 'updatePayrollItem'])->name('payroll.update');
         Route::post('/{employee}/{month}/{year}/proof', [WorkspaceController::class, 'uploadProof'])->name('proof.upload');
         Route::post('/{employee}/module/toggle', [WorkspaceController::class, 'toggleModule'])->name('module.toggle');
-        Route::post('/{employee}/{month}/{year}/performance', [WorkspaceController::class, 'storePerformanceRecord'])->name('performance.store');
-        Route::delete('/performance/{record}', [WorkspaceController::class, 'deletePerformanceRecord'])->name('performance.delete');
         Route::patch('/claims/{claim}/approve', [WorkspaceController::class, 'approveClaim'])->name('claims.approve');
         Route::delete('/claims/{claim}', [WorkspaceController::class, 'deleteClaim'])->name('claims.delete');
         Route::patch('/{employee}/advance-ceiling', [WorkspaceController::class, 'updateAdvanceCeiling'])->name('updateAdvanceCeiling');
@@ -97,6 +97,43 @@ Route::prefix('leave')->name('leave.')->group(function () {
 });
 
 
+// OT Request (employee) + OT Inbox + Approve (admin)
+Route::prefix('ot')->name('ot.')->group(function () {
+    Route::get('/request', [OtRequestController::class, 'index'])->name('request');
+    Route::post('/request', [OtRequestController::class, 'store'])->name('request.store');
+    Route::post('/request/{otRequest}/cancel', [OtRequestController::class, 'cancel'])->name('request.cancel');
+
+    Route::middleware('role:admin')->group(function () {
+        Route::get('/inbox', [OtRequestController::class, 'inbox'])->name('inbox');
+        Route::post('/request/{otRequest}/approve', [OtRequestController::class, 'approve'])->name('request.approve');
+        Route::post('/request/{otRequest}/reject', [OtRequestController::class, 'reject'])->name('request.reject');
+    });
+});
+
+// Expense & Revenue Tracker (admin) — analyst mode
+Route::prefix('expense-tracker')->name('expense-tracker.')->middleware('role:admin')->group(function () {
+    Route::get('/', [ExpenseTrackerController::class, 'index'])->name('index');
+    Route::post('/entry', [ExpenseTrackerController::class, 'storeEntry'])->name('entry.store');
+    Route::delete('/entry/{model}/{id}', [ExpenseTrackerController::class, 'destroyEntry'])->name('entry.delete');
+    Route::post('/categories', [ExpenseTrackerController::class, 'storeCategory'])->name('categories.store');
+    Route::delete('/categories/{category}', [ExpenseTrackerController::class, 'destroyCategory'])->name('categories.delete');
+});
+
+// Extra income entries per employee (admin)
+Route::prefix('workspace')->name('workspace.')->middleware('role:admin')->group(function () {
+    Route::post('/{employee}/{month}/{year}/extra-income', [ExtraIncomeController::class, 'store'])->name('extra-income.store');
+    Route::delete('/extra-income/{entry}', [ExtraIncomeController::class, 'destroy'])->name('extra-income.delete');
+    Route::post('/{employee}/{month}/{year}/fl-layer-rates', [WorkspaceController::class, 'saveFreelanceLayerRates'])->name('fl-layer-rates.save');
+    Route::patch('/work-log/{workLog}/rate', [WorkspaceController::class, 'updateWorkLogRate'])->name('work-log.rate.update');
+});
+
+// Notifications (all auth users)
+Route::prefix('notifications')->name('notifications.')->group(function () {
+    Route::get('/', [NotificationController::class, 'index'])->name('index');
+    Route::post('/{notification}/read', [NotificationController::class, 'markRead'])->name('read');
+    Route::post('/read-all', [NotificationController::class, 'markAllRead'])->name('read-all');
+});
+
 // Payslip
 Route::prefix('payslip')->name('payslip.')->group(function () {
     Route::get('/{employee}/{month}/{year}/preview', [PayslipController::class, 'preview'])
@@ -114,9 +151,6 @@ Route::prefix('payslip')->name('payslip.')->group(function () {
 });
 
 // Company Finance
-Route::get('/company/expenses', [CompanyFinanceController::class, 'expenses'])
-    ->name('company.expenses')
-    ->middleware('role:admin');
 Route::prefix('company')->name('company.')->middleware('role:admin')->group(function () {
     Route::get('/finance', [CompanyFinanceController::class, 'index'])->name('finance');
     Route::post('/revenue', [CompanyFinanceController::class, 'storeRevenue'])->name('revenue.store');
@@ -149,12 +183,19 @@ Route::prefix('work')->name('work.')->middleware('role:admin')->group(function (
     Route::post('/job', [WorkCommandController::class, 'storeEditingJob'])->name('editing-job.store');
     Route::patch('/job/{editingJob}', [WorkCommandController::class, 'updateEditingJob'])->name('editing-job.update');
     Route::delete('/job/{editingJob}', [WorkCommandController::class, 'deleteEditingJob'])->name('editing-job.delete');
+
+    // Recording Sessions (YouTuber filming tracker)
+    Route::get('/recording-sessions', [\App\Http\Controllers\RecordingSessionController::class, 'index'])->name('recording-sessions.index');
+    Route::post('/recording-sessions', [\App\Http\Controllers\RecordingSessionController::class, 'store'])->name('recording-sessions.store');
+    Route::patch('/recording-sessions/{recordingSession}', [\App\Http\Controllers\RecordingSessionController::class, 'update'])->name('recording-sessions.update');
+    Route::delete('/recording-sessions/{recordingSession}', [\App\Http\Controllers\RecordingSessionController::class, 'destroy'])->name('recording-sessions.destroy');
 });
 
-Route::prefix('work')->name('work.')->middleware('role:admin,owner')->group(function () {
-    Route::post('/job/{editingJob}/start', [WorkCommandController::class, 'startEditingJob'])->name('editing-job.start');
-    Route::post('/job/{editingJob}/mark-ready', [WorkCommandController::class, 'markEditingJobReady'])->name('editing-job.mark-ready');
-    Route::post('/job/{editingJob}/finalize', [WorkCommandController::class, 'finalizeEditingJob'])->name('editing-job.finalize');
+Route::prefix('work')->name('work.')->group(function () {
+    Route::post('/job/{editingJob}/start', [WorkCommandController::class, 'startEditingJob'])->name('editing-job.start')->middleware('role:admin,owner,editor');
+    Route::post('/job/{editingJob}/mark-ready', [WorkCommandController::class, 'markEditingJobReady'])->name('editing-job.mark-ready')->middleware('role:admin,owner,editor');
+    Route::post('/job/{editingJob}/finalize', [WorkCommandController::class, 'finalizeEditingJob'])->name('editing-job.finalize')->middleware('role:admin,owner');
+    Route::post('/job/{editingJob}/direct-finalize', [WorkCommandController::class, 'directFinalizeEditingJob'])->name('editing-job.direct-finalize')->middleware('role:admin,owner');
 });
 
 // Settings & Rules
@@ -189,6 +230,9 @@ Route::prefix('settings')->name('settings.')->middleware('role:admin')->group(fu
         Route::post('/layer-rate-rules', [MasterDataController::class, 'storeLayerRateRule'])->name('layer-rate-rules.store');
         Route::patch('/layer-rate-rules/{layerRateRule}', [MasterDataController::class, 'updateLayerRateRule'])->name('layer-rate-rules.update');
         Route::delete('/layer-rate-rules/{layerRateRule}', [MasterDataController::class, 'deleteLayerRateRule'])->name('layer-rate-rules.delete');
+        Route::post('/layer-rate-templates', [MasterDataController::class, 'storeLayerRateTemplate'])->name('layer-rate-templates.store');
+        Route::patch('/layer-rate-templates/{layerRateTemplate}', [MasterDataController::class, 'updateLayerRateTemplate'])->name('layer-rate-templates.update');
+        Route::delete('/layer-rate-templates/{layerRateTemplate}', [MasterDataController::class, 'deleteLayerRateTemplate'])->name('layer-rate-templates.delete');
         Route::patch('/workspace-access/{employee}', [MasterDataController::class, 'updateWorkspaceAccess'])->name('workspace-access.update');
         
         Route::post('/job-stages', [MasterDataController::class, 'storeJobStage'])->name('job-stages.store');
@@ -200,6 +244,7 @@ Route::prefix('settings')->name('settings.')->middleware('role:admin')->group(fu
         Route::delete('/games/{game}', [MasterDataController::class, 'deleteGame'])->name('games.delete');
     });
 
+/*
     Route::prefix('works')->name('works.')->group(function () {
         Route::get('/', [WorkManagerController::class, 'index'])->name('index');
         Route::post('/', [WorkManagerController::class, 'store'])->name('store');
@@ -210,6 +255,7 @@ Route::prefix('settings')->name('settings.')->middleware('role:admin')->group(fu
         Route::patch('/assignments/{workAssignment}', [WorkManagerController::class, 'updateAssignment'])->name('assignments.update');
         Route::delete('/assignments/{workAssignment}', [WorkManagerController::class, 'deleteAssignment'])->name('assignments.delete');
     });
+*/
 });
 
 }); // End auth middleware

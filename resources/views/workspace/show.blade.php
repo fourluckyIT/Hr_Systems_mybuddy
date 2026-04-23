@@ -237,7 +237,6 @@
                         @case('monthly_staff') bg-blue-100 text-blue-700 @break
                         @case('office_staff') bg-cyan-100 text-cyan-700 @break
                         @case('freelance_layer') bg-emerald-100 text-emerald-700 @break
-                        @case('freelance_fixed') bg-teal-100 text-teal-700 @break
                         @case('youtuber_salary') bg-indigo-100 text-indigo-700 @break
                         @case('youtuber_settlement') bg-violet-100 text-violet-700 @break
                         @default bg-gray-100 text-gray-700
@@ -256,6 +255,7 @@
                         </button>
                     </form>
 
+                    @if(in_array($employee->payroll_mode, ['monthly_staff', 'office_staff']))
                     <form action="{{ route('workspace.module.toggle', $employee->id) }}" method="POST">
                         @csrf
                         <input type="hidden" name="module_name" value="deduct_late">
@@ -275,6 +275,7 @@
                             หักออกเร็ว
                         </button>
                     </form>
+                    @endif
                 </div>
                 @endif
             </div>
@@ -402,9 +403,10 @@
         <p class="text-xs text-red-600 font-medium">รายหัก</p>
         <p id="summary-total-deduction" class="text-2xl font-bold text-red-700 transition-all">{{ number_format($summary['total_deduction'] ?? 0, 2) }}</p>
     </div>
-    <div class="bg-indigo-50 border border-indigo-200 rounded-xl p-4">
+    <div id="summary-net-pay-card" class="bg-indigo-50 border border-indigo-200 rounded-xl p-4 transition-colors" x-data>
         <p class="text-xs text-indigo-600 font-medium">รายได้สุทธิ</p>
         <p id="summary-net-pay" class="text-2xl font-bold text-indigo-700 transition-all">{{ number_format($summary['net_pay'] ?? 0, 2) }}</p>
+        <p id="summary-stale-flag" class="hidden mt-1 text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded">⚠ ยังไม่ได้คำนวณใหม่</p>
     </div>
     <div class="bg-teal-50 border border-teal-200 rounded-xl p-4 relative group">
         <p class="text-xs text-teal-600 font-medium">ลาพักร้อน (ปีนี้)</p>
@@ -416,10 +418,18 @@
             <p class="text-[10px] text-teal-500 font-bold" x-text="'เหลือ ' + vacationBalance.remaining + ' วัน'"></p>
         </div>
     </div>
+    @if($employee->payroll_mode !== 'youtuber_salary' && $employee->payroll_mode !== 'youtuber_settlement')
     <div class="bg-amber-50 border border-amber-200 rounded-xl p-4">
         <p class="text-xs text-amber-600 font-medium">ระยะเวลารวม (เดือนนี้)</p>
         <p class="text-2xl font-bold text-amber-700">{{ $performanceSummary['total_duration_hms'] ?? '00:00:00' }}</p>
     </div>
+    @else
+    <div class="bg-indigo-50 border border-indigo-200 rounded-xl p-4">
+        <p class="text-xs text-indigo-600 font-medium">{{ $performanceSummary['revenue_label'] ?? 'รายได้สะสม' }}</p>
+        <p class="text-2xl font-bold text-indigo-700">{{ number_format($performanceSummary['ytd_income'] ?? 0, 2) }}</p>
+        <p class="text-[10px] text-indigo-400 font-bold uppercase mt-1">สรุปรายได้ที่ปิดยอดแล้ว</p>
+    </div>
+    @endif
 </div>
 
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -442,14 +452,12 @@
             @else
                 @include('workspace.partials.attendance-grid')
             @endif
+        @elseif($employee->payroll_mode === 'youtuber_salary')
+            @include('workspace.partials.youtuber-recording-sessions')
         @elseif($employee->payroll_mode === 'freelance_layer')
             @include('workspace.partials.freelance-layer-grid')
-        @elseif($employee->payroll_mode === 'freelance_fixed')
-            @include('workspace.partials.freelance-fixed-grid')
         @elseif($employee->payroll_mode === 'youtuber_settlement')
             @include('workspace.partials.youtuber-settlement-grid')
-        @elseif($employee->payroll_mode === 'youtuber_salary')
-            @include('workspace.partials.youtuber-salary-grid')
         @else
             {{-- custom_hybrid or unknown mode --}}
             <div class="bg-white rounded-xl shadow-sm border p-6 text-center text-gray-400 text-sm">
@@ -460,7 +468,9 @@
         @endif
         </div>
 
-        @if(!in_array($employee->payroll_mode, ['youtuber_salary', 'youtuber_settlement'], true))
+        {{-- YouTuber doesn't need to see production/performance pipeline here anymore --}}
+        {{-- FL layer/fixed merge the Assigned Edit Jobs inside their own grid card --}}
+        @if(!in_array($employee->payroll_mode, ['youtuber_salary', 'youtuber_settlement', 'freelance_layer'], true) && ($panel ?? '') !== 'none')
             @include('workspace.partials.performance-records')
         @endif
     </div>
@@ -474,15 +484,14 @@
                         'monthly_staff'         => 'สรุปเงินเดือน',
                         'office_staff'          => 'สรุปเงินเดือน',
                         'youtuber_salary'       => 'สรุปเงินเดือน',
-                        'freelance_layer'       => 'สรุปค่าจ้าง (Layer)',
-                        'freelance_fixed'       => 'สรุปค่าจ้าง (Fixed)',
+                        'freelance_layer'       => 'สรุปค่าจ้าง',
                         'youtuber_settlement'   => 'สรุปรายรับ-รายจ่าย',
                         default                 => 'สรุปรายได้',
                     };
                 @endphp
                 <h3 class="font-semibold text-sm mb-3">{{ $panelTitle }}</h3>
 
-            @if(isset($summary['total_work_hours']) && in_array($employee->payroll_mode, ['monthly_staff', 'office_staff', 'youtuber_salary']))
+            @if(isset($summary['total_work_hours']) && in_array($employee->payroll_mode, ['monthly_staff', 'office_staff']))
             <div class="space-y-2 mb-4 text-sm">
                 <div class="flex justify-between">
                     <span class="text-gray-500">ชั่วโมงรวม</span>
@@ -518,14 +527,6 @@
                     <span class="text-gray-500">เวลารวม</span>
                     <span class="font-medium">{{ sprintf('%d:%02d:%02d', $fl_h, $fl_m, $fl_s) }}</span>
                 </div>
-                <div class="flex justify-between">
-                    <span class="text-gray-500">จำนวนรายการ</span>
-                    <span class="font-medium">{{ $summary['work_log_count'] ?? 0 }} รายการ</span>
-                </div>
-            </div>
-            <hr class="my-3">
-            @elseif(isset($summary['work_log_count']) && $employee->payroll_mode === 'freelance_fixed')
-            <div class="space-y-2 mb-4 text-sm">
                 <div class="flex justify-between">
                     <span class="text-gray-500">จำนวนรายการ</span>
                     <span class="font-medium">{{ $summary['work_log_count'] ?? 0 }} รายการ</span>
@@ -594,14 +595,14 @@
         @if($canManageWorkspace)
         <form method="POST" action="{{ route('workspace.recalculate', ['employee' => $employee->id, 'month' => $month, 'year' => $year]) }}">
             @csrf
-            <button type="submit" {{ !($workspaceEditEnabled ?? true) ? 'disabled' : '' }} class="w-full bg-indigo-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                คำนวณใหม่
+            <button type="submit" data-shortcut-recalculate id="recalculate-btn" {{ !($workspaceEditEnabled ?? true) ? 'disabled' : '' }} class="w-full bg-indigo-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                คำนวณใหม่ <span class="text-[10px] opacity-60 ml-1">Ctrl+R</span>
             </button>
         </form>
         @endif
 
         <div class="{{ !($workspaceEditEnabled ?? true) ? 'opacity-60 pointer-events-none select-none' : '' }}">
-            @include('workspace.partials.claims-grid')
+            @include('workspace.partials.payroll-adjustments')
         </div>
     </div>
 </div>
@@ -628,3 +629,44 @@
     </div>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+(function () {
+    const card = document.getElementById('summary-net-pay-card');
+    const flag = document.getElementById('summary-stale-flag');
+    const recalcBtn = document.getElementById('recalculate-btn');
+    if (!card || !flag) return;
+
+    let isStale = false;
+    const markStale = () => {
+        if (isStale) return;
+        isStale = true;
+        flag.classList.remove('hidden');
+        card.classList.add('ring-2', 'ring-amber-400');
+        if (recalcBtn) recalcBtn.classList.add('animate-pulse');
+    };
+
+    document.addEventListener('change', (e) => {
+        const t = e.target;
+        if (!t) return;
+        if (t.closest('#summary-net-pay-card')) return;
+        if (t.matches('input, select, textarea')) markStale();
+    }, true);
+
+    try {
+        const key = 'xhr_recent_employees';
+        const current = {
+            id: {{ (int) $employee->id }},
+            name: {!! json_encode($employee->full_name ?? $employee->first_name) !!},
+            url: {!! json_encode(route('workspace.show', ['employee' => $employee->id, 'month' => $month, 'year' => $year])) !!},
+            opened_at: Date.now(),
+        };
+        const raw = localStorage.getItem(key);
+        let list = raw ? JSON.parse(raw) : [];
+        list = [current, ...list.filter(r => r.id !== current.id)].slice(0, 8);
+        localStorage.setItem(key, JSON.stringify(list));
+    } catch (e) { /* ignore */ }
+})();
+</script>
+@endpush

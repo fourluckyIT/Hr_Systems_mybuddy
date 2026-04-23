@@ -10,6 +10,7 @@ class AttendanceLog extends Model
         'employee_id', 'log_date', 'day_type', 'check_in', 'check_out',
         'late_minutes', 'early_leave_minutes', 'ot_minutes', 'ot_enabled', 'lwop_flag', 'notes',
         'is_swapped_day', 'swapped_from_day_type', 'swapped_at', 'swapped_by',
+        'ot_status', 'ot_request_note', 'ot_request_id',
     ];
 
     protected function casts(): array
@@ -26,6 +27,11 @@ class AttendanceLog extends Model
     public function employee()
     {
         return $this->belongsTo(Employee::class);
+    }
+
+    public function otRequest()
+    {
+        return $this->belongsTo(OtRequest::class, 'ot_request_id');
     }
 
     public function getWorkingMinutesAttribute(): int

@@ -26,6 +26,8 @@ class WorkCommandController extends Controller
         $tab = $request->get('tab', 'editing');
         $month = (int) $request->get('month', now()->month);
         $year = (int) $request->get('year', now()->year);
+        $youtuberFilter = $request->get('youtuber_id');
+        $editorFilter = $request->get('editor_id');
 
         $employees = Employee::where('is_active', true)->orderBy('first_name')->get();
         $youtubers = Employee::where('is_active', true)
@@ -33,12 +35,12 @@ class WorkCommandController extends Controller
             ->orderBy('first_name')->get();
 
         $editors = Employee::where('is_active', true)
-            ->whereIn('payroll_mode', ['monthly_staff', 'freelance_layer', 'freelance_fixed'])
+            ->whereIn('payroll_mode', ['monthly_staff', 'office_staff', 'freelance_layer'])
             ->orderBy('first_name')->get();
 
         $games = Game::where('is_active', true)->orderBy('game_name')->get();
 
-        $editingJobs = EditingJob::with(['game', 'assignee'])
+        $query = EditingJob::with(['game', 'assignee', 'youtuber'])
             ->active()
             ->where(function ($query) use ($month, $year) {
                 $query->where('status', '!=', 'final')
@@ -47,8 +49,16 @@ class WorkCommandController extends Controller
                             ->whereMonth('finalized_at', $month)
                             ->whereYear('finalized_at', $year);
                       });
-            })
-            ->orderByRaw("CASE status
+            });
+
+        if ($youtuberFilter) {
+            $query->where('youtuber_id', $youtuberFilter);
+        }
+        if ($editorFilter) {
+            $query->where('assigned_to', $editorFilter);
+        }
+
+        $editingJobs = $query->orderByRaw("CASE status
                 WHEN 'assigned' THEN 1
                 WHEN 'in_progress' THEN 2
                 WHEN 'review_ready' THEN 3
@@ -79,7 +89,7 @@ class WorkCommandController extends Controller
         return view('work.index', compact(
             'tab', 'recordings', 'resources', 'employees', 'youtubers', 
             'summary', 'recordingStatusLogs', 'editingJobs', 'games', 'editors',
-            'month', 'year'
+            'month', 'year', 'youtuberFilter', 'editorFilter'
         ));
     }
 
@@ -180,6 +190,7 @@ class WorkCommandController extends Controller
         $validated = $request->validate([
             'job_name' => 'required|string|max:255',
             'game_id' => 'required|string', // Can be numeric ID or 'other'
+            'youtuber_id' => 'nullable|exists:employees,id',
             'new_game_name' => 'required_if:game_id,other|nullable|string|max:255',
             'game_link' => 'nullable|url|max:500',
             'deadline_days' => 'nullable|integer|min:1',
@@ -225,6 +236,7 @@ class WorkCommandController extends Controller
         $validated = $request->validate([
             'job_name' => 'required|string|max:255',
             'game_id' => 'required|string', // Can be numeric ID or 'other'
+            'youtuber_id' => 'nullable|exists:employees,id',
             'new_game_name' => 'required_if:game_id,other|nullable|string|max:255',
             'game_link' => 'nullable|url|max:500',
             'deadline_days' => 'nullable|integer|min:1',
@@ -286,14 +298,6 @@ class WorkCommandController extends Controller
     {
         $this->assertCanActOnEditingJob($editingJob);
 
-        $validated = $request->validate([
-            'layer_count' => 'nullable|integer|min:1',
-        ]);
-
-        if ($editingJob->assignee?->payroll_mode === 'freelance_layer' && !empty($validated['layer_count'])) {
-            $editingJob->update(['layer_count' => $validated['layer_count']]);
-        }
-
         try {
             $service = app(EditingJobService::class);
             $editorId = auth()->user()->employee?->id ?? $editingJob->assigned_to;
@@ -313,9 +317,16 @@ class WorkCommandController extends Controller
 
         $validated = $request->validate([
             'finalized_at' => 'nullable|date',
+            'video_duration_hours'   => 'nullable|integer|min:0',
             'video_duration_minutes' => 'nullable|integer|min:0',
             'video_duration_seconds' => 'nullable|integer|min:0|max:59',
+            'layer_count'            => 'nullable|integer|min:1',
+            'pricing_mode'           => 'nullable|in:layer,custom,custom_rate_per_min',
+            'custom_rate'            => 'nullable|numeric|min:0',
+            'fix_amount'             => 'nullable|numeric|min:0',
         ]);
+
+        $totalMinutes = ((int)($validated['video_duration_hours'] ?? 0) * 60) + (int)($validated['video_duration_minutes'] ?? 0);
 
         try {
             $service = app(EditingJobService::class);
@@ -324,8 +335,12 @@ class WorkCommandController extends Controller
                 $editingJob->id,
                 $editorId,
                 $validated['finalized_at'] ?? null,
-                $validated['video_duration_minutes'] ?? null,
-                $validated['video_duration_seconds'] ?? null
+                $totalMinutes,
+                $validated['video_duration_seconds'] ?? null,
+                $validated['layer_count'] ?? null,
+                $validated['pricing_mode'] ?? null,
+                $validated['custom_rate'] ?? null,
+                $validated['fix_amount'] ?? null
             );
 
             AuditLogService::log($editingJob->fresh(), 'updated', 'status', 'review_ready', 'final', 'Finalized job');
@@ -336,12 +351,52 @@ class WorkCommandController extends Controller
         }
     }
 
+    public function directFinalizeEditingJob(Request $request, EditingJob $editingJob)
+    {
+        $validated = $request->validate([
+            'review_ready_at'        => 'nullable|date',
+            'finalized_at'           => 'required|date',
+            'video_duration_hours'   => 'nullable|integer|min:0',
+            'video_duration_minutes' => 'required|integer|min:0',
+            'video_duration_seconds' => 'nullable|integer|min:0|max:59',
+            'layer_count'            => 'nullable|integer|min:1',
+            'pricing_mode'           => 'nullable|in:layer,custom,custom_rate_per_min',
+            'custom_rate'            => 'nullable|numeric|min:0',
+            'fix_amount'             => 'nullable|numeric|min:0',
+        ]);
+
+        $totalMinutes = ((int)($validated['video_duration_hours'] ?? 0) * 60) + (int)($validated['video_duration_minutes'] ?? 0);
+
+        try {
+            $service = app(EditingJobService::class);
+            $job = $service->directFinalizeJob(
+                $editingJob->id,
+                $validated['review_ready_at'] ?? null,
+                $validated['finalized_at'],
+                $totalMinutes,
+                $validated['video_duration_seconds'] ?? null,
+                $validated['layer_count'] ?? null,
+                $validated['pricing_mode'] ?? null,
+                $validated['custom_rate'] ?? null,
+                $validated['fix_amount'] ?? null
+            );
+
+            AuditLogService::log($job, 'updated', 'status', $editingJob->status, 'final', 'Direct finalized');
+
+            return back()->with('success', 'ปิดงานด่วนสำเร็จ');
+        } catch (\DomainException $e) {
+            return back()->withErrors(['error' => $e->getMessage()]);
+        }
+    }
+
     public function deleteEditingJob(EditingJob $editingJob)
     {
+        $this->assertCanActOnEditingJob($editingJob);
+
         $service = app(EditingJobService::class);
         $service->deleteJob($editingJob->id);
 
-        AuditLogService::logDeleted($editingJob, 'Deleted job');
+        AuditLogService::logDeleted($editingJob, 'Deleted editing job');
 
         return back()->with('success', 'ลบงานสำเร็จ');
     }

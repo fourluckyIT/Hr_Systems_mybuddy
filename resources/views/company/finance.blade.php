@@ -21,24 +21,24 @@
     <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
         <div class="bg-white rounded-lg shadow-sm border p-4">
             <p class="text-xs text-gray-500">รายรับรวม</p>
-            <p class="text-lg font-bold text-green-600">{{ number_format($yearTotals['revenue'], 2) }}</p>
+            <p class="text-lg font-bold text-green-600">฿{{ number_format($yearTotals['revenue'], 2) }}</p>
         </div>
         <div class="bg-white rounded-lg shadow-sm border p-4">
             <p class="text-xs text-gray-500">ค่าใช้จ่ายทั่วไป</p>
-            <p class="text-lg font-bold text-red-600">{{ number_format($yearTotals['expense'], 2) }}</p>
+            <p class="text-lg font-bold text-red-600">฿{{ number_format($yearTotals['expense'], 2) }}</p>
         </div>
         <div class="bg-white rounded-lg shadow-sm border p-4">
             <p class="text-xs text-gray-500">Subscription</p>
-            <p class="text-lg font-bold text-orange-600">{{ number_format($yearTotals['subscription'], 2) }}</p>
+            <p class="text-lg font-bold text-orange-600">฿{{ number_format($yearTotals['subscription'], 2) }}</p>
         </div>
         <div class="bg-white rounded-lg shadow-sm border p-4">
             <p class="text-xs text-gray-500">ค่าจ้าง/เงินเดือน</p>
-            <p class="text-lg font-bold text-blue-600">{{ number_format($yearTotals['payroll'], 2) }}</p>
+            <p class="text-lg font-bold text-blue-600">฿{{ number_format($yearTotals['payroll'], 2) }}</p>
         </div>
         <div class="bg-white rounded-lg shadow-sm border p-4">
             <p class="text-xs text-gray-500">กำไร/ขาดทุนรวม</p>
             <p class="text-lg font-bold {{ $yearTotals['net'] >= 0 ? 'text-green-700' : 'text-red-700' }}">
-                {{ number_format($yearTotals['net'], 2) }}
+                {{ $yearTotals['net'] >= 0 ? '+' : '' }}฿{{ number_format($yearTotals['net'], 2) }}
             </p>
         </div>
     </div>
@@ -68,14 +68,14 @@
                     @php $cumulative += $data['net']; @endphp
                     <tr class="border-t hover:bg-gray-50 {{ $month == $m ? 'bg-indigo-50' : '' }}">
                         <td class="px-3 py-2 font-medium">{{ $data['month_name'] }}</td>
-                        <td class="px-3 py-2 text-right text-green-700">{{ number_format($data['revenue'], 2) }}</td>
-                        <td class="px-3 py-2 text-right text-red-600">{{ number_format($data['expense'], 2) }}</td>
-                        <td class="px-3 py-2 text-right text-orange-600">{{ number_format($data['subscription'], 2) }}</td>
-                        <td class="px-3 py-2 text-right text-blue-600">{{ number_format($data['payroll'], 2) }}</td>
-                        <td class="px-3 py-2 text-right">{{ number_format($data['total_expense'], 2) }}</td>
+                        <td class="px-3 py-2 text-right text-green-700">฿{{ number_format($data['revenue'], 2) }}</td>
+                        <td class="px-3 py-2 text-right text-red-600">฿{{ number_format($data['expense'], 2) }}</td>
+                        <td class="px-3 py-2 text-right text-orange-600">฿{{ number_format($data['subscription'], 2) }}</td>
+                        <td class="px-3 py-2 text-right text-blue-600">฿{{ number_format($data['payroll'], 2) }}</td>
+                        <td class="px-3 py-2 text-right">฿{{ number_format($data['total_expense'], 2) }}</td>
                         <td class="px-3 py-2 text-right font-bold {{ $data['net'] >= 0 ? 'text-green-700' : 'text-red-700' }}">
-                            {{ number_format($data['net'], 2) }}
-                            <span class="text-[10px] text-gray-400 block">สะสม: {{ number_format($cumulative, 2) }}</span>
+                            {{ $data['net'] >= 0 ? '+' : '' }}฿{{ number_format($data['net'], 2) }}
+                            <span class="text-[10px] text-gray-400 block">สะสม: ฿{{ number_format($cumulative, 2) }}</span>
                         </td>
                         <td class="px-3 py-2 text-center">
                             <a href="{{ route('company.finance', ['year' => $year, 'month' => $m]) }}"

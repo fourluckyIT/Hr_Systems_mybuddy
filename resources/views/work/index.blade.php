@@ -9,47 +9,57 @@
     $nextMonth = $month == 12 ? 1 : $month + 1;
     $nextYear = $month == 12 ? $year + 1 : $year;
 @endphp
-<div x-data="{ 
-        showAddModal: false, 
+<div x-data="{
+        jobModal: false,
+        isEditing: false,
         selectedGameId: '',
-        addAssigneeId: '',
-        addPricingMode: 'template',
+        pricingMode: 'template',
         directFinalizeModal: false,
         dfJobId: null,
         dfJobName: '',
+        dfJobLayer: 1,
+        dfJobAssigneeFixedRate: 0,
+        dfJobPayrollMode: '',
         editorsMap: {
             @foreach($editors as $ed)
             '{{ $ed->id }}': '{{ $ed->payroll_mode }}',
             @endforeach
         },
-        showEditModal: false,
-        editForm: {
-            id: '', job_name: '', game_id: '', game_link: '', deadline_days: 7, deadline_date: '', assigned_to: '', 
-            layer_count: '', video_duration_minutes: '', video_duration_seconds: '', notes: '',
-            pricing_mode: '', layer: '', custom_rate: ''
+        jobForm: {
+            id: '', job_name: '', game_id: '', youtuber_id: '', game_link: '', deadline_days: 7, deadline_date: '', assigned_to: '',
+            layer_count: '', video_duration_minutes: '', video_duration_seconds: '', notes: ''
+        },
+        openAdd() {
+            this.isEditing = false;
+            this.jobForm = { id: '', job_name: '', game_id: '', youtuber_id: '', game_link: '', deadline_days: 7, deadline_date: '', assigned_to: '', layer_count: '', video_duration_minutes: '', video_duration_seconds: '', notes: '' };
+            this.selectedGameId = '';
+            this.jobModal = true;
         },
         openEdit(job) {
-            this.editForm = {
+            this.isEditing = true;
+            this.jobForm = {
                 id: job.id,
                 job_name: job.job_name,
-                game_id: job.game_id,
+                game_id: job.game_id ? String(job.game_id) : '',
+                youtuber_id: job.youtuber_id ? String(job.youtuber_id) : '',
                 game_link: job.game_link || '',
-                deadline_days: job.deadline_days,
+                deadline_days: job.deadline_days || 7,
                 deadline_date: job.deadline_date ? job.deadline_date.split('T')[0] : '',
-                assigned_to: job.assigned_to,
+                assigned_to: job.assigned_to ? String(job.assigned_to) : '',
                 layer_count: job.layer_count || '',
                 video_duration_minutes: job.video_duration_minutes || '',
                 video_duration_seconds: job.video_duration_seconds || '',
-                notes: job.notes || '',
-                pricing_mode: job.pricing_mode || 'template',
-                layer: job.layer || '',
-                custom_rate: job.custom_rate || ''
+                notes: job.notes || ''
             };
-            this.showEditModal = true;
+            this.selectedGameId = this.jobForm.game_id;
+            this.jobModal = true;
         },
         openDirectFinalize(job) {
             this.dfJobId = job.id;
             this.dfJobName = job.job_name;
+            this.dfJobLayer = job.layer_count || 1;
+            this.dfJobAssigneeFixedRate = job.assignee ? (job.assignee.fixed_rate_per_clip || 0) : 0;
+            this.dfJobPayrollMode = job.assignee ? (job.assignee.payroll_mode || '') : '';
             this.directFinalizeModal = true;
         }
     }" class="space-y-6">
@@ -118,26 +128,62 @@
                    class="px-3 py-1 bg-gray-100 rounded-lg text-sm hover:bg-gray-200">&rarr;</a>
             </div>
 
-            <button @click="showAddModal = true; selectedGameId = ''"
+            <a href="{{ route('work.recording-sessions.index') }}"
+               class="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition">
+                📹 งานถ่าย
+            </a>
+            <button @click="openAdd()"
                     class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition">
                 + มอบหมายงานใหม่
             </button>
         </div>
     </div>
 
-    {{-- Summary Cards --}}
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-            <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">งานที่กำลังดำเนินการ</div>
-            <div class="text-2xl font-bold text-gray-900">{{ $summary['editing_active'] }} <span class="text-sm font-normal text-gray-500">งาน</span></div>
-        </div>
-        <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-            <div class="text-xs font-semibold text-green-500 uppercase tracking-wider mb-1">งานที่เสร็จสมบูรณ์</div>
-            <div class="text-2xl font-bold text-green-600">{{ $summary['editing_final'] }} <span class="text-sm font-normal text-green-400">งาน</span></div>
-        </div>
-        <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-            <div class="text-xs font-semibold text-indigo-500 uppercase tracking-wider mb-1">ระยะเวลารวม (Final)</div>
-            <div class="text-2xl font-bold text-indigo-600">{{ $summary['total_duration_hms'] }}</div>
+    {{-- Summary Cards & Filters --}}
+    <div class="space-y-4">
+        <form action="{{ route('work.index') }}" method="GET" class="bg-gray-50 border p-4 rounded-xl flex flex-wrap items-end gap-4">
+            <input type="hidden" name="month" value="{{ $month }}">
+            <input type="hidden" name="year" value="{{ $year }}">
+            
+            <div class="flex-1 min-w-[200px]">
+                <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">กรองตาม YouTuber</label>
+                <select name="youtuber_id" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500" onchange="this.form.submit()">
+                    <option value="">-- ทั้งหมด --</option>
+                    @foreach($youtubers as $ytb)
+                        <option value="{{ $ytb->id }}" {{ $youtuberFilter == $ytb->id ? 'selected' : '' }}>{{ $ytb->first_name }} {{ $ytb->last_name }}</option>
+                    @endforeach
+                </select>
+            </div>
+
+            <div class="flex-1 min-w-[200px]">
+                <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">กรองตาม Editor</label>
+                <select name="editor_id" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500" onchange="this.form.submit()">
+                    <option value="">-- ทั้งหมด --</option>
+                    @foreach($editors as $ed)
+                        <option value="{{ $ed->id }}" {{ $editorFilter == $ed->id ? 'selected' : '' }}>{{ $ed->first_name }} {{ $ed->last_name }}</option>
+                    @endforeach
+                </select>
+            </div>
+
+            <div class="flex gap-2">
+                <a href="{{ route('work.index', ['month' => $month, 'year' => $year]) }}" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 font-medium">ล้างค่า</a>
+                <button type="submit" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 active:bg-gray-100 transition-colors">ค้นหา</button>
+            </div>
+        </form>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">งานที่กำลังดำเนินการ</div>
+                <div class="text-2xl font-bold text-gray-900">{{ $summary['editing_active'] }} <span class="text-sm font-normal text-gray-500">งาน</span></div>
+            </div>
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                <div class="text-xs font-semibold text-green-500 uppercase tracking-wider mb-1">งานที่เสร็จสมบูรณ์</div>
+                <div class="text-2xl font-bold text-green-600">{{ $summary['editing_final'] }} <span class="text-sm font-normal text-green-400">งาน</span></div>
+            </div>
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                <div class="text-xs font-semibold text-indigo-500 uppercase tracking-wider mb-1">ระยะเวลารวม (Final)</div>
+                <div class="text-2xl font-bold text-indigo-600">{{ $summary['total_duration_hms'] }}</div>
+            </div>
         </div>
     </div>
 
@@ -167,7 +213,12 @@
                             @endif
                         </td>
                         <td class="px-6 py-4 text-gray-500">{{ $job->game?->game_name ?? '-' }}</td>
-                        <td class="px-6 py-4">{{ $job->assignee?->first_name ?? '-' }}</td>
+                        <td class="px-6 py-4">
+                            <div class="font-medium text-gray-900">{{ $job->assignee?->first_name ?? '-' }}</div>
+                            @if($job->youtuber)
+                                <div class="text-[10px] text-indigo-500 font-semibold">YTB: {{ $job->youtuber->first_name }}</div>
+                            @endif
+                        </td>
                         <td class="px-6 py-4">
                             @php
                                 $statusColors = [
@@ -202,7 +253,7 @@
                         <td class="px-6 py-4 text-center">
                             <div class="flex items-center justify-center gap-3">
                                 @if(auth()->user()?->hasRole('admin'))
-                                    <button @click="openEdit({{ $job->toJson() }})" class="text-gray-400 hover:text-indigo-600" title="แก้ไข">
+                                    <button @click="openEdit({{ \Illuminate\Support\Js::from($job) }})" class="text-gray-400 hover:text-indigo-600" title="แก้ไขรายละเอียดงาน">
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
                                     </button>
                                 @endif
@@ -216,28 +267,51 @@
                                         <button class="text-blue-600 hover:text-blue-900 font-medium text-xs">ส่งงาน</button>
                                     </form>
                                 @elseif($job->status === 'review_ready')
-                                    <form action="{{ route('work.editing-job.finalize', $job) }}" method="POST" class="flex flex-col gap-1 items-end">
+                                    <form action="{{ route('work.editing-job.finalize', $job) }}" method="POST" class="flex flex-col gap-1 items-center justify-center" x-data="{ mode: '{{ $job->assignee?->fixed_rate_per_clip > 0 ? 'custom' : 'layer' }}' }">
                                         @csrf
-                                        <div class="flex items-center gap-1">
-                                            <input type="number" name="video_duration_minutes" class="w-14 border border-gray-300 rounded px-1.5 py-1 text-xs" placeholder="นาที" title="ความยาววิดีโอ (นาที)">
-                                            <span class="text-xs text-gray-500">:</span>
-                                            <input type="number" name="video_duration_seconds" class="w-14 border border-gray-300 rounded px-1.5 py-1 text-xs" placeholder="วินาที" min="0" max="59" title="ความยาววิดีโอ (วินาที)">
-                                        </div>
-                                        <div class="flex items-center gap-2">
-                                            <input type="date" name="finalized_at" value="{{ date('Y-m-d') }}" class="border border-gray-300 rounded px-2 py-1 text-xs" required title="วันที่ปิดงาน (Final)">
-                                            <button class="text-green-600 hover:text-green-900 font-bold whitespace-nowrap text-[10px]">อนุมัติ / ปิดงาน</button>
+                                        <div class="flex items-center gap-1.5">
+                                            @if($job->assignee?->payroll_mode === 'freelance_layer')
+                                                <select name="pricing_mode" x-model="mode" class="border border-gray-200 rounded px-1 py-1 text-[9px] bg-gray-50 focus:ring-0 text-gray-600">
+                                                    <option value="layer">ตาม Layer</option>
+                                                    <option value="custom">เหมาคลิป (Fix)</option>
+                                                    <option value="custom_rate_per_min">เรท/นาที (อิสระ)</option>
+                                                </select>
+                                                <div x-show="mode === 'layer'" class="flex items-center gap-1 bg-white border border-gray-200 rounded px-1 py-0.5">
+                                                    <span class="text-[9px] text-gray-400 font-bold">L</span>
+                                                    <input type="number" name="layer_count" min="1" value="{{ $job->layer_count ?? 1 }}" class="w-8 border-0 bg-transparent p-0 text-center text-[10px] font-bold text-indigo-600 focus:ring-0">
+                                                </div>
+                                                <div x-show="mode === 'custom'" x-cloak class="flex items-center gap-1 bg-white border border-gray-200 rounded px-1 py-0.5">
+                                                    <span class="text-[9px] text-gray-400 font-bold">฿</span>
+                                                    <input type="number" name="fix_amount" step="0.01" min="0" value="{{ $job->assignee?->fixed_rate_per_clip ?? 0 }}" class="w-12 border-0 bg-transparent p-0 text-right text-[10px] font-bold text-orange-600 focus:ring-0" placeholder="เหมา">
+                                                </div>
+                                                <div x-show="mode === 'custom_rate_per_min'" x-cloak class="flex items-center gap-1 bg-white border border-gray-200 rounded px-1 py-0.5">
+                                                    <span class="text-[9px] text-gray-400 font-bold">เรท</span>
+                                                    <input type="number" name="custom_rate" step="0.0001" min="0" class="w-12 border-0 bg-transparent p-0 text-right text-[10px] font-bold text-teal-600 focus:ring-0" placeholder="/น.">
+                                                </div>
+                                            @endif
+                                            <div class="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded px-1 py-0.5">
+                                                <input type="number" name="video_duration_hours" class="w-8 border-0 bg-transparent p-0 text-center text-[10px] focus:ring-0" placeholder="ชม.">
+                                                <span class="text-[9px] text-gray-400">:</span>
+                                                <input type="number" name="video_duration_minutes" class="w-8 border-0 bg-transparent p-0 text-center text-[10px] focus:ring-0" placeholder="น.">
+                                                <span class="text-[9px] text-gray-400">:</span>
+                                                <input type="number" name="video_duration_seconds" class="w-8 border-0 bg-transparent p-0 text-center text-[10px] focus:ring-0" placeholder="ว." min="0" max="59">
+                                            </div>
+                                            <input type="date" name="finalized_at" value="{{ date('Y-m-d') }}" class="w-24 border border-gray-300 rounded px-1 py-1 text-[10px]" required>
+                                            <button class="bg-emerald-600 text-white hover:bg-emerald-700 px-2 py-1 rounded font-bold whitespace-nowrap text-[10px] shadow-sm">
+                                                ปิดงาน
+                                            </button>
                                         </div>
                                     </form>
                                 @endif
                                 
                                 @if(auth()->user()?->hasRole('admin'))
                                     @if($job->status !== 'final')
-                                        <button @click="openDirectFinalize({{ $job->toJson() }})" class="text-xs text-indigo-600 border border-indigo-200 bg-indigo-50 px-2 py-1 rounded hover:bg-indigo-100 font-medium whitespace-nowrap">
+                                        <button @click="openDirectFinalize({{ \Illuminate\Support\Js::from($job) }})" class="text-xs text-indigo-600 border border-indigo-200 bg-indigo-50 px-2 py-1 rounded hover:bg-indigo-100 font-medium whitespace-nowrap">
                                             ปิดงานด่วน
                                         </button>
                                     @endif
-                                    <form action="{{ route('work.editing-job.delete', $job) }}" method="POST" onsubmit="return confirm('ยืนยันลบงานนี้?')">@csrf @method('DELETE')
-                                        <button class="text-red-400 hover:text-red-600">
+                                    <form action="{{ route('work.editing-job.delete', $job) }}" method="POST">@csrf @method('DELETE')
+                                        <button type="submit" class="text-red-400 hover:text-red-600" title="ลบงาน (ลบทันที)">
                                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                                         </button>
                                     </form>
@@ -255,28 +329,35 @@
         </div>
     </div>
 
-    {{-- Add Job Modal --}}
-    <div x-show="showAddModal" x-cloak
+    {{-- Unified Add / Edit Job Modal --}}
+    <div x-show="jobModal" x-cloak
          class="fixed inset-0 z-50 overflow-y-auto"
-         @keydown.escape.window="showAddModal = false">
+         @keydown.escape.window="jobModal = false">
         <div class="flex items-center justify-center min-h-screen px-4 py-8">
-            <div class="fixed inset-0 bg-black/50" @click="showAddModal = false"></div>
+            <div class="fixed inset-0 bg-black/50" @click="jobModal = false"></div>
             <div class="relative bg-white rounded-xl shadow-xl w-full max-w-lg z-10">
-                <form action="{{ route('work.editing-job.store') }}" method="POST">
+                <form
+                    :action="isEditing ? ('{{ url('work/job') }}/' + jobForm.id) : '{{ route('work.editing-job.store') }}'"
+                    method="POST">
                     @csrf
+                    <input type="hidden" name="_method" :value="isEditing ? 'PATCH' : 'POST'">
                     <div class="px-6 pt-6 pb-4 space-y-3">
                         <div class="flex items-center justify-between mb-2">
-                            <h3 class="text-lg font-bold text-gray-900">มอบหมายงานใหม่</h3>
-                            <button type="button" @click="showAddModal = false" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+                            <h3 class="text-lg font-bold text-gray-900" x-text="isEditing ? 'แก้ไขรายละเอียดงาน' : 'มอบหมายงานใหม่'"></h3>
+                            <button type="button" @click="jobModal = false" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
                         </div>
+
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">ชื่อโปรเจกต์ <span class="text-red-500">*</span></label>
-                            <input type="text" name="job_name" class="block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" required>
+                            <input type="text" name="job_name" x-model="jobForm.job_name"
+                                   class="block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" required>
                         </div>
+
                         <div class="grid grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">หมวดหมู่เกม <span class="text-red-500">*</span></label>
-                                <select name="game_id" x-model="selectedGameId" class="block w-full border border-gray-300 rounded-md px-3 py-2 sm:text-sm" required>
+                                <select name="game_id" x-model="jobForm.game_id"
+                                        class="block w-full border border-gray-300 rounded-md px-3 py-2 sm:text-sm" required>
                                     <option value="">-- เลือกหมวดหมู่ --</option>
                                     @foreach($games as $game)
                                         <option value="{{ $game->id }}">{{ $game->game_name }}</option>
@@ -285,173 +366,91 @@
                                 </select>
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Editor <span class="text-red-500">*</span></label>
-                                <select name="assigned_to" x-model="addAssigneeId" class="block w-full border border-gray-300 rounded-md px-3 py-2 sm:text-sm" required>
-                                    <option value="">-- เลือก Editor --</option>
-                                    @foreach($editors as $ed)
-                                        <option value="{{ $ed->id }}">{{ $ed->first_name }} {{ $ed->last_name }}</option>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">เจ้าของช่อง (YTB)</label>
+                                <select name="youtuber_id" x-model="jobForm.youtuber_id"
+                                        class="block w-full border border-gray-300 rounded-md px-3 py-2 sm:text-sm">
+                                    <option value="">-- ไม่ระบุ --</option>
+                                    @foreach($youtubers as $ytb)
+                                        <option value="{{ $ytb->id }}">{{ $ytb->first_name }} {{ $ytb->last_name }}</option>
                                     @endforeach
                                 </select>
                             </div>
                         </div>
-                        <div x-show="selectedGameId === 'other'" x-cloak class="p-3 bg-indigo-50 rounded-lg border border-indigo-200">
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Editor <span class="text-red-500">*</span></label>
+                            <select name="assigned_to" x-model="jobForm.assigned_to"
+                                    class="block w-full border border-gray-300 rounded-md px-3 py-2 sm:text-sm" required>
+                                <option value="">-- เลือก Editor --</option>
+                                @foreach($editors as $ed)
+                                    <option value="{{ $ed->id }}">{{ $ed->first_name }} {{ $ed->last_name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        <div x-show="jobForm.game_id === 'other'" x-cloak class="p-3 bg-indigo-50 rounded-lg border border-indigo-200">
                             <label class="block text-xs font-bold text-indigo-700 uppercase mb-1">ระบุชื่อหมวดหมู่ใหม่ <span class="text-red-500">*</span></label>
-                            <input type="text" name="new_game_name" class="block w-full border border-indigo-300 rounded-md px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" :required="selectedGameId === 'other'">
+                            <input type="text" name="new_game_name"
+                                   class="block w-full border border-indigo-300 rounded-md px-3 py-2 sm:text-sm"
+                                   :required="jobForm.game_id === 'other'">
                         </div>
 
-                        <!-- Pricing For Freelance Layer -->
-                        <div x-show="editorsMap[addAssigneeId] === 'freelance_layer'" x-cloak class="p-4 bg-gray-50 rounded-lg border border-gray-200 space-y-3">
-                            <h4 class="text-sm font-semibold text-gray-800">เรทราคาสำหรับฟรีแลนซ์ Layer</h4>
-                            <div class="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label class="block text-xs font-medium text-gray-600 mb-1">รูปแบบ <span class="text-red-500">*</span></label>
-                                    <select name="pricing_mode" x-model="addPricingMode" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm" :required="editorsMap[addAssigneeId] === 'freelance_layer'">
-                                        <option value="template">ตามกลุ่มเลเยอร์ (Template)</option>
-                                        <option value="custom">ราคาพิเศษ (Isolated)</option>
-                                    </select>
-                                </div>
-                                <div x-show="addPricingMode === 'template'">
-                                    <label class="block text-xs font-medium text-gray-600 mb-1">Layer <span class="text-red-500">*</span></label>
-                                    <input type="number" name="layer" min="1" value="1" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm" :required="editorsMap[addAssigneeId] === 'freelance_layer' && addPricingMode === 'template'">
-                                </div>
-                                <div x-show="addPricingMode === 'custom'">
-                                    <label class="block text-xs font-medium text-gray-600 mb-1">ราคา/นาที (บาท) <span class="text-red-500">*</span></label>
-                                    <input type="number" name="custom_rate" min="0" step="0.01" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm" :required="editorsMap[addAssigneeId] === 'freelance_layer' && addPricingMode === 'custom'">
-                                </div>
-                            </div>
-                        </div>
+                        {{-- Pricing section removed as per user request - manage in Workspace instead --}}
+
 
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">ลิงก์เกม (ถ้ามี)</label>
-                            <input type="url" name="game_link" class="block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">ลิงก์เกม <span class="text-xs text-gray-400">(optional)</span></label>
+                            <input type="url" name="game_link" x-model="jobForm.game_link"
+                                   class="block w-full border border-gray-300 rounded-md px-3 py-2 sm:text-sm">
                         </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">กำหนดส่งภายใน (วัน)</label>
-                            <input type="number" name="deadline_days" min="1" value="7" class="block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">โน้ต</label>
-                            <textarea name="notes" rows="2" class="block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"></textarea>
-                        </div>
-                    </div>
-                    <div class="px-6 py-4 bg-gray-50 rounded-b-xl flex justify-end gap-3">
-                        <button type="button" @click="showAddModal = false" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-md text-sm hover:bg-gray-100">ยกเลิก</button>
-                        <button type="submit" class="px-5 py-2 bg-indigo-600 text-white rounded-md text-sm font-medium hover:bg-indigo-700">สร้างงาน</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
 
-    {{-- Edit Job Modal --}}
-    <div x-show="showEditModal" x-cloak
-         class="fixed inset-0 z-50 overflow-y-auto"
-         @keydown.escape.window="showEditModal = false">
-        <div class="flex items-center justify-center min-h-screen px-4 py-8">
-            <div class="fixed inset-0 bg-black/50" @click="showEditModal = false"></div>
-            <div class="relative bg-white rounded-xl shadow-xl w-full max-w-lg z-10">
-                <form :action="'{{ url('work/job') }}/' + editForm.id" method="POST">
-                    @csrf
-                    @method('PATCH')
-                    <div class="px-6 pt-6 pb-4 space-y-3">
-                        <div class="flex items-center justify-between mb-2">
-                            <h3 class="text-lg font-bold text-gray-900">แก้ไขรายละเอียดงาน</h3>
-                            <button type="button" @click="showEditModal = false" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">ชื่อโปรเจกต์ <span class="text-red-500">*</span></label>
-                            <input type="text" name="job_name" x-model="editForm.job_name" class="block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" required>
-                        </div>
                         <div class="grid grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">หมวดหมู่เกม <span class="text-red-500">*</span></label>
-                                <select name="game_id" x-model="editForm.game_id" class="block w-full border border-gray-300 rounded-md px-3 py-2 sm:text-sm" required>
-                                    <option value="">-- เลือกหมวดหมู่ --</option>
-                                    @foreach($games as $game)
-                                        <option value="{{ $game->id }}">{{ $game->game_name }}</option>
-                                    @endforeach
-                                    <option value="other">อื่นๆ (ระบุชื่อ)...</option>
-                                </select>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">กำหนดส่งภายใน (วัน)</label>
+                                <input type="number" name="deadline_days" x-model="jobForm.deadline_days" min="1"
+                                       class="block w-full border border-gray-300 rounded-md px-3 py-2 sm:text-sm">
                             </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Editor <span class="text-red-500">*</span></label>
-                                <select name="assigned_to" x-model="editForm.assigned_to" class="block w-full border border-gray-300 rounded-md px-3 py-2 sm:text-sm" required>
-                                    <option value="">-- เลือก Editor --</option>
-                                    @foreach($editors as $ed)
-                                        <option value="{{ $ed->id }}">{{ $ed->first_name }} {{ $ed->last_name }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                        </div>
-                        <div x-show="editForm.game_id === 'other'" x-cloak class="p-3 bg-indigo-50 rounded-lg border border-indigo-200">
-                            <label class="block text-xs font-bold text-indigo-700 uppercase mb-1">ระบุชื่อหมวดหมู่ใหม่ <span class="text-red-500">*</span></label>
-                            <input type="text" name="new_game_name" class="block w-full border border-indigo-300 rounded-md px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" :required="editForm.game_id === 'other'">
-                        </div>
-
-                        <!-- Pricing For Freelance Layer -->
-                        <div x-show="editorsMap[editForm.assigned_to] === 'freelance_layer'" x-cloak class="p-4 bg-gray-50 rounded-lg border border-gray-200 space-y-3">
-                            <h4 class="text-sm font-semibold text-gray-800">เรทราคาสำหรับฟรีแลนซ์ Layer</h4>
-                            <div class="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label class="block text-xs font-medium text-gray-600 mb-1">รูปแบบ <span class="text-red-500">*</span></label>
-                                    <select name="pricing_mode" x-model="editForm.pricing_mode" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm" :required="editorsMap[editForm.assigned_to] === 'freelance_layer'">
-                                        <option value="template">ตามกลุ่มเลเยอร์ (Template)</option>
-                                        <option value="custom">ราคาพิเศษ (Isolated)</option>
-                                    </select>
-                                </div>
-                                <div x-show="editForm.pricing_mode === 'template'">
-                                    <label class="block text-xs font-medium text-gray-600 mb-1">Layer <span class="text-red-500">*</span></label>
-                                    <input type="number" name="layer" min="1" x-model="editForm.layer" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm" :required="editorsMap[editForm.assigned_to] === 'freelance_layer' && editForm.pricing_mode === 'template'">
-                                </div>
-                                <div x-show="editForm.pricing_mode === 'custom'">
-                                    <label class="block text-xs font-medium text-gray-600 mb-1">ราคา/นาที (บาท) <span class="text-red-500">*</span></label>
-                                    <input type="number" name="custom_rate" min="0" step="0.01" x-model="editForm.custom_rate" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm" :required="editorsMap[editForm.assigned_to] === 'freelance_layer' && editForm.pricing_mode === 'custom'">
-                                </div>
+                            <div x-show="isEditing">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">หรือกำหนด Deadline วันที่</label>
+                                <input type="date" name="deadline_date" x-model="jobForm.deadline_date"
+                                       class="block w-full border border-gray-300 rounded-md px-3 py-2 sm:text-sm">
                             </div>
                         </div>
 
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">ลิงก์เกม (ถ้ามี)</label>
-                            <input type="url" name="game_link" x-model="editForm.game_link" class="block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-                        </div>
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">กำหนดส่ง (วัน)</label>
-                                <input type="number" name="deadline_days" x-model="editForm.deadline_days" min="1" class="block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">หรือระบุวันที่ Deadline</label>
-                                <input type="date" name="deadline_date" x-model="editForm.deadline_date" class="block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-                            </div>
-                        </div>
-                        
-                        {{-- Final Details (Only if job is final) --}}
-                        <div class="p-3 bg-gray-50 border rounded-lg space-y-2">
-                            <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider">ข้อมูลการตัดต่อ (เผื่อแก้ไข)</h4>
+                        {{-- Edit-only: ข้อมูลการตัดต่อ --}}
+                        <div x-show="isEditing" class="p-3 bg-gray-50 border border-gray-200 rounded-lg space-y-2">
+                            <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider">ข้อมูลการตัดต่อ (แก้ไขย้อนหลังได้)</h4>
                             <div class="grid grid-cols-3 gap-2">
                                 <div>
-                                    <label class="block text-[10px] font-medium text-gray-500">Layer Count</label>
-                                    <input type="number" name="layer_count" x-model="editForm.layer_count" class="block w-full border border-gray-300 rounded px-2 py-1 text-xs">
+                                    <label class="block text-[10px] font-medium text-gray-500 mb-0.5">Layer Count</label>
+                                    <input type="number" name="layer_count" x-model="jobForm.layer_count"
+                                           class="block w-full border border-gray-300 rounded px-2 py-1 text-xs">
                                 </div>
                                 <div>
-                                    <label class="block text-[10px] font-medium text-gray-500">Duration (นาที)</label>
-                                    <input type="number" name="video_duration_minutes" x-model="editForm.video_duration_minutes" class="block w-full border border-gray-300 rounded px-2 py-1 text-xs">
+                                    <label class="block text-[10px] font-medium text-gray-500 mb-0.5">Duration (นาที)</label>
+                                    <input type="number" name="video_duration_minutes" x-model="jobForm.video_duration_minutes"
+                                           class="block w-full border border-gray-300 rounded px-2 py-1 text-xs">
                                 </div>
                                 <div>
-                                    <label class="block text-[10px] font-medium text-gray-500">Duration (วินาที)</label>
-                                    <input type="number" name="video_duration_seconds" x-model="editForm.video_duration_seconds" min="0" max="59" class="block w-full border border-gray-300 rounded px-2 py-1 text-xs">
+                                    <label class="block text-[10px] font-medium text-gray-500 mb-0.5">Duration (วินาที)</label>
+                                    <input type="number" name="video_duration_seconds" x-model="jobForm.video_duration_seconds"
+                                           min="0" max="59" class="block w-full border border-gray-300 rounded px-2 py-1 text-xs">
                                 </div>
                             </div>
                         </div>
 
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">โน้ต</label>
-                            <textarea name="notes" x-model="editForm.notes" rows="2" class="block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"></textarea>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">โน้ต <span class="text-xs text-gray-400">(optional)</span></label>
+                            <textarea name="notes" x-model="jobForm.notes" rows="2"
+                                      class="block w-full border border-gray-300 rounded-md px-3 py-2 sm:text-sm"></textarea>
                         </div>
                     </div>
                     <div class="px-6 py-4 bg-gray-50 rounded-b-xl flex justify-end gap-3">
-                        <button type="button" @click="showEditModal = false" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-md text-sm hover:bg-gray-100">ยกเลิก</button>
-                        <button type="submit" class="px-5 py-2 bg-indigo-600 text-white rounded-md text-sm font-medium hover:bg-indigo-700">บันทึกการแก้ไข</button>
+                        <button type="button" @click="jobModal = false"
+                                class="px-4 py-2 border border-gray-300 text-gray-700 rounded-md text-sm hover:bg-gray-100">ยกเลิก</button>
+                        <button type="submit"
+                                class="px-5 py-2 bg-indigo-600 text-white rounded-md text-sm font-medium hover:bg-indigo-700"
+                                x-text="isEditing ? 'บันทึกการแก้ไข' : 'สร้างงาน'"></button>
                     </div>
                 </form>
             </div>
@@ -492,15 +491,38 @@
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">ความยาววิดีโอ <span class="text-red-500">*</span></label>
                             <div class="flex items-center gap-2">
-                                <input type="number" name="video_duration_minutes" min="0" class="block w-24 border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-indigo-500" placeholder="นาที" required>
-                                <span class="text-gray-500 font-bold">:</span>
-                                <input type="number" name="video_duration_seconds" min="0" max="59" class="block w-24 border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-indigo-500" placeholder="วิ" required>
+                                <input type="number" name="video_duration_hours" min="0" class="block w-20 border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-indigo-500" placeholder="ชม.">
+                                <span class="text-gray-400 font-bold">:</span>
+                                <input type="number" name="video_duration_minutes" min="0" class="block w-20 border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-indigo-500" placeholder="น." required>
+                                <span class="text-gray-400 font-bold">:</span>
+                                <input type="number" name="video_duration_seconds" min="0" max="59" class="block w-20 border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-indigo-500" placeholder="ว." required>
                             </div>
                         </div>
 
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">จำนวนเลเยอร์ (ถ้ามีชาร์จเพิ่ม)</label>
-                            <input type="number" name="layer_count" min="1" class="block w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-indigo-500" placeholder="ไม่บังคับ">
+                        <div x-show="dfJobPayrollMode === 'freelance_layer'" x-data="{ mode: dfJobAssigneeFixedRate > 0 ? 'custom' : 'layer' }" class="p-3 bg-gray-50 border border-gray-200 rounded-lg space-y-3">
+                            <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider">รูปแบบการคิดเงิน</h4>
+                            <div>
+                                <select name="pricing_mode" x-model="mode" class="block w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-indigo-500">
+                                    <option value="layer">ตาม Layer</option>
+                                    <option value="custom">เหมาคลิป (Fix Rate)</option>
+                                    <option value="custom_rate_per_min">เรทต่อนาที (กำหนดเองแยกเฉพาะงาน)</option>
+                                </select>
+                            </div>
+
+                            <div x-show="mode === 'layer'">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">จำนวนเลเยอร์ (ถ้ามีชาร์จเพิ่ม)</label>
+                                <input type="number" name="layer_count" min="1" x-bind:value="dfJobLayer" class="block w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-indigo-500" placeholder="ไม่บังคับ">
+                            </div>
+
+                            <div x-show="mode === 'custom'" x-cloak>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">ยอดเงินเหมาจ่ายสำหรับคลิปนี้ (บาท)</label>
+                                <input type="number" name="fix_amount" step="0.01" min="0" x-bind:value="dfJobAssigneeFixedRate" class="block w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-indigo-500" placeholder="ยอดเงิน">
+                            </div>
+
+                            <div x-show="mode === 'custom_rate_per_min'" x-cloak>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">เรทต่อนาที (บาท/นาที)</label>
+                                <input type="number" name="custom_rate" step="0.0001" min="0" class="block w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-indigo-500" placeholder="เรทเงิน">
+                            </div>
                         </div>
                     </div>
                     <div class="px-6 py-4 bg-gray-50 rounded-b-xl flex justify-end gap-3">
