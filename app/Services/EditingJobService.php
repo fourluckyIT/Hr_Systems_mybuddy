@@ -7,6 +7,7 @@ use App\Models\EditingJob;
 use App\Models\Employee;
 use App\Models\JobModification;
 use App\Models\JobReassignment;
+use App\Models\WorkLog;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
@@ -51,6 +52,7 @@ class EditingJobService
         $job = EditingJob::create([
             'job_name'      => $data['job_name'],
             'game_id'       => $data['game_id'],
+            'youtuber_id'   => $data['youtuber_id'] ?? null,
             'game_link'     => $data['game_link'] ?? null,
             'assigned_to'   => $data['assigned_to'],
             'assigned_by'   => $data['assigned_by'],
@@ -60,7 +62,7 @@ class EditingJobService
             'status'        => 'assigned',
         ]);
 
-        return $job->load(['game', 'assignee', 'assigner']);
+        return $job->load(['game', 'assignee', 'assigner', 'youtuber']);
     }
 
     public function updateJob(EditingJob $job, array $data): EditingJob
@@ -70,6 +72,7 @@ class EditingJobService
         $job->update([
             'job_name'      => $data['job_name'],
             'game_id'       => $data['game_id'],
+            'youtuber_id'   => $data['youtuber_id'] ?? $job->youtuber_id,
             'game_link'     => $data['game_link'] ?? null,
             'assigned_to'   => $data['assigned_to'],
             'deadline_days' => $data['deadline_days'],
@@ -136,7 +139,11 @@ class EditingJobService
         int $editorId,
         ?string $finalizedAt = null,
         ?int $durationMinutes = null,
-        ?int $durationSeconds = null
+        ?int $durationSeconds = null,
+        ?int $layerCount = null,
+        ?string $pricingMode = null,
+        ?float $customRate = null,
+        ?float $fixAmount = null
     ): array {
         $job = EditingJob::findOrFail($jobId);
 
@@ -155,15 +162,139 @@ class EditingJobService
         if ($durationSeconds !== null) {
             $updateData['video_duration_seconds'] = $durationSeconds;
         }
+        if ($layerCount !== null) {
+            $updateData['layer_count'] = $layerCount;
+        }
 
         $job->update($updateData);
 
         $job->load(['game', 'assignee']);
 
+        $this->syncWorkLogFromJob($job, $pricingMode, $customRate, $fixAmount);
+
         return [
             'job'         => $job,
             'performance' => $this->calculateJobPerformance($job),
         ];
+    }
+
+    public function directFinalizeJob(
+        int $jobId,
+        ?string $reviewReadyAt = null,
+        ?string $finalizedAt = null,
+        ?int $durationMinutes = null,
+        ?int $durationSeconds = null,
+        ?int $layerCount = null,
+        ?string $pricingMode = null,
+        ?float $customRate = null,
+        ?float $fixAmount = null
+    ): EditingJob {
+        $job = EditingJob::findOrFail($jobId);
+
+        if ($job->status === 'final') {
+            throw new \DomainException('งานนี้ปิดไปแล้ว');
+        }
+
+        $updateData = [
+            'status'          => 'final',
+            'review_ready_at' => $reviewReadyAt ? Carbon::parse($reviewReadyAt) : ($job->review_ready_at ?? now()),
+            'finalized_at'    => $finalizedAt ? Carbon::parse($finalizedAt) : now(),
+        ];
+
+        if ($durationMinutes !== null) {
+            $updateData['video_duration_minutes'] = $durationMinutes;
+        }
+        if ($durationSeconds !== null) {
+            $updateData['video_duration_seconds'] = $durationSeconds;
+        }
+        if ($layerCount !== null) {
+            $updateData['layer_count'] = $layerCount;
+        }
+        if ($job->started_at === null) {
+            $updateData['started_at'] = $updateData['review_ready_at'];
+        }
+
+        $job->update($updateData);
+        $job->load(['game', 'assignee']);
+
+        $this->syncWorkLogFromJob($job, $pricingMode, $customRate, $fixAmount);
+
+        return $job;
+    }
+
+    // ─── Work Log linkage ────────────────────────────────────────────
+
+    private function syncWorkLogFromJob(EditingJob $job, ?string $pricingMode = null, ?float $customRate = null, ?float $fixAmount = null): void
+    {
+        if ($job->status !== 'final') {
+            return;
+        }
+
+        $employee = $job->assignee;
+        if (!$employee) {
+            return;
+        }
+
+        // Idempotent: one WorkLog per finalized job
+        if (WorkLog::where('editing_job_id', $job->id)->exists()) {
+            return;
+        }
+
+        if ($employee->payroll_mode !== 'freelance_layer') {
+            return;
+        }
+
+        $finalizedAt = $job->finalized_at ?? now();
+        $logDate = Carbon::parse($finalizedAt);
+        $mins = (int) ($job->video_duration_minutes ?? 0);
+        $secs = (int) ($job->video_duration_seconds ?? 0);
+        $defaultFlat = (float) ($employee->fixed_rate_per_clip ?? 0);
+
+        $data = [
+            'employee_id'    => $employee->id,
+            'editing_job_id' => $job->id,
+            'log_date'       => $logDate->toDateString(),
+            'month'          => $logDate->month,
+            'year'           => $logDate->year,
+            'entry_type'     => 'auto',
+            'source_flag'    => 'job_finalize',
+            'notes'          => "งาน #{$job->id}: {$job->job_name}",
+            'work_type'      => 'editing',
+            'layer'          => (int) ($job->layer_count ?? 1),
+            'hours'          => intdiv($mins, 60),
+            'minutes'        => $mins % 60,
+            'seconds'        => $secs,
+            'quantity'       => 1,
+            'rate'           => 0,
+            'amount'         => 0,
+        ];
+
+        if ($pricingMode === 'custom') {
+            $data['pricing_mode'] = 'custom';
+            $data['custom_rate']  = $fixAmount ?? 0;
+            $data['rate']         = $fixAmount ?? 0;
+            $data['amount']       = $fixAmount ?? 0;
+        } elseif ($pricingMode === 'custom_rate_per_min') {
+            $data['pricing_mode'] = 'custom_rate_per_min';
+            $data['custom_rate']  = $customRate ?? 0;
+            $data['rate']         = $customRate ?? 0;
+            $durationMinutes      = $data['hours'] * 60 + $data['minutes'] + ($data['seconds'] / 60);
+            $data['amount']       = $durationMinutes * ($customRate ?? 0);
+        } elseif ($defaultFlat > 0 && !$pricingMode) {
+            // Fallback to default flat if set and no override provided
+            $data['pricing_mode'] = 'custom';
+            $data['custom_rate']  = $defaultFlat;
+            $data['rate']         = $defaultFlat;
+            $data['amount']       = $defaultFlat;
+        } else {
+            // Layer mode
+            $data['pricing_mode'] = 'layer';
+        }
+
+        WorkLog::create($data);
+
+        // Immediately resolve the rate and amount based on Layer Rules
+        app(\App\Services\Payroll\PayrollCalculationService::class)->syncWorkLogAmounts($employee, $logDate->month, $logDate->year);
     }
 
     // ─── Admin Actions ───────────────────────────────────────────────
@@ -233,8 +364,13 @@ class EditingJobService
 
     public function deleteJob(int $jobId): void
     {
-        $job = EditingJob::findOrFail($jobId);
-        $job->update(['is_deleted' => true]);
+        DB::transaction(function () use ($jobId) {
+            $job = EditingJob::findOrFail($jobId);
+            $job->update(['is_deleted' => true]);
+
+            // If it had a synced work log, remove it too so it doesn't stay in payroll
+            WorkLog::where('editing_job_id', $jobId)->delete();
+        });
     }
 
     // ─── Performance Metrics ─────────────────────────────────────────

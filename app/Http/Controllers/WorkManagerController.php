@@ -43,8 +43,7 @@ class WorkManagerController extends Controller
 
         $payrollModeOptions = [
             'monthly_staff' => 'พนักงานรายเดือน',
-            'freelance_layer' => 'ฟรีแลนซ์เรทเลเยอร์',
-            'freelance_fixed' => 'ฟรีแลนซ์ฟิกเรท',
+            'freelance_layer' => 'Freelance',
             'youtuber_salary' => 'YouTuber เงินเดือน',
             'youtuber_settlement' => 'YouTuber Settlement',
             'custom_hybrid' => 'รูปแบบผสม',
@@ -159,7 +158,7 @@ class WorkManagerController extends Controller
             'name' => 'required|string|max:255',
             'code' => 'required|string|max:100|unique:work_log_types,code,' . ($ignoreId ?? 'NULL') . ',id',
             'module_key' => 'required|string|max:100',
-            'payroll_mode' => 'nullable|in:monthly_staff,freelance_layer,freelance_fixed,youtuber_salary,youtuber_settlement,custom_hybrid',
+            'payroll_mode' => 'nullable|in:monthly_staff,office_staff,freelance_layer,youtuber_salary,youtuber_settlement,custom_hybrid',
             'footage_size' => 'nullable|string|max:100',
             'target_length_hms' => ['nullable', 'regex:/^\d{1,2}:\d{2}(?::\d{2})?$/'],
             'target_length_minutes' => 'nullable|numeric|min:0',

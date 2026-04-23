@@ -34,7 +34,7 @@ class FullSystemTest extends TestCase
     protected User $user;
     protected Employee $monthlyEmployee;
     protected Employee $freelanceLayerEmployee;
-    protected Employee $freelanceFixedEmployee;
+    protected Employee $freelanceCustomEmployee;
     protected Employee $youtuberSalaryEmployee;
     protected Employee $youtuberSettlementEmployee;
 
@@ -98,7 +98,7 @@ class FullSystemTest extends TestCase
         // Create employees for each payroll mode
         $this->monthlyEmployee = $this->createEmployee('Monthly', 'Staff', 'monthly_staff', 30000);
         $this->freelanceLayerEmployee = $this->createEmployee('Freelance', 'Layer', 'freelance_layer', 0);
-        $this->freelanceFixedEmployee = $this->createEmployee('Freelance', 'Fixed', 'freelance_fixed', 0);
+        $this->freelanceCustomEmployee = $this->createEmployee('Freelance', 'Custom', 'freelance_layer', 0);
         $this->youtuberSalaryEmployee = $this->createEmployee('Youtuber', 'Salary', 'youtuber_salary', 25000);
         $this->youtuberSettlementEmployee = $this->createEmployee('Youtuber', 'Settlement', 'youtuber_settlement', 0);
 
@@ -298,9 +298,9 @@ class FullSystemTest extends TestCase
         $response->assertStatus(200);
     }
 
-    public function test_workspace_loads_for_freelance_fixed(): void
+    public function test_workspace_loads_for_freelance_custom(): void
     {
-        $response = $this->actingAs($this->user)->get("/workspace/{$this->freelanceFixedEmployee->id}/4/2026");
+        $response = $this->actingAs($this->user)->get("/workspace/{$this->freelanceCustomEmployee->id}/4/2026");
         $response->assertStatus(200);
     }
 
@@ -460,33 +460,35 @@ class FullSystemTest extends TestCase
         $this->assertGreaterThan(300, $result['summary']['total_income']);
     }
 
-    public function test_freelance_fixed_calculation(): void
+    public function test_freelance_custom_rate_calculation(): void
     {
         WorkLog::create([
-            'employee_id' => $this->freelanceFixedEmployee->id,
+            'employee_id' => $this->freelanceCustomEmployee->id,
             'month' => 4,
             'year' => 2026,
             'work_type' => 'Thumbnail',
-            'quantity' => 10,
-            'rate' => 500,
-            'amount' => 0,
+            'pricing_mode' => 'custom',
+            'custom_rate' => 5000,
+            'rate' => 5000,
+            'amount' => 5000,
             'is_disabled' => false,
         ]);
         WorkLog::create([
-            'employee_id' => $this->freelanceFixedEmployee->id,
+            'employee_id' => $this->freelanceCustomEmployee->id,
             'month' => 4,
             'year' => 2026,
             'work_type' => 'Banner',
-            'quantity' => 5,
-            'rate' => 300,
-            'amount' => 0,
+            'pricing_mode' => 'custom',
+            'custom_rate' => 1500,
+            'rate' => 1500,
+            'amount' => 1500,
             'is_disabled' => false,
         ]);
 
         $service = app(PayrollCalculationService::class);
-        $result = $service->calculateForEmployee($this->freelanceFixedEmployee, 4, 2026);
+        $result = $service->calculateForEmployee($this->freelanceCustomEmployee, 4, 2026);
 
-        // 10*500 + 5*300 = 5000 + 1500 = 6500
+        // 5000 + 1500 = 6500
         $this->assertEquals(6500, $result['summary']['total_income']);
     }
 

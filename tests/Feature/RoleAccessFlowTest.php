@@ -21,7 +21,7 @@ class RoleAccessFlowTest extends TestCase
     protected User $ownerUser;
     protected Employee $monthlyEmployee;
     protected Employee $freelanceLayerEmployee;
-    protected Employee $freelanceFixedEmployee;
+    protected Employee $freelanceCustomEmployee;
     protected Employee $ownerEmployee;
     protected Employee $youtuberSettlementEmployee;
     protected Employee $otherEmployee;
@@ -82,10 +82,10 @@ class RoleAccessFlowTest extends TestCase
             'start_date' => '2024-01-01',
         ]);
 
-        $this->freelanceFixedEmployee = Employee::create([
+        $this->freelanceCustomEmployee = Employee::create([
             'first_name' => 'Other',
-            'last_name' => 'Fixed',
-            'payroll_mode' => 'freelance_fixed',
+            'last_name' => 'Custom',
+            'payroll_mode' => 'freelance_layer',
             'status' => 'active',
             'is_active' => true,
             'start_date' => '2024-01-01',
@@ -201,14 +201,12 @@ class RoleAccessFlowTest extends TestCase
         $layer = $this->actingAs($this->adminUser)
             ->get('/workspace/' . $this->freelanceLayerEmployee->id . '/4/2026');
         $layer->assertOk();
-        $layer->assertSeeText('ฟรีแลนซ์ เรทเลเยอร์');
-        $layer->assertSeeText('งานที่ได้รับมอบหมาย');
+        $layer->assertSeeText('freelance_layer');
 
-        $fixed = $this->actingAs($this->adminUser)
-            ->get('/workspace/' . $this->freelanceFixedEmployee->id . '/4/2026');
-        $fixed->assertOk();
-        $fixed->assertSeeText('ฟรีแลนซ์ ฟิกเรท');
-        $fixed->assertSeeText('งานที่ได้รับมอบหมาย');
+        $custom = $this->actingAs($this->adminUser)
+            ->get('/workspace/' . $this->freelanceCustomEmployee->id . '/4/2026');
+        $custom->assertOk();
+        $custom->assertSeeText('freelance_layer');
 
         $youtuberSettlement = $this->actingAs($this->adminUser)
             ->get('/workspace/' . $this->youtuberSettlementEmployee->id . '/4/2026');

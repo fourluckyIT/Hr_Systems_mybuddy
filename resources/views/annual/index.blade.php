@@ -46,7 +46,6 @@
                                 @switch($row['employee']->payroll_mode)
                                     @case('monthly_staff') bg-blue-100 text-blue-700 @break
                                     @case('freelance_layer') bg-purple-100 text-purple-700 @break
-                                    @case('freelance_fixed') bg-orange-100 text-orange-700 @break
                                     @case('youtuber_salary') bg-pink-100 text-pink-700 @break
                                     @case('youtuber_settlement') bg-yellow-100 text-yellow-700 @break
                                     @default bg-gray-100 text-gray-700

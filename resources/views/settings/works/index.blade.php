@@ -37,7 +37,6 @@
 
             <input type="text" name="footage_size" placeholder="Footage Size เช่น 1920x1080" class="px-3 py-2 border rounded-lg text-sm">
             <input type="time" step="1" name="target_length_hms" class="px-3 py-2 border rounded-lg text-sm">
-            <input type="number" step="0.0001" min="0" name="default_rate_per_minute" placeholder="Default Rate/Minute" class="px-3 py-2 border rounded-lg text-sm">
             <input type="number" min="0" name="sort_order" value="0" placeholder="Sort" class="px-3 py-2 border rounded-lg text-sm">
 
             <div class="md:col-span-2 lg:col-span-4">
@@ -179,7 +178,7 @@
                         <th class="text-left px-3 py-2">Mode</th>
                         <th class="text-left px-3 py-2">Footage</th>
                         <th class="text-right px-3 py-2">Length</th>
-                        <th class="text-right px-3 py-2">Rate/Min</th>
+
                         <th class="text-right px-3 py-2">Sort</th>
                         <th class="text-right px-3 py-2">จัดการ</th>
                     </tr>
@@ -198,7 +197,7 @@
                         <td class="px-3 py-2 text-xs text-gray-700">{{ $work->payroll_mode ?: 'all' }}</td>
                         <td class="px-3 py-2 text-xs text-gray-700">{{ $work->footage_size ?: '-' }}</td>
                         <td class="px-3 py-2 text-right text-xs text-gray-700">{{ $formatDurationMinutes($work->target_length_minutes) }}</td>
-                        <td class="px-3 py-2 text-right text-xs text-gray-700">{{ $work->default_rate_per_minute ?: '-' }}</td>
+
                         <td class="px-3 py-2 text-right text-xs text-gray-700">{{ $work->sort_order }}</td>
                         <td class="px-3 py-2">
                             <div class="flex items-center justify-end gap-2">
@@ -230,10 +229,9 @@
                                                     @endforeach
                                                 </select>
                                             </div>
-                                            <div class="grid grid-cols-3 gap-2">
+                                            <div class="grid grid-cols-2 gap-2">
                                                 <input type="text" name="footage_size" value="{{ $work->footage_size }}" placeholder="Footage" class="px-2 py-1.5 border rounded text-xs">
                                                 <input type="time" step="1" name="target_length_hms" value="{{ \App\Support\DurationInput::formatMinutesAsHms($work->target_length_minutes) }}" class="px-2 py-1.5 border rounded text-xs">
-                                                <input type="number" step="0.0001" min="0" name="default_rate_per_minute" value="{{ $work->default_rate_per_minute }}" placeholder="Rate" class="px-2 py-1.5 border rounded text-xs">
                                             </div>
                                             <input type="number" min="0" name="sort_order" value="{{ $work->sort_order }}" class="w-full px-2 py-1.5 border rounded text-xs" placeholder="Sort">
                                             <textarea name="description" rows="2" class="w-full px-2 py-1.5 border rounded text-xs" placeholder="รายละเอียด">{{ $work->description }}</textarea>

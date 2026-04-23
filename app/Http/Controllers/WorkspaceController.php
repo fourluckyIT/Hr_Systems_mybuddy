@@ -312,6 +312,94 @@ class WorkspaceController extends Controller
         }
     }
 
+    public function saveFreelanceLayerRates(Request $request, Employee $employee, int $month, int $year)
+    {
+        abort_unless(Auth::user()?->hasRole('admin'), 403);
+        if ($employee->payroll_mode !== 'freelance_layer') {
+            return back()->withErrors(['error' => 'ใช้ได้เฉพาะโหมด Freelance']);
+        }
+
+        $validated = $request->validate([
+            'rates' => 'array',
+            'rates.*.id' => 'nullable|integer',
+            'rates.*.layer_from' => 'required|integer|min:1',
+            'rates.*.layer_to' => 'required|integer|gte:rates.*.layer_from',
+            'rates.*.rate_per_minute' => 'required|numeric|min:0',
+        ]);
+
+        return DB::transaction(function () use ($validated, $employee, $month, $year) {
+            $keepIds = [];
+            foreach ($validated['rates'] ?? [] as $row) {
+                $rule = LayerRateRule::updateOrCreate(
+                    ['id' => $row['id'] ?? null, 'employee_id' => $employee->id],
+                    [
+                        'employee_id' => $employee->id,
+                        'layer_from' => $row['layer_from'],
+                        'layer_to' => $row['layer_to'],
+                        'rate_per_minute' => $row['rate_per_minute'],
+                        'effective_date' => now()->toDateString(),
+                        'is_active' => true,
+                    ]
+                );
+                $keepIds[] = $rule->id;
+            }
+            LayerRateRule::where('employee_id', $employee->id)
+                ->whereNotIn('id', $keepIds ?: [0])
+                ->delete();
+
+            $result = $this->payrollService->calculateForEmployee($employee, $month, $year);
+            $this->payrollService->savePayrollItems($employee, $month, $year, $result);
+            $this->payrollService->syncWorkLogAmounts($employee, $month, $year);
+
+            return back()->with('success', 'บันทึก Price/min + คำนวณใหม่สำเร็จ');
+        });
+    }
+
+    public function updateWorkLogRate(Request $request, WorkLog $workLog)
+    {
+        abort_unless(Auth::user()?->hasRole('admin'), 403);
+
+        $validated = $request->validate([
+            'rate' => 'nullable|numeric|min:0',
+            'amount' => 'nullable|numeric|min:0',
+            'pricing_mode' => 'nullable|in:layer,custom',
+            'layer' => 'nullable|integer|min:1',
+        ]);
+
+        $updates = [];
+        if (array_key_exists('pricing_mode', $validated)) {
+            $updates['pricing_mode'] = $validated['pricing_mode'] ?? 'layer';
+        }
+
+        if (array_key_exists('layer', $validated) && $validated['layer'] !== null) {
+            $updates['layer'] = $validated['layer'];
+        }
+
+        if (array_key_exists('rate', $validated) && $validated['rate'] !== null) {
+            $updates['rate'] = $validated['rate'];
+            if (($updates['pricing_mode'] ?? $workLog->pricing_mode) === 'custom') {
+                $updates['custom_rate'] = $validated['rate'];
+            } else {
+                $updates['custom_rate'] = null; // Reset custom rate if switched to layer
+            }
+        }
+        
+        if (array_key_exists('amount', $validated) && $validated['amount'] !== null) {
+            $updates['amount'] = $validated['amount'];
+        }
+        
+        if ($updates) {
+            $workLog->update($updates);
+
+            // Re-sync amounts automatically if mode or layer changed
+            if (isset($updates['layer']) || isset($updates['pricing_mode'])) {
+                app(\App\Services\Payroll\PayrollCalculationService::class)->syncWorkLogAmounts($workLog->employee, $workLog->month, $workLog->year);
+            }
+        }
+
+        return back()->with('success', 'อัปเดตเรท/ยอดของ row สำเร็จ');
+    }
+
     public function recalculate(Employee $employee, int $month, int $year)
     {
         try {
@@ -420,6 +508,16 @@ class WorkspaceController extends Controller
                         ];
                     }
 
+                    $otEnabledNew = isset($data['ot_enabled']);
+                    $currentOtStatus = $log->ot_status ?? 'none';
+                    if (in_array($currentOtStatus, ['requested', 'approved'], true)) {
+                        $newOtStatus = $currentOtStatus;
+                    } elseif ($otEnabledNew) {
+                        $newOtStatus = 'admin_set';
+                    } else {
+                        $newOtStatus = 'none';
+                    }
+
                     $log->update([
                         'day_type' => $dayType,
                         'check_in' => $checkIn ?: null,
@@ -427,7 +525,8 @@ class WorkspaceController extends Controller
                         'late_minutes' => $lateMinutes,
                         'early_leave_minutes' => $earlyLeaveMinutes,
                         'ot_minutes' => $otMinutes,
-                        'ot_enabled' => isset($data['ot_enabled']),
+                        'ot_enabled' => $otEnabledNew,
+                        'ot_status' => $newOtStatus,
                         'lwop_flag' => $isLwop,
                         ...$swapAttributes,
                     ]);
@@ -553,6 +652,18 @@ class WorkspaceController extends Controller
                     ];
                 }
 
+                $otEnabledNew = !empty($data['ot_enabled']);
+                $currentOtStatus = $log->ot_status ?? 'none';
+
+                // Preserve employee-driven states; admin checkbox → admin_set
+                if (in_array($currentOtStatus, ['requested', 'approved'], true)) {
+                    $newOtStatus = $currentOtStatus;
+                } elseif ($otEnabledNew) {
+                    $newOtStatus = 'admin_set';
+                } else {
+                    $newOtStatus = 'none';
+                }
+
                 $log->update([
                     'day_type' => $dayType,
                     'check_in' => $checkIn ?: null,
@@ -560,7 +671,8 @@ class WorkspaceController extends Controller
                     'late_minutes' => $lateMinutes,
                     'early_leave_minutes' => $earlyLeaveMinutes,
                     'ot_minutes' => $otMinutes,
-                    'ot_enabled' => !empty($data['ot_enabled']),
+                    'ot_enabled' => $otEnabledNew,
+                    'ot_status' => $newOtStatus,
                     'lwop_flag' => $isLwop,
                     ...$swapAttributes,
                 ]);
@@ -646,7 +758,7 @@ class WorkspaceController extends Controller
                         'month' => $month,
                         'year' => $year,
                         'log_date' => $data['log_date'] ?? null,
-                        'work_log_type_id' => $data['work_log_type_id'] ?? null,
+                        // 'work_log_type_id' => $data['work_log_type_id'] ?? null,
                         'editing_job_id' => $data['editing_job_id'] ?? null,
                         'description' => $data['description'] ?? '',
                         'quantity' => $data['quantity'] ?? 1,
@@ -795,17 +907,12 @@ class WorkspaceController extends Controller
             }
         }
 
-        // OT Calculation
+        // OT Calculation (clock-based, unified workday + holiday)
+        // OT = minutes past standard checkout time
         if ($otEnabled) {
-            $gross = $inAt->diffInMinutes($outAt);
-            if ($isHolidayOvertimeDay) {
-                // §63: every net minute on a holiday is OT
-                $otMinutes = max(0, $gross - $meta['lunch_break_minutes']);
-            } else {
-                // §61: workday OT = net minutes beyond the standard day
-                $net = $gross - $meta['lunch_break_minutes'];
-                $otMinutes = max(0, $net - $meta['target_minutes_per_day']);
-            }
+            $otMinutes = $outAt->greaterThan($targetOutAt)
+                ? (int) $targetOutAt->diffInMinutes($outAt)
+                : 0;
         }
 
         return [
@@ -910,9 +1017,9 @@ class WorkspaceController extends Controller
         $data = $this->getWorkspaceViewData($employee, $month, $year);
 
         $viewFile = match($employee->payroll_mode) {
-            'monthly_staff', 'office_staff', 'youtuber_salary' => 'workspace.partials.attendance-grid',
+            'monthly_staff', 'office_staff' => 'workspace.partials.attendance-grid',
+            'youtuber_salary' => 'workspace.partials.youtuber-recording-sessions',
             'freelance_layer' => 'workspace.partials.freelance-layer-grid',
-            'freelance_fixed' => 'workspace.partials.freelance-fixed-grid',
             'youtuber_settlement' => 'workspace.partials.youtuber-settlement-grid',
             default => null
         };
@@ -952,7 +1059,7 @@ class WorkspaceController extends Controller
             'company_holiday' => 'bg-purple-100 text-purple-800',
         ];
 
-        if (in_array($employee->payroll_mode, ['monthly_staff', 'office_staff', 'youtuber_salary'])) {
+        if (in_array($employee->payroll_mode, ['monthly_staff', 'office_staff'])) {
             $this->ensureAttendanceLogs($employee, $month, $year);
             $this->syncAttendanceDerivedMetrics($employee, $month, $year);
         }
@@ -990,24 +1097,65 @@ class WorkspaceController extends Controller
         })->get();
 
         $claims = ExpenseClaim::where('employee_id', $employee->id)->where('month', $month)->where('year', $year)->get();
-        $panel = 'edit_jobs';
-        $hasEditAssignments = EditingJob::where('assigned_to', $employee->id)->active()->exists();
-        if (in_array($employee->payroll_mode, ['freelance_layer', 'freelance_fixed'], true)) {
-            $panel = $hasEditAssignments ? 'edit_jobs' : 'none';
+        $isYoutuber = in_array($employee->payroll_mode, ['youtuber_salary', 'youtuber_settlement']);
+        $assignedEditJobs = collect();
+        $performanceSummary = [
+            'total_duration_hms' => '00:00:00',
+            'final_count' => 0
+        ];
+        $panel = 'none';
+
+        if (!$isYoutuber) {
+            $hasEditAssignments = EditingJob::where('assigned_to', $employee->id)->active()->exists();
+            if ($employee->payroll_mode === 'freelance_layer') {
+                $panel = $hasEditAssignments ? 'edit_jobs' : 'none';
+            } else {
+                $panel = 'edit_jobs'; // Default for monthly/office editors
+            }
+            
+            $assignedEditJobs = $hasEditAssignments ? EditingJob::with('game')->where('assigned_to', $employee->id)->active()
+                ->orderByRaw("CASE status WHEN 'assigned' THEN 1 WHEN 'in_progress' THEN 2 WHEN 'review_ready' THEN 3 WHEN 'final' THEN 4 ELSE 99 END")
+                ->orderBy('deadline_date')->get() : collect();
+
+            $monthlyFinalJobs = EditingJob::where('assigned_to', $employee->id)->where('status', 'final')
+                ->whereMonth('finalized_at', $month)->whereYear('finalized_at', $year)->get();
+
+            $totalMonthlySeconds = $monthlyFinalJobs->sum(fn($j) => ($j->video_duration_minutes * 60) + $j->video_duration_seconds);
+            $performanceSummary = [
+                'total_duration_hms' => DurationInput::formatSecondsAsHms($totalMonthlySeconds),
+                'final_count' => $monthlyFinalJobs->count()
+            ];
+        } else {
+            // It's a Youtuber - They don't see editing pipeline anymore
+            $panel = 'none';
+            $assignedEditJobs = collect();
+            
+            // Calculate YTD Income (Finalized Payslips only)
+            $ytdIncome = \App\Models\Payslip::where('employee_id', $employee->id)
+                ->where('year', $year)
+                ->where('status', 'finalized')
+                ->sum('net_pay');
+
+            $performanceSummary = [
+                'ytd_income' => $ytdIncome,
+                'revenue_label' => 'รายได้สะสมปีนี้ (YTD)',
+                'is_youtuber' => true
+            ];
         }
-        $assignedEditJobs = $hasEditAssignments ? EditingJob::with('game')->where('assigned_to', $employee->id)->active()
-            ->orderByRaw("CASE status WHEN 'assigned' THEN 1 WHEN 'in_progress' THEN 2 WHEN 'review_ready' THEN 3 WHEN 'final' THEN 4 ELSE 99 END")
-            ->orderBy('deadline_date')->get() : collect();
 
         $recordingAssignments = collect();
-        $monthlyFinalJobs = EditingJob::where('assigned_to', $employee->id)->where('status', 'final')
-            ->whereMonth('finalized_at', $month)->whereYear('finalized_at', $year)->get();
 
-        $totalMonthlySeconds = $monthlyFinalJobs->sum(fn($j) => ($j->video_duration_minutes * 60) + $j->video_duration_seconds);
-        $performanceSummary = [
-            'total_duration_hms' => DurationInput::formatSecondsAsHms($totalMonthlySeconds),
-            'final_count' => $monthlyFinalJobs->count()
-        ];
+        // Recording sessions for YouTubers — show sessions they participated in this month
+        $recordingSessions = collect();
+        if ($employee->payroll_mode === 'youtuber_salary') {
+            $recordingSessions = \App\Models\RecordingSession::with(['game', 'youtubers'])
+                ->whereHas('youtubers', fn($q) => $q->where('employees.id', $employee->id))
+                ->whereMonth('session_date', $month)
+                ->whereYear('session_date', $year)
+                ->orderByDesc('session_date')
+                ->get();
+        }
+
         $workspaceEditEnabled = $this->isWorkspaceEditingEnabled($employee);
         $vacationBalance = $employee->getVacationBalance($year);
 
@@ -1018,6 +1166,7 @@ class WorkspaceController extends Controller
             'dayTypeColors' => $dayTypeColors, 'attendanceMeta' => $attendanceMeta,
             'attendanceReadOnly' => $attendanceReadOnly, 'isAdmin' => $isAdmin,
             'assignedEditJobs' => $assignedEditJobs, 'recordingAssignments' => $recordingAssignments,
+            'recordingSessions' => $recordingSessions,
             'panel' => $panel, 'workspaceEditEnabled' => $workspaceEditEnabled, 'performanceSummary' => $performanceSummary,
             'vacationBalance' => $vacationBalance
         ];

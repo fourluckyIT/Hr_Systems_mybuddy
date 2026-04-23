@@ -14,7 +14,6 @@ class PayrollCalculationService
     public function __construct(
         protected MonthlyStaffCalculator $monthlyStaffCalc,
         protected FreelanceLayerCalculator $freelanceLayerCalc,
-        protected FreelanceFixedCalculator $freelanceFixedCalc,
         protected YoutuberSalaryCalculator $youtuberSalaryCalc,
         protected YoutuberSettlementCalculator $youtuberSettlementCalc,
     ) {}
@@ -24,7 +23,6 @@ class PayrollCalculationService
         $calculator = match ($employee->payroll_mode) {
             'monthly_staff', 'office_staff' => $this->monthlyStaffCalc,
             'freelance_layer' => $this->freelanceLayerCalc,
-            'freelance_fixed' => $this->freelanceFixedCalc,
             'youtuber_salary' => $this->youtuberSalaryCalc,
             'youtuber_settlement' => $this->youtuberSettlementCalc,
             default => $this->monthlyStaffCalc,
@@ -59,6 +57,25 @@ class PayrollCalculationService
             }
         }
 
+        $extraIncomes = \App\Models\ExtraIncomeEntry::where('employee_id', $employee->id)
+            ->where('month', $month)
+            ->where('year', $year)
+            ->where('include_in_payslip', true)
+            ->get();
+
+        foreach ($extraIncomes as $entry) {
+            $result['items'][] = [
+                'item_type_code' => 'extra_income_' . $entry->id,
+                'category' => 'income',
+                'label' => 'รายรับพิเศษ: ' . $entry->label . ($entry->category ? " ({$entry->category})" : ''),
+                'amount' => (float) $entry->amount,
+                'source_flag' => 'auto',
+                'sort_order' => 98,
+                'note' => $entry->notes,
+            ];
+            $result['summary']['total_income'] += (float) $entry->amount;
+        }
+
         $result['summary']['net_pay'] = round($result['summary']['total_income'] - $result['summary']['total_deduction'], 2);
 
         return $result;
@@ -73,7 +90,6 @@ class PayrollCalculationService
     {
         match ($employee->payroll_mode) {
             'freelance_layer' => $this->freelanceLayerCalc->syncWorkLogAmounts($employee, $month, $year),
-            'freelance_fixed' => $this->freelanceFixedCalc->syncWorkLogAmounts($employee, $month, $year),
             default          => null,
         };
     }

@@ -106,7 +106,7 @@ class EmployeeController extends Controller
             'department_id' => 'nullable|exists:departments,id',
             'position_id' => 'nullable|exists:positions,id',
             'role_id' => 'nullable|exists:roles,id',
-            'payroll_mode' => 'required|in:monthly_staff,office_staff,freelance_layer,freelance_fixed,youtuber_salary,youtuber_settlement,custom_hybrid',
+            'payroll_mode' => 'required|in:monthly_staff,office_staff,freelance_layer,youtuber_salary,youtuber_settlement,custom_hybrid',
             'status' => 'nullable|string|in:active,inactive,probation,terminated',
             'start_date' => 'nullable|date',
             'effective_date' => 'nullable|date',
@@ -198,7 +198,7 @@ class EmployeeController extends Controller
 
         if (!$prefix && $payrollMode) {
             $prefix = match ($payrollMode) {
-                'freelance_layer', 'freelance_fixed' => 'FL',
+                'freelance_layer' => 'FL',
                 'youtuber_salary', 'youtuber_settlement' => 'YT',
                 'monthly_staff' => 'STAFF',
                 'office_staff' => 'OFFICE',
@@ -251,7 +251,7 @@ class EmployeeController extends Controller
             'employee_code' => 'nullable|string|max:50|unique:employees,employee_code,' . $employee->id,
             'department_id' => 'nullable|exists:departments,id',
             'position_id' => 'nullable|exists:positions,id',
-            'payroll_mode' => 'required|in:monthly_staff,office_staff,freelance_layer,freelance_fixed,youtuber_salary,youtuber_settlement,custom_hybrid',
+            'payroll_mode' => 'required|in:monthly_staff,office_staff,freelance_layer,youtuber_salary,youtuber_settlement,custom_hybrid',
             'start_date' => 'nullable|date',
             'base_salary' => 'nullable|numeric|min:0',
             'bank_name' => 'nullable|string|max:255',
@@ -259,11 +259,15 @@ class EmployeeController extends Controller
             'account_name' => 'nullable|string|max:255',
             'phone' => 'nullable|string|max:20',
             'id_card' => 'nullable|string|max:20',
+            'tier_source' => 'nullable|in:avg,monthly_total,manual',
+            'tier_override_id' => 'nullable|exists:performance_tiers,id',
+            'tier_override_note' => 'nullable|string|max:255',
+            'fixed_rate_per_clip' => 'nullable|numeric|min:0',
         ]);
 
         $oldData = $employee->getAttributes();
 
-        $employee->update([
+        $updates = [
             'first_name' => $validated['first_name'],
             'last_name' => $validated['last_name'],
             'nickname' => $validated['nickname'] ?? null,
@@ -272,7 +276,16 @@ class EmployeeController extends Controller
             'position_id' => $validated['position_id'] ?? null,
             'payroll_mode' => $validated['payroll_mode'],
             'start_date' => $validated['start_date'] ?? null,
-        ]);
+            'tier_source' => $validated['tier_source'] ?? 'avg',
+            'tier_override_id' => $validated['tier_override_id'] ?? null,
+            'tier_override_note' => $validated['tier_override_note'] ?? null,
+        ];
+
+        if ($request->user()?->hasRole('admin') && array_key_exists('fixed_rate_per_clip', $validated)) {
+            $updates['fixed_rate_per_clip'] = $validated['fixed_rate_per_clip'];
+        }
+
+        $employee->update($updates);
 
         EmployeeProfile::updateOrCreate(
             ['employee_id' => $employee->id],

@@ -10,6 +10,7 @@ class EditingJob extends Model
     protected $fillable = [
         'job_name',
         'game_id',
+        'youtuber_id',
         'game_link',
         'assigned_to',
         'assigned_by',
@@ -40,6 +41,7 @@ class EditingJob extends Model
             'video_duration_minutes' => 'integer',
             'video_duration_seconds' => 'integer',
             'is_deleted'       => 'boolean',
+            'youtuber_id'      => 'integer',
         ];
     }
 
@@ -48,6 +50,11 @@ class EditingJob extends Model
     public function game(): BelongsTo
     {
         return $this->belongsTo(Game::class);
+    }
+
+    public function youtuber(): BelongsTo
+    {
+        return $this->belongsTo(Employee::class, 'youtuber_id');
     }
 
     public function assignee(): BelongsTo

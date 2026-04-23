@@ -423,3 +423,41 @@
 | 5 | **A3** BonusEngineer | Automates the manual bonus workflow |
 | 6 | **A6** FinanceReconciler | Closes the P&L sync gap |
 | 7 | **A7** NotificationDispatch | Enables all inter-agent communication |
+
+
+
+## Current Sprint — Flow Hardening
+
+### Priority fixes (ทำตามลำดับนี้เท่านั้น)
+
+1. API auth middleware
+   - File: routes/api.php
+   - Add auth:sanctum to all routes
+
+2. Editor middleware fix
+   - File: routes/web.php line ~187
+   - Change role:admin,owner → role:admin,owner,editor
+   - for routes: editing-job.start, editing-job.mark-ready
+
+3. Game schema drift
+   - Decide: use game_slug (model) as source of truth
+   - Fix: database/migrations/2026_04_13_090000_create_games_table.php
+   - Change game_code → game_slug
+   - Then fix tests
+
+4. Diligence allowance guard
+   - File: app/Services/Payroll/MonthlyStaffCalculator.php
+   - Add: only grant diligence if attendance records exist for this month
+   - Condition: AttendanceLog::where(employee_id, month, year)->exists()
+
+5. Finalize job → WorkLog link
+   - File: app/Services/EditingJobService.php finalizeJob()
+   - After status = final, create WorkLog record
+   - For freelance_layer: use video_duration_minutes + layer_count
+   - For freelance_fixed: use fixed rate record
+
+### Do NOT touch
+- UI/Blade files (หน้าตาดีอยู่แล้ว)
+- PayrollCalculationService (logic ถูกต้อง)
+- BonusCalculationService (ถูกต้องและมี tests)
+- AuditLogService (ครบแล้ว)

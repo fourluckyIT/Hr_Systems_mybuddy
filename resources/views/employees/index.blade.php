@@ -69,8 +69,7 @@
             <option value="">ทุก Payroll Mode</option>
             <option value="monthly_staff">พนักงานรายเดือน</option>
             <option value="office_staff">พนักงานออฟฟิศ</option>
-            <option value="freelance_layer">ฟรีแลนซ์เรทเลเยอร์</option>
-            <option value="freelance_fixed">ฟรีแลนซ์ฟิกเรท</option>
+            <option value="freelance_layer">ฟรีแลนซ์</option>
             <option value="youtuber_salary">YouTuber เงินเดือน</option>
             <option value="youtuber_settlement">YouTuber Settlement</option>
         </select>
@@ -103,8 +102,7 @@
         $modeMeta = [
             'monthly_staff' => ['label' => 'พนักงานรายเดือน', 'badge' => 'bg-blue-100 text-blue-700'],
             'office_staff' => ['label' => 'พนักงานออฟฟิศ', 'badge' => 'bg-cyan-100 text-cyan-700'],
-            'freelance_layer' => ['label' => 'ฟรีแลนซ์เรทเลเยอร์', 'badge' => 'bg-green-100 text-green-700'],
-            'freelance_fixed' => ['label' => 'ฟรีแลนซ์ฟิกเรท', 'badge' => 'bg-emerald-100 text-emerald-700'],
+            'freelance_layer' => ['label' => 'ฟรีแลนซ์', 'badge' => 'bg-green-100 text-green-700'],
             'youtuber_salary' => ['label' => 'YouTuber เงินเดือน', 'badge' => 'bg-purple-100 text-purple-700'],
             'youtuber_settlement' => ['label' => 'YouTuber Settlement', 'badge' => 'bg-orange-100 text-orange-700'],
             'custom_hybrid' => ['label' => 'รูปแบบผสม', 'badge' => 'bg-pink-100 text-pink-700'],
@@ -238,7 +236,7 @@
                         </span>
                     </div>
 
-                    @if(in_array($emp->payroll_mode, ['freelance_layer', 'freelance_fixed', 'youtuber_salary']))
+                    @if(in_array($emp->payroll_mode, ['freelance_layer', 'youtuber_salary']))
                     <div class="mt-2 text-center">
                         @php $avgMin = $emp->average_minutes_last_3_months; @endphp
                         <span class="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold 
@@ -338,8 +336,7 @@
                         <select name="payroll_mode" x-model="newPayrollMode" @change="generateCode()" required class="w-full px-3 py-2 border rounded-lg text-sm">
                             <option value="monthly_staff">พนักงานรายเดือน</option>
                             <option value="office_staff">พนักงานออฟฟิศ</option>
-                            <option value="freelance_layer">ฟรีแลนซ์เรทเลเยอร์</option>
-                            <option value="freelance_fixed">ฟรีแลนซ์ฟิกเรท</option>
+                            <option value="freelance_layer">ฟรีแลนซ์</option>
                             <option value="youtuber_salary">YouTuber เงินเดือน</option>
                             <option value="youtuber_settlement">YouTuber Settlement</option>
                         </select>

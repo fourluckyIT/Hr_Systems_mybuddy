@@ -12,7 +12,6 @@ use App\Models\SocialSecurityConfig;
 use App\Models\ModuleToggle;
 use App\Services\Payroll\MonthlyStaffCalculator;
 use App\Services\Payroll\FreelanceLayerCalculator;
-use App\Services\Payroll\FreelanceFixedCalculator;
 use App\Services\Payroll\YoutuberSettlementCalculator;
 use App\Services\SocialSecurityService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -377,55 +376,63 @@ class PayrollCalculatorTest extends TestCase
         $this->assertEquals(31.50, $result['summary']['total_income']);
     }
 
-    // ===== Freelance Fixed =====
+    // ===== Freelance Custom Rate (merged from fixed) =====
 
-    public function test_freelance_fixed_basic_calculation(): void
+    public function test_freelance_custom_rate_basic_calculation(): void
     {
-        $employee = $this->createEmployee('freelance_fixed', 0);
+        $employee = $this->createEmployee('freelance_layer', 0);
 
         WorkLog::create([
             'employee_id' => $employee->id,
             'month' => 1, 'year' => 2026,
             'work_type' => 'translation',
+            'pricing_mode' => 'custom',
+            'custom_rate' => 4000,
             'hours' => 0, 'minutes' => 0, 'seconds' => 0,
-            'quantity' => 5,
-            'rate' => 800,
-            'amount' => 0,
+            'rate' => 4000,
+            'amount' => 4000,
             'sort_order' => 1,
             'is_disabled' => false,
         ]);
 
-        $calc = new FreelanceFixedCalculator();
+        $calc = new FreelanceLayerCalculator();
         $result = $calc->calculate($employee, 1, 2026);
 
-        // 5 * 800 = 4000
         $this->assertEquals(4000, $result['summary']['total_income']);
         $this->assertEquals(4000, $result['summary']['net_pay']);
     }
 
-    public function test_freelance_fixed_multiple_work_logs(): void
+    public function test_freelance_custom_rate_multiple_work_logs(): void
     {
-        $employee = $this->createEmployee('freelance_fixed', 0);
+        $employee = $this->createEmployee('freelance_layer', 0);
 
         WorkLog::create([
             'employee_id' => $employee->id,
             'month' => 3, 'year' => 2026,
-            'work_type' => 'design', 'quantity' => 2, 'rate' => 1500,
+            'work_type' => 'design',
+            'pricing_mode' => 'custom',
+            'custom_rate' => 3000,
             'hours' => 0, 'minutes' => 0, 'seconds' => 0,
-            'amount' => 0, 'sort_order' => 1, 'is_disabled' => false,
+            'rate' => 3000,
+            'amount' => 3000,
+            'sort_order' => 1, 'is_disabled' => false,
         ]);
         WorkLog::create([
             'employee_id' => $employee->id,
             'month' => 3, 'year' => 2026,
-            'work_type' => 'review', 'quantity' => 3, 'rate' => 500,
+            'work_type' => 'review',
+            'pricing_mode' => 'custom',
+            'custom_rate' => 1500,
             'hours' => 0, 'minutes' => 0, 'seconds' => 0,
-            'amount' => 0, 'sort_order' => 2, 'is_disabled' => false,
+            'rate' => 1500,
+            'amount' => 1500,
+            'sort_order' => 2, 'is_disabled' => false,
         ]);
 
-        $calc = new FreelanceFixedCalculator();
+        $calc = new FreelanceLayerCalculator();
         $result = $calc->calculate($employee, 3, 2026);
 
-        // 2*1500 + 3*500 = 3000 + 1500 = 4500
+        // 3000 + 1500 = 4500
         $this->assertEquals(4500, $result['summary']['total_income']);
         $this->assertEquals(2, $result['summary']['work_log_count']);
     }
