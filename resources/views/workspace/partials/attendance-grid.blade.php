@@ -64,6 +64,23 @@
                                 สลับจาก: {{ $dayTypeLabels[$log->swapped_from_day_type] ?? $log->swapped_from_day_type }}
                             </div>
                         @endif
+                        @php
+                            $dateKey = \Carbon\Carbon::parse($log->log_date)->format('Y-m-d');
+                            $reqs = ($dayRequests ?? [])[$dateKey] ?? [];
+                            $colorMap = [
+                                'amber'  => 'bg-amber-100 text-amber-700 border-amber-200',
+                                'blue'   => 'bg-blue-100 text-blue-700 border-blue-200',
+                                'indigo' => 'bg-indigo-100 text-indigo-700 border-indigo-200',
+                                'teal'   => 'bg-teal-100 text-teal-700 border-teal-200',
+                            ];
+                        @endphp
+                        @foreach($reqs as $req)
+                            <div class="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border {{ $colorMap[$req['color']] ?? 'bg-gray-100 text-gray-700 border-gray-200' }} mt-0.5 mr-0.5"
+                                 @if(!empty($req['note'])) title="{{ $req['note'] }}" @endif>
+                                <span>{{ $req['icon'] }}</span>
+                                <span class="font-semibold">{{ $req['label'] }}</span>
+                            </div>
+                        @endforeach
                     </td>
                     <td class="px-2 py-1 text-center">
                         <input type="time" data-field="check_in"

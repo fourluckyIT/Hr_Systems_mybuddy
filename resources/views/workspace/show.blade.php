@@ -52,17 +52,6 @@
     // Unfinalize Confirm Modal
     unfinalizeConfirmOpen: false,
 
-    // Swap Modal State
-    modalSwapOpen: false,
-    isSubmitting: false,
-    swapError: '',
-    swapData: {
-        employee_id: {{ $employee->id }},
-        work_date: '',
-        off_date: '',
-        reason: ''
-    },
-
     isBeforeStart(m, y) {
         return (y < this.startYear) || (y === this.startYear && m < this.startMonth);
     },
@@ -72,44 +61,6 @@
     goTo(m, y) {
         if (this.isBeforeStart(m, y) || this.isFuture(m, y)) return;
         window.location.href = '{{ route('workspace.show', ['employee' => $employee->id, 'month' => '__M__', 'year' => '__Y__']) }}'.replace('__M__', m).replace('__Y__', y);
-    },
-
-    async submitSwap() {
-        this.isSubmitting = true;
-        this.swapError = '';
-        
-        try {
-            const response = await fetch('{{ route('leave.swap.store') }}', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
-                },
-                body: JSON.stringify(this.swapData)
-            });
-
-            const result = await response.json();
-
-            if (response.ok) {
-                // Seamlessly refresh UI
-                await this.refreshWorkspaceUI();
-                this.modalSwapOpen = false;
-                // Reset swap data
-                this.swapData.work_date = '';
-                this.swapData.off_date = '';
-                this.swapData.reason = '';
-            } else {
-                this.swapError = result.message || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล';
-                if (result.errors) {
-                    this.swapError = Object.values(result.errors).flat().join(' ');
-                }
-            }
-        } catch (e) {
-            this.swapError = 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้';
-        } finally {
-            this.isSubmitting = false;
-        }
     },
 
     async refreshWorkspaceUI() {
@@ -145,84 +96,6 @@
     Workspace นี้ถูกปิดสิทธิ์การแก้ไขจาก Master Data (โหมดดูข้อมูลอย่างเดียว)
 </div>
 @endif
-
-    {{-- Integrated Swap Modal --}}
-    <div x-show="modalSwapOpen" 
-         x-cloak 
-         class="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden"
-         x-transition:enter="transition ease-out duration-300"
-         x-transition:enter-start="opacity-0"
-         x-transition:enter-end="opacity-100"
-         x-transition:leave="transition ease-in duration-200"
-         x-transition:leave-start="opacity-100"
-         x-transition:leave-end="opacity-0">
-        
-        {{-- Backdrop with blur --}}
-        <div class="absolute inset-0 bg-white/60 backdrop-blur-sm" @click="modalSwapOpen = false"></div>
-
-        {{-- Modal Dialog --}}
-        <div class="relative bg-white w-full max-w-lg mx-4 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.1)] border border-gray-100 overflow-hidden"
-             x-show="modalSwapOpen"
-             x-transition:enter="transition ease-out duration-300"
-             x-transition:enter-start="opacity-0 scale-95 translate-y-4"
-             x-transition:enter-end="opacity-100 scale-100 translate-y-0"
-             x-transition:leave="transition ease-in duration-200"
-             x-transition:leave-start="opacity-100 scale-100 translate-y-0"
-             x-transition:leave-end="opacity-0 scale-95 translate-y-4">
-            
-            <div class="p-8">
-                <div class="flex justify-between items-center mb-6">
-                    <div>
-                        <h2 class="text-xl font-bold text-gray-800">Quick Swap</h2>
-                        <p class="text-xs text-gray-500 mt-1">สลับวันหยุดรายสัปดาห์</p>
-                    </div>
-                    <button @click="modalSwapOpen = false" class="p-2 hover:bg-gray-100 rounded-full transition-colors">
-                        <svg class="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                    </button>
-                </div>
-
-                <form @submit.prevent="submitSwap" class="space-y-6">
-                    <div class="grid grid-cols-2 gap-4">
-                        <div class="space-y-1.5">
-                            <label class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">มาทำงานวันที่ (วันหยุด)</label>
-                            <input type="date" x-model="swapData.work_date" required
-                                   class="w-full bg-gray-50 border-0 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-amber-500/20 transition-all">
-                        </div>
-                        <div class="space-y-1.5">
-                            <label class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">หยุดแทนวันที่ (วันทำงาน)</label>
-                            <input type="date" x-model="swapData.off_date" required
-                                   class="w-full bg-gray-50 border-0 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-amber-500/20 transition-all">
-                        </div>
-                    </div>
-
-                    <div class="space-y-1.5">
-                        <label class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">เหตุผล / บันทึกเพิ่มเติม</label>
-                        <textarea x-model="swapData.reason" rows="3" placeholder="ระบุเหตุผลในการขอสลับวัน (ถ้ามี)"
-                                  class="w-full bg-gray-50 border-0 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-amber-500/20 transition-all resize-none"></textarea>
-                    </div>
-
-                    <div x-show="swapError" x-text="swapError" x-cloak
-                         class="p-4 bg-rose-50 text-rose-600 rounded-2xl text-xs font-medium border border-rose-100 transition-all">
-                    </div>
-
-                    <div class="flex gap-3 pt-2">
-                        <button type="button" @click="modalSwapOpen = false"
-                                class="flex-1 py-3 text-sm font-bold text-gray-500 hover:bg-gray-50 rounded-2xl transition-colors">
-                            ยกเลิก
-                        </button>
-                        <button type="submit" :disabled="isSubmitting"
-                                class="flex-[2] py-3 bg-indigo-600 text-white rounded-2xl text-sm font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-                            <span x-show="!isSubmitting">บันทึกการสลับวัน</span>
-                            <span x-show="isSubmitting" class="flex items-center justify-center gap-2">
-                                <svg class="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                                กำลังดำเนินการ...
-                            </span>
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
 
 <!-- Header -->
 <div class="mb-6 space-y-4">
@@ -733,8 +606,10 @@
         </form>
         @endif
 
-        {{-- Quick Actions Panel --}}
-        @include('workspace.partials.quick-actions')
+        {{-- Quick Actions Panel — only for attendance-tracked employees --}}
+        @if(in_array($employee->payroll_mode, ['monthly_staff', 'office_staff']))
+            @include('workspace.partials.quick-actions')
+        @endif
 
         <div class="{{ !($workspaceEditEnabled ?? true) ? 'opacity-60 pointer-events-none select-none' : '' }}">
             @include('workspace.partials.payroll-adjustments')

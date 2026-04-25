@@ -1163,8 +1163,19 @@ class WorkspaceController extends Controller
 
         // Recent OT & Leave requests for Quick Actions panel
         $recentOtRequests = OtRequest::where('employee_id', $employee->id)
+            ->whereMonth('log_date', $month)->whereYear('log_date', $year)
             ->orderByDesc('created_at')->limit(5)->get();
         $recentLeaveRequests = LeaveRequest::where('employee_id', $employee->id)
+            ->whereMonth('leave_date', $month)->whereYear('leave_date', $year)
+            ->orderByDesc('created_at')->limit(5)->get();
+        $recentSwapRequests = \App\Models\DaySwapRequest::where('employee_id', $employee->id)
+            ->where(function($q) use ($month, $year) {
+                $q->where(function($q2) use ($month, $year) {
+                    $q2->whereMonth('work_date', $month)->whereYear('work_date', $year);
+                })->orWhere(function($q2) use ($month, $year) {
+                    $q2->whereMonth('off_date', $month)->whereYear('off_date', $year);
+                });
+            })
             ->orderByDesc('created_at')->limit(5)->get();
 
         $leaveTypes = [
@@ -1326,6 +1337,69 @@ class WorkspaceController extends Controller
             ];
         }
 
+        // Build request markers per date for the attendance grid
+        // (swap/leave/OT — pending or approved — visible on each row).
+        $monthStart = Carbon::create($year, $month, 1)->startOfMonth()->toDateString();
+        $monthEnd   = Carbon::create($year, $month, 1)->endOfMonth()->toDateString();
+        $dayRequests = [];
+
+        $pushReq = function (string $date, array $req) use (&$dayRequests) {
+            $key = Carbon::parse($date)->toDateString();
+            $dayRequests[$key][] = $req;
+        };
+
+        foreach (LeaveRequest::where('employee_id', $employee->id)
+            ->whereIn('status', ['pending', 'approved'])
+            ->whereBetween('leave_date', [$monthStart, $monthEnd])
+            ->get() as $l) {
+            $typeLabel = $leaveTypes[$l->leave_type] ?? $l->leave_type;
+            $badge = $l->status === 'pending' ? '⏳' : '✓';
+            $pushReq($l->leave_date, [
+                'icon'   => '🏖️',
+                'label'  => "{$badge} ลา: {$typeLabel}",
+                'color'  => $l->status === 'pending' ? 'amber' : 'blue',
+                'status' => $l->status,
+                'note'   => $l->reason,
+            ]);
+        }
+
+        foreach (OtRequest::where('employee_id', $employee->id)
+            ->whereIn('status', ['pending', 'approved'])
+            ->whereBetween('log_date', [$monthStart, $monthEnd])
+            ->get() as $o) {
+            $badge = $o->status === 'pending' ? '⏳' : '✓';
+            $pushReq($o->log_date, [
+                'icon'   => '⏰',
+                'label'  => "{$badge} OT: {$o->requested_minutes} น.",
+                'color'  => $o->status === 'pending' ? 'amber' : 'indigo',
+                'status' => $o->status,
+                'note'   => $o->reason,
+            ]);
+        }
+
+        foreach (\App\Models\DaySwapRequest::where('employee_id', $employee->id)
+            ->whereIn('status', ['pending', 'approved'])
+            ->where(function ($q) use ($monthStart, $monthEnd) {
+                $q->whereBetween('work_date', [$monthStart, $monthEnd])
+                  ->orWhereBetween('off_date', [$monthStart, $monthEnd]);
+            })->get() as $s) {
+            $badge = $s->status === 'pending' ? '⏳' : '✓';
+            $pushReq($s->work_date, [
+                'icon'   => '🔄',
+                'label'  => "{$badge} สลับ: มาทำงาน (แทนวัน " . Carbon::parse($s->off_date)->format('j M') . ')',
+                'color'  => $s->status === 'pending' ? 'amber' : 'teal',
+                'status' => $s->status,
+                'note'   => $s->reason,
+            ]);
+            $pushReq($s->off_date, [
+                'icon'   => '🔄',
+                'label'  => "{$badge} สลับ: หยุดแทน (มาทำงาน " . Carbon::parse($s->work_date)->format('j M') . ')',
+                'color'  => $s->status === 'pending' ? 'amber' : 'teal',
+                'status' => $s->status,
+                'note'   => $s->reason,
+            ]);
+        }
+
         return [
             'attendanceLogs' => $attendanceLogs, 'workLogs' => $workLogs, 'layerRates' => $layerRates,
             'result' => $result, 'payrollItems' => $payrollItems, 'payslip' => $payslip,
@@ -1338,8 +1412,11 @@ class WorkspaceController extends Controller
             'vacationBalance' => $vacationBalance,
             'recentOtRequests' => $recentOtRequests,
             'recentLeaveRequests' => $recentLeaveRequests,
+            'recentSwapRequests' => $recentSwapRequests,
             'leaveTypes' => $leaveTypes,
             'ownerCalendar' => $ownerCalendar,
+            'dayRequests' => $dayRequests,
+            'canManageWorkspace' => $isAdmin,
         ];
     }
 }

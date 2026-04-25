@@ -140,15 +140,15 @@
     </div>
 
     {{-- Summary Cards & Filters --}}
-    <div class="space-y-4">
-        <form action="{{ route('work.index') }}" method="GET" class="bg-gray-50 border p-4 rounded-xl flex flex-wrap items-end gap-4">
+    <div class="space-y-6">
+        <form action="{{ route('work.index') }}" method="GET" class="bg-white shadow-sm border border-gray-100 p-5 rounded-2xl flex flex-wrap items-end gap-5">
             <input type="hidden" name="month" value="{{ $month }}">
             <input type="hidden" name="year" value="{{ $year }}">
             
             <div class="flex-1 min-w-[200px]">
-                <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">กรองตาม YouTuber</label>
-                <select name="youtuber_id" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500" onchange="this.form.submit()">
-                    <option value="">-- ทั้งหมด --</option>
+                <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wide mb-1.5 flex items-center gap-1.5"><svg class="w-3.5 h-3.5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg> กรองตาม YouTuber</label>
+                <select name="youtuber_id" class="w-full border-gray-200 bg-gray-50 rounded-xl px-4 py-2.5 text-sm font-medium focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-shadow" onchange="this.form.submit()">
+                    <option value="">-- แสดงทั้งหมด --</option>
                     @foreach($youtubers as $ytb)
                         <option value="{{ $ytb->id }}" {{ $youtuberFilter == $ytb->id ? 'selected' : '' }}>{{ $ytb->first_name }} {{ $ytb->last_name }}</option>
                     @endforeach
@@ -156,9 +156,9 @@
             </div>
 
             <div class="flex-1 min-w-[200px]">
-                <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">กรองตาม Editor</label>
-                <select name="editor_id" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500" onchange="this.form.submit()">
-                    <option value="">-- ทั้งหมด --</option>
+                <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wide mb-1.5 flex items-center gap-1.5"><svg class="w-3.5 h-3.5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2 1m2-1l-2-1m2 1v2.5M14 4l-2-1-2 1M4 7l2-1M4 7l2 1M4 7v2.5M12 21l-2-1m2 1l2-1m-2 1v-2.5M6 18l-2-1v-2.5M18 18l2-1v-2.5"/></svg> กรองตาม Editor</label>
+                <select name="editor_id" class="w-full border-gray-200 bg-gray-50 rounded-xl px-4 py-2.5 text-sm font-medium focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-shadow" onchange="this.form.submit()">
+                    <option value="">-- แสดงทั้งหมด --</option>
                     @foreach($editors as $ed)
                         <option value="{{ $ed->id }}" {{ $editorFilter == $ed->id ? 'selected' : '' }}>{{ $ed->first_name }} {{ $ed->last_name }}</option>
                     @endforeach
@@ -166,46 +166,57 @@
             </div>
 
             <div class="flex gap-2">
-                <a href="{{ route('work.index', ['month' => $month, 'year' => $year]) }}" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 font-medium">ล้างค่า</a>
-                <button type="submit" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 active:bg-gray-100 transition-colors">ค้นหา</button>
+                <a href="{{ route('work.index', ['month' => $month, 'year' => $year]) }}" class="px-5 py-2.5 text-sm text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-xl font-bold transition-colors">ล้างค่า</a>
+                <button type="submit" class="px-5 py-2.5 bg-gray-900 text-white rounded-xl text-sm font-bold shadow-sm hover:bg-gray-800 focus:ring-2 focus:ring-gray-900 focus:ring-offset-1 transition-all">ค้นหา</button>
             </div>
         </form>
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-                <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">งานที่กำลังดำเนินการ</div>
-                <div class="text-2xl font-bold text-gray-900">{{ $summary['editing_active'] }} <span class="text-sm font-normal text-gray-500">งาน</span></div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+            <div class="bg-gradient-to-br from-gray-800 to-gray-900 p-6 rounded-2xl shadow-lg border border-gray-700 text-white relative overflow-hidden">
+                <div class="relative z-10">
+                    <div class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">งานที่กำลังดำเนินการ</div>
+                    <div class="text-4xl font-extrabold">{{ $summary['editing_active'] }} <span class="text-base font-semibold opacity-70 ml-1">งาน</span></div>
+                </div>
+                <svg class="absolute right-0 bottom-0 text-white opacity-5 w-28 h-28 transform translate-x-4 translate-y-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             </div>
-            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-                <div class="text-xs font-semibold text-green-500 uppercase tracking-wider mb-1">งานที่เสร็จสมบูรณ์</div>
-                <div class="text-2xl font-bold text-green-600">{{ $summary['editing_final'] }} <span class="text-sm font-normal text-green-400">งาน</span></div>
+            
+            <div class="bg-gradient-to-br from-emerald-500 to-emerald-600 p-6 rounded-2xl shadow-lg border border-emerald-400 text-white relative overflow-hidden">
+                <div class="relative z-10">
+                    <div class="text-[10px] font-bold text-emerald-100 uppercase tracking-wider mb-2 opacity-90">งานที่เสร็จสมบูรณ์</div>
+                    <div class="text-4xl font-extrabold">{{ $summary['editing_final'] }} <span class="text-base font-semibold opacity-70 ml-1">งาน</span></div>
+                </div>
+                <svg class="absolute right-0 bottom-0 text-white opacity-10 w-28 h-28 transform translate-x-4 translate-y-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             </div>
-            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-                <div class="text-xs font-semibold text-indigo-500 uppercase tracking-wider mb-1">ระยะเวลารวม (Final)</div>
-                <div class="text-2xl font-bold text-indigo-600">{{ $summary['total_duration_hms'] }}</div>
+            
+            <div class="bg-gradient-to-br from-indigo-500 to-indigo-600 p-6 rounded-2xl shadow-lg border border-indigo-400 text-white relative overflow-hidden">
+                <div class="relative z-10">
+                    <div class="text-[10px] font-bold text-indigo-100 uppercase tracking-wider mb-2 opacity-90">ระยะเวลารวม (Final)</div>
+                    <div class="text-4xl font-extrabold">{{ $summary['total_duration_hms'] }}</div>
+                </div>
+                <svg class="absolute right-0 bottom-0 text-white opacity-10 w-28 h-28 transform translate-x-4 translate-y-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             </div>
         </div>
     </div>
 
     {{-- Editing Jobs --}}
     <div class="space-y-4">
-        <h2 class="text-lg font-semibold">งานทั้งหมด</h2>
+        <h2 class="text-lg font-bold text-gray-800 ml-1">งานทั้งหมดในระบบ</h2>
 
-        <div class="bg-white shadow rounded-lg overflow-hidden border">
-            <table class="min-w-full divide-y divide-gray-200 text-sm">
-                <thead class="bg-gray-50">
+        <div class="bg-white shadow-sm rounded-2xl overflow-hidden border border-gray-200">
+            <table class="min-w-full divide-y divide-gray-100 text-sm">
+                <thead class="bg-gray-50 border-b border-gray-200">
                     <tr>
-                        <th class="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">ชื่องาน</th>
-                        <th class="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">หมวดหมู่</th>
-                        <th class="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">ผู้รับผิดชอบ</th>
-                        <th class="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">สถานะ</th>
-                        <th class="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">กำหนดส่ง / ข้อมูล</th>
-                        <th class="px-6 py-3 text-center font-medium text-gray-500 uppercase tracking-wider">จัดการ</th>
+                        <th class="px-6 py-4 text-left font-bold text-gray-500 text-[10px] uppercase tracking-widest">ชื่องาน</th>
+                        <th class="px-6 py-4 text-left font-bold text-gray-500 text-[10px] uppercase tracking-widest">หมวดหมู่</th>
+                        <th class="px-6 py-4 text-left font-bold text-gray-500 text-[10px] uppercase tracking-widest">ผู้รับผิดชอบ</th>
+                        <th class="px-6 py-4 text-left font-bold text-gray-500 text-[10px] uppercase tracking-widest">สถานะ</th>
+                        <th class="px-6 py-4 text-left font-bold text-gray-500 text-[10px] uppercase tracking-widest">กำหนดส่ง / ข้อมูล</th>
+                        <th class="px-6 py-4 text-center font-bold text-gray-500 text-[10px] uppercase tracking-widest">จัดการ</th>
                     </tr>
                 </thead>
-                <tbody class="bg-white divide-y divide-gray-200">
+                <tbody class="bg-white divide-y divide-gray-100">
                     @forelse($editingJobs as $job)
-                    <tr class="hover:bg-gray-50 transition">
+                    <tr class="hover:bg-indigo-50/30 transition-colors group">
                         <td class="px-6 py-4">
                             <div class="font-medium text-gray-900">{{ $job->job_name }}</div>
                             @if($job->status === 'final')
@@ -260,11 +271,11 @@
 
                                 @if($job->status === 'assigned')
                                     <form action="{{ route('work.editing-job.start', $job) }}" method="POST">@csrf
-                                        <button class="text-indigo-600 hover:text-indigo-900 font-medium text-xs">เริ่มงาน</button>
+                                        <button class="bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white px-3 py-1 rounded-lg font-bold text-xs transition-colors shadow-sm">เริ่มงาน</button>
                                     </form>
                                 @elseif($job->status === 'in_progress')
                                     <form action="{{ route('work.editing-job.mark-ready', $job) }}" method="POST">@csrf
-                                        <button class="text-blue-600 hover:text-blue-900 font-medium text-xs">ส่งงาน</button>
+                                        <button class="bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white px-3 py-1 rounded-lg font-bold text-xs transition-colors shadow-sm">ส่งงาน</button>
                                     </form>
                                 @elseif($job->status === 'review_ready')
                                     <form action="{{ route('work.editing-job.finalize', $job) }}" method="POST" class="flex flex-col gap-1 items-center justify-center" x-data="{ mode: '{{ $job->assignee?->fixed_rate_per_clip > 0 ? 'custom' : 'layer' }}' }">
@@ -306,12 +317,12 @@
                                 
                                 @if(auth()->user()?->hasRole('admin'))
                                     @if($job->status !== 'final')
-                                        <button @click="openDirectFinalize({{ \Illuminate\Support\Js::from($job) }})" class="text-xs text-indigo-600 border border-indigo-200 bg-indigo-50 px-2 py-1 rounded hover:bg-indigo-100 font-medium whitespace-nowrap">
+                                        <button @click="openDirectFinalize({{ \Illuminate\Support\Js::from($job) }})" class="text-xs text-indigo-700 border border-indigo-200 bg-indigo-50 px-3 py-1 rounded-lg hover:bg-indigo-100 font-bold whitespace-nowrap shadow-sm transition-colors">
                                             ปิดงานด่วน
                                         </button>
                                     @endif
                                     <form action="{{ route('work.editing-job.delete', $job) }}" method="POST">@csrf @method('DELETE')
-                                        <button type="submit" class="text-red-400 hover:text-red-600" title="ลบงาน (ลบทันที)">
+                                        <button type="submit" class="text-red-400 hover:text-red-600 p-1.5 hover:bg-red-50 rounded-lg transition-colors" title="ลบงาน (ลบทันที)">
                                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                                         </button>
                                     </form>
@@ -334,18 +345,20 @@
          class="fixed inset-0 z-50 overflow-y-auto"
          @keydown.escape.window="jobModal = false">
         <div class="flex items-center justify-center min-h-screen px-4 py-8">
-            <div class="fixed inset-0 bg-black/50" @click="jobModal = false"></div>
-            <div class="relative bg-white rounded-xl shadow-xl w-full max-w-lg z-10">
+            <div class="fixed inset-0 bg-black/60 backdrop-blur-sm" @click="jobModal = false"></div>
+            <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg z-10 overflow-hidden">
+                <div class="bg-gradient-to-r from-indigo-50 to-white px-6 py-4 border-b border-indigo-100 flex items-center justify-between">
+                    <h3 class="text-lg font-bold text-indigo-900" x-text="isEditing ? 'แก้ไขรายละเอียดงาน' : 'มอบหมายงานใหม่'"></h3>
+                    <button type="button" @click="jobModal = false" class="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100">
+                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
                 <form
                     :action="isEditing ? ('{{ url('work/job') }}/' + jobForm.id) : '{{ route('work.editing-job.store') }}'"
                     method="POST">
                     @csrf
                     <input type="hidden" name="_method" :value="isEditing ? 'PATCH' : 'POST'">
-                    <div class="px-6 pt-6 pb-4 space-y-3">
-                        <div class="flex items-center justify-between mb-2">
-                            <h3 class="text-lg font-bold text-gray-900" x-text="isEditing ? 'แก้ไขรายละเอียดงาน' : 'มอบหมายงานใหม่'"></h3>
-                            <button type="button" @click="jobModal = false" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
-                        </div>
+                    <div class="p-6 space-y-4">
 
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">ชื่อโปรเจกต์ <span class="text-red-500">*</span></label>
@@ -445,12 +458,12 @@
                                       class="block w-full border border-gray-300 rounded-md px-3 py-2 sm:text-sm"></textarea>
                         </div>
                     </div>
-                    <div class="px-6 py-4 bg-gray-50 rounded-b-xl flex justify-end gap-3">
+                    <div class="px-6 py-4 bg-gray-50 rounded-b-2xl border-t border-gray-100 flex justify-end gap-3">
                         <button type="button" @click="jobModal = false"
-                                class="px-4 py-2 border border-gray-300 text-gray-700 rounded-md text-sm hover:bg-gray-100">ยกเลิก</button>
+                                class="px-5 py-2.5 border border-gray-300 text-gray-700 font-bold rounded-xl text-sm hover:bg-gray-100 transition-colors">ยกเลิก</button>
                         <button type="submit"
-                                class="px-5 py-2 bg-indigo-600 text-white rounded-md text-sm font-medium hover:bg-indigo-700"
-                                x-text="isEditing ? 'บันทึกการแก้ไข' : 'สร้างงาน'"></button>
+                                class="px-5 py-2.5 bg-indigo-600 text-white font-bold rounded-xl shadow-sm text-sm hover:bg-indigo-700 transition-colors"
+                                x-text="isEditing ? 'บันทึกการแก้ไข' : 'มอบหมายงาน'"></button>
                     </div>
                 </form>
             </div>

@@ -168,7 +168,7 @@ class LeaveRequestController extends Controller
             abort(403, 'คุณสามารถขอสลับวันเฉพาะสำหรับตัวเองเท่านั้น');
         }
 
-        DaySwapRequest::create([
+        $swap = DaySwapRequest::create([
             'employee_id'  => $validated['employee_id'],
             'work_date'    => $validated['work_date'],
             'off_date'     => $validated['off_date'],
@@ -180,7 +180,7 @@ class LeaveRequestController extends Controller
         ]);
 
         if ($isAdmin) {
-            $this->applySwapToAttendance(DaySwapRequest::latest()->first());
+            $this->applySwapToAttendance($swap);
         }
 
         if ($request->wantsJson()) {
@@ -248,8 +248,10 @@ class LeaveRequestController extends Controller
 
     protected function applyLeaveToAttendance(LeaveRequest $leaveRequest): void
     {
+        $dateStr = Carbon::parse($leaveRequest->leave_date)->toDateString();
+
         $log = AttendanceLog::where('employee_id', $leaveRequest->employee_id)
-            ->where('log_date', $leaveRequest->leave_date)
+            ->whereDate('log_date', $dateStr)
             ->first();
 
         if ($log) {
@@ -257,7 +259,7 @@ class LeaveRequestController extends Controller
         } else {
             AttendanceLog::create([
                 'employee_id' => $leaveRequest->employee_id,
-                'log_date'    => Carbon::parse($leaveRequest->leave_date)->toDateString(),
+                'log_date'    => $dateStr,
                 'day_type'    => $leaveRequest->leave_type,
             ]);
         }
@@ -270,8 +272,10 @@ class LeaveRequestController extends Controller
             ['date' => $swap->work_date, 'type' => 'workday'],
             ['date' => $swap->off_date,  'type' => 'holiday'],
         ] as $entry) {
+            $dateStr = Carbon::parse($entry['date'])->toDateString();
+
             $log = AttendanceLog::where('employee_id', $swap->employee_id)
-                ->where('log_date', $entry['date'])
+                ->whereDate('log_date', $dateStr)
                 ->first();
 
             if ($log) {
@@ -283,7 +287,7 @@ class LeaveRequestController extends Controller
             } else {
                 AttendanceLog::create([
                     'employee_id'           => $swap->employee_id,
-                    'log_date'              => Carbon::parse($entry['date'])->toDateString(),
+                    'log_date'              => $dateStr,
                     'day_type'              => $entry['type'],
                     'is_swapped_day'        => true,
                 ]);

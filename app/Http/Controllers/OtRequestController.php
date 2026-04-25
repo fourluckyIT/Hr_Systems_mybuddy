@@ -7,6 +7,7 @@ use App\Models\Employee;
 use App\Models\OtRequest;
 use App\Services\AuditLogService;
 use App\Services\NotificationService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -21,6 +22,10 @@ class OtRequestController extends Controller
         $employee = $user->employee ?? null;
 
         if (!$employee) {
+            // Admins without an employee record belong on the inbox, not the personal form.
+            if ($user->hasRole('admin')) {
+                return redirect()->route('ot.inbox');
+            }
             abort(403, 'Employee record required to request OT.');
         }
 
@@ -42,15 +47,26 @@ class OtRequestController extends Controller
      */
     public function store(Request $request)
     {
-        $employee = $request->user()->employee;
-        abort_unless($employee, 403, 'Employee record required.');
+        $user = $request->user();
+        $isAdmin = $user->hasRole('admin');
 
         $data = $request->validate([
+            'employee_id'       => 'nullable|integer|exists:employees,id',
             'log_date'          => 'required|date',
             'requested_minutes' => 'required|integer|min:15|max:720',
             'reason'            => 'required|string|max:500',
             'job_reference'     => 'nullable|string|max:120',
         ]);
+
+        // Admin can submit on behalf of any employee via employee_id;
+        // owner is always restricted to their own employee record.
+        if ($isAdmin && !empty($data['employee_id'])) {
+            $employee = Employee::findOrFail($data['employee_id']);
+        } else {
+            $employee = $user->employee;
+            abort_unless($employee, 403, 'Employee record required.');
+        }
+        unset($data['employee_id']);
 
         // Prevent duplicate pending request for same date
         $dup = OtRequest::where('employee_id', $employee->id)
@@ -62,17 +78,27 @@ class OtRequestController extends Controller
             return back()->with('error', 'มีคำขอ OT วันนั้นรออนุมัติอยู่แล้ว');
         }
 
-        $otRequest = DB::transaction(function () use ($employee, $data) {
+        $dateStr = Carbon::parse($data['log_date'])->toDateString();
+        $data['log_date'] = $dateStr;
+
+        $otRequest = DB::transaction(function () use ($employee, $data, $dateStr) {
             $ot = OtRequest::create(array_merge($data, [
                 'employee_id' => $employee->id,
                 'status'      => 'pending',
             ]));
 
             // Stamp the attendance log so Workspace admin view can show (i)
-            $log = AttendanceLog::firstOrCreate(
-                ['employee_id' => $employee->id, 'log_date' => $data['log_date']],
-                ['day_type' => 'workday']
-            );
+            $log = AttendanceLog::where('employee_id', $employee->id)
+                ->whereDate('log_date', $dateStr)
+                ->first();
+
+            if (!$log) {
+                $log = AttendanceLog::create([
+                    'employee_id' => $employee->id,
+                    'log_date'    => $dateStr,
+                    'day_type'    => 'workday',
+                ]);
+            }
             $log->update([
                 'ot_status'       => 'requested',
                 'ot_request_id'   => $ot->id,
@@ -88,7 +114,7 @@ class OtRequestController extends Controller
             'ot.requested',
             "คำขอ OT: {$employee->display_name} · ".$otRequest->log_date->format('d/m'),
             $otRequest->reason,
-            route('workspace.show', [$employee->id, $otRequest->log_date->month, $otRequest->log_date->year]),
+            route('ot.inbox', [], false),
             ['ot_request_id' => $otRequest->id]
         );
 
@@ -149,7 +175,7 @@ class OtRequestController extends Controller
                 'ot.approved',
                 'คำขอ OT ได้รับการอนุมัติ',
                 'วันที่ '.$otRequest->log_date->format('d/m/Y').' · '.$otRequest->requested_minutes.' นาที',
-                null,
+                route('ot.request', [], false),
                 ['ot_request_id' => $otRequest->id]
             );
         }
@@ -190,7 +216,7 @@ class OtRequestController extends Controller
                 'ot.rejected',
                 'คำขอ OT ไม่ได้รับการอนุมัติ',
                 'วันที่ '.$otRequest->log_date->format('d/m/Y').' · '.($data['review_note'] ?? 'ไม่มีหมายเหตุ'),
-                null,
+                route('ot.request', [], false),
                 ['ot_request_id' => $otRequest->id]
             );
         }

@@ -101,6 +101,32 @@
                 </div>
             </div>
 
+            {{-- บัญชีผู้ใช้สำหรับล็อกอิน --}}
+            <div class="border-t border-gray-200 pt-4 mt-4">
+                <div class="flex items-center gap-2 mb-3">
+                    <span class="text-sm font-bold text-gray-700">บัญชีผู้ใช้ (สำหรับล็อกอิน)</span>
+                    @if(!$employee->user)
+                        <span class="text-[11px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">ยังไม่มีบัญชี — กรอกเพื่อสร้าง</span>
+                    @endif
+                </div>
+                <div class="grid md:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">อีเมล {!! $employee->user ? '' : '<span class="text-red-500">*</span>' !!}</label>
+                        <input type="email" name="email" {{ $employee->user ? '' : 'required' }}
+                               value="{{ old('email', $employee->user?->email) }}"
+                               class="w-full px-3 py-2 border rounded-lg text-sm" placeholder="user@example.com">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">
+                            รหัสผ่าน{{ $employee->user ? 'ใหม่ (เว้นว่างถ้าไม่เปลี่ยน)' : ' *' }}
+                        </label>
+                        <input type="text" name="password" minlength="6" {{ $employee->user ? '' : 'required' }}
+                               class="w-full px-3 py-2 border rounded-lg text-sm"
+                               placeholder="{{ $employee->user ? 'เว้นว่างเพื่อคงรหัสเดิม' : 'อย่างน้อย 6 ตัวอักษร' }}">
+                    </div>
+                </div>
+            </div>
+
             @php
                 $tiers = \App\Models\PerformanceTier::orderBy('id')->get();
                 $useAttendance = in_array($employee->payroll_mode, ['monthly_staff', 'office_staff']);

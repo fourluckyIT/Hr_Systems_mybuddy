@@ -166,44 +166,43 @@
     .income-table,
     .deduction-table {
         border: 1px solid;
-        padding: 8px;
-    }
-
-    .income-table {
-        border-color: #4f46e5;
-    }
-
-    .deduction-table {
-        border-color: #4338ca;
+        border-radius: 6px;
+        overflow: hidden;
     }
 
     .table-header {
         background-color: #4f46e5;
         color: white;
-        padding: 6px 8px;
+        padding: 8px 12px;
         font-weight: bold;
         font-size: 12px;
-        margin-bottom: 6px;
+        margin-bottom: 0;
     }
 
-    .deduction-table .table-header {
-        background-color: #4338ca;
+    .table-body {
+        padding: 8px 12px;
+        background: #fff;
     }
 
     .table-row {
         display: flex;
         justify-content: space-between;
-        padding: 4px 0;
-        border-bottom: 1px solid #eee;
+        padding: 6px 0;
+        border-bottom: 1px dashed #f0f0f0;
         font-size: 11px;
     }
 
+    .table-row:last-child:not(.total) {
+        border-bottom: none;
+    }
+
     .table-row.total {
-        border-top: 1px solid #ddd;
-        margin-top: 4px;
-        padding-top: 4px;
+        border-top: 1.5px solid #e5e7eb;
+        margin-top: 6px;
+        padding-top: 8px;
         font-weight: bold;
         border-bottom: none;
+        font-size: 12px;
     }
 
     .table-row span:first-child {
@@ -218,21 +217,22 @@
     .net-pay-box {
         border: 2px solid #4f46e5;
         background: rgba(79, 70, 229, 0.05);
-        padding: 12px;
+        padding: 12px 16px;
         margin-bottom: 12px;
         display: flex;
         justify-content: space-between;
         align-items: center;
+        border-radius: 6px;
     }
 
     .net-pay-box .label {
-        font-size: 13px;
+        font-size: 14px;
         font-weight: bold;
         color: #333;
     }
 
     .net-pay-box .amount {
-        font-size: 16px;
+        font-size: 18px;
         font-weight: bold;
         color: #4f46e5;
     }
@@ -246,9 +246,10 @@
 
     .summary-box {
         border: 1px solid;
-        padding: 8px;
+        padding: 10px;
         text-align: center;
         font-size: 10px;
+        border-radius: 6px;
     }
 
     .summary-box.income {
@@ -257,8 +258,8 @@
     }
 
     .summary-box.deduction {
-        border-color: #4338ca;
-        background: rgba(67, 56, 202, 0.02);
+        border-color: #ef4444;
+        background: rgba(239, 68, 68, 0.02);
     }
 
     .summary-box.net {
@@ -284,7 +285,7 @@
     }
 
     .summary-box.deduction .amount {
-        color: #4338ca;
+        color: #ef4444;
     }
 
     .summary-box.net .amount {
@@ -305,7 +306,6 @@
 
     .signature-line {
         border-top: 1px solid #333;
-        height: 40px;
         margin-bottom: 4px;
     }
 
@@ -426,81 +426,58 @@
             </div>
         </div>
 
-        <!-- Monthly Metrics -->
-        @php
-            $formatHoursAsClock = function ($hours) {
-                $totalMinutes = (int) round(((float) $hours) * 60);
-                $h = intdiv($totalMinutes, 60);
-                $m = $totalMinutes % 60;
-                return sprintf('%d:%02d', $h, $m);
-            };
-        @endphp
-        <div class="month-metrics">
-            @if(in_array($employee->payroll_mode, ['monthly_staff', 'office_staff', 'youtuber_salary']))
-            <div class="month-metric">
-                <div class="label">ชั่วโมงรวม</div>
-                <div class="value">{{ $formatHoursAsClock($monthlyStats['total_work_hours'] ?? 0) }} ชม.</div>
-            </div>
-            <div class="month-metric">
-                <div class="label">OT</div>
-                <div class="value">{{ $formatHoursAsClock($monthlyStats['total_ot_hours'] ?? 0) }} ชม.</div>
-            </div>
-            <div class="month-metric">
-                <div class="label">มาสาย</div>
-                <div class="value">{{ $monthlyStats['late_count'] ?? 0 }} ครั้ง ({{ $monthlyStats['late_minutes'] ?? 0 }} นาที)</div>
-            </div>
-            <div class="month-metric">
-                <div class="label">ขาดงาน</div>
-                <div class="value">{{ $monthlyStats['lwop_days'] ?? 0 }} วัน</div>
-            </div>
-            @endif
-        </div>
+
 
         <!-- Income & Deduction Tables -->
         <div class="tables-row">
             <!-- Income Table -->
-            <div class="income-table">
-                <div class="table-header">รายการได้</div>
-                @forelse($incomeItems as $item)
-                <div class="table-row">
-                    <span>{{ is_array($item) ? $item['label'] : $item->label }}</span>
-                    <span>{{ number_format(is_array($item) ? $item['amount'] : $item->amount, 2) }}</span>
-                </div>
-                @empty
-                <div class="table-row" style="color: #999;">
-                    <span>ไม่มีรายการ</span>
-                </div>
-                @endforelse
-                <div class="table-row total" style="color: #4f46e5;">
-                    <span>รวมเงินได้</span>
-                    <span>{{ number_format($totalIncome, 2) }}</span>
+            <div class="income-table" style="border-color: {{ $primaryColor }};">
+                <div class="table-header" style="background-color: {{ $primaryColor }};">รายการได้</div>
+                <div class="table-body">
+                    @forelse($incomeItems as $item)
+                    <div class="table-row">
+                        <span>{{ is_array($item) ? $item['label'] : $item->label }}</span>
+                        <span>{{ number_format(is_array($item) ? $item['amount'] : $item->amount, 2) }}</span>
+                    </div>
+                    @empty
+                    <div class="table-row" style="color: #999;">
+                        <span>ไม่มีรายการ</span>
+                    </div>
+                    @endforelse
+                    <div class="table-row total" style="color: {{ $primaryColor }};">
+                        <span>รวมเงินได้</span>
+                        <span>{{ number_format($totalIncome, 2) }}</span>
+                    </div>
                 </div>
             </div>
 
             <!-- Deduction Table -->
-            <div class="deduction-table">
-                <div class="table-header">รายการหัก</div>
-                @forelse($deductionItems as $item)
-                <div class="table-row">
-                    <span>{{ is_array($item) ? $item['label'] : $item->label }}</span>
-                    <span>{{ number_format(is_array($item) ? $item['amount'] : $item->amount, 2) }}</span>
-                </div>
-                @empty
-                <div class="table-row" style="color: #999;">
-                    <span>ไม่มีรายการ</span>
-                </div>
-                @endforelse
-                <div class="table-row total" style="color: #4338ca;">
-                    <span>รวมรายการหัก</span>
-                    <span>{{ number_format($totalDeduction, 2) }}</span>
+            @php $deductionColor = '#ef4444'; @endphp
+            <div class="deduction-table" style="border-color: {{ $deductionColor }};">
+                <div class="table-header" style="background-color: {{ $deductionColor }};">รายการหัก</div>
+                <div class="table-body">
+                    @forelse($deductionItems as $item)
+                    <div class="table-row">
+                        <span>{{ is_array($item) ? $item['label'] : $item->label }}</span>
+                        <span>{{ number_format(is_array($item) ? $item['amount'] : $item->amount, 2) }}</span>
+                    </div>
+                    @empty
+                    <div class="table-row" style="color: #999;">
+                        <span>ไม่มีรายการ</span>
+                    </div>
+                    @endforelse
+                    <div class="table-row total" style="color: {{ $deductionColor }};">
+                        <span>รวมรายการหัก</span>
+                        <span>{{ number_format($totalDeduction, 2) }}</span>
+                    </div>
                 </div>
             </div>
         </div>
 
         <!-- Net Pay Box -->
-        <div class="net-pay-box">
+        <div class="net-pay-box" style="border-color: {{ $primaryColor }};">
             <div class="label">รายได้สุทธิ (ที่จ่ายจริง)</div>
-            <div class="amount">{{ number_format($netPay, 2) }}</div>
+            <div class="amount" style="color: {{ $primaryColor }};">{{ number_format($netPay, 2) }}</div>
         </div>
 
         <!-- Summary Boxes -->
@@ -523,35 +500,37 @@
         <div class="signatures">
             <div class="signature-box">
                 @if($payslip && $payslip->status === 'finalized' && $company?->signature_approver_image_path)
-                    <div style="height: 40px; margin-bottom: 4px;">
+                    <div style="height: 40px; margin-bottom: 8px; display: flex; justify-content: center; align-items: flex-end;">
                         <img src="{{ asset('storage/' . $company->signature_approver_image_path) }}" 
                              alt="ลายเซ็นผู้จ่าย" 
                              style="max-height: 100%; width: auto;" />
                     </div>
                 @else
-                    <div class="signature-line"></div>
+                    <div style="height: 40px; margin-bottom: 8px;"></div>
                 @endif
-                <div class="signature-label">
+                <div class="signature-line" style="width: 60%; margin: 0 auto; border-top: 1px solid #aaa;"></div>
+                <div class="signature-label" style="margin-top: 4px;">
                     ลายเซ็นผู้จ่าย
                     @if($company?->signature_approver_name)
-                    <br /><span style="font-size: 9px;">{{ $company->signature_approver_name }}</span>
+                    <br /><span style="font-size: 10px; color: #555;">({{ $company->signature_approver_name }})</span>
                     @endif
                 </div>
             </div>
             <div class="signature-box">
                 @if($payslip && $payslip->status === 'finalized' && $company?->signature_receiver_image_path)
-                    <div style="height: 40px; margin-bottom: 4px;">
+                    <div style="height: 40px; margin-bottom: 8px; display: flex; justify-content: center; align-items: flex-end;">
                         <img src="{{ asset('storage/' . $company->signature_receiver_image_path) }}" 
                              alt="ลายเซ็นผู้รับ" 
                              style="max-height: 100%; width: auto;" />
                     </div>
                 @else
-                    <div class="signature-line"></div>
+                    <div style="height: 40px; margin-bottom: 8px;"></div>
                 @endif
-                <div class="signature-label">
+                <div class="signature-line" style="width: 60%; margin: 0 auto; border-top: 1px solid #aaa;"></div>
+                <div class="signature-label" style="margin-top: 4px;">
                     ลายเซ็นผู้รับ
                     @if($company?->signature_receiver_name)
-                    <br /><span style="font-size: 9px;">{{ $company->signature_receiver_name }}</span>
+                    <br /><span style="font-size: 10px; color: #555;">({{ $company->signature_receiver_name }})</span>
                     @endif
                 </div>
             </div>

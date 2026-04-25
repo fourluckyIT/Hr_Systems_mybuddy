@@ -126,6 +126,21 @@
                 </div>
             </div>
 
+            <!-- บัญชีผู้ใช้สำหรับล็อกอิน -->
+            <h2 class="text-lg font-semibold text-gray-800 mb-4 border-b pb-2">บัญชีผู้ใช้ (สำหรับล็อกอินเข้าระบบ)</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">อีเมล <span class="text-red-500">*</span></label>
+                    <input type="email" name="email" required value="{{ old('email') }}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="user@example.com">
+                    <p class="text-[10px] text-gray-400 mt-1">ใช้สำหรับล็อกอินเข้าระบบ</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">รหัสผ่านเริ่มต้น <span class="text-red-500">*</span></label>
+                    <input type="text" name="password" required minlength="6" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="อย่างน้อย 6 ตัวอักษร">
+                    <p class="text-[10px] text-gray-400 mt-1">พนักงานสามารถเปลี่ยนได้ภายหลัง</p>
+                </div>
+            </div>
+
             <!-- ข้อมูลบัญชีธนาคาร -->
             <h2 class="text-lg font-semibold text-gray-800 mb-4 border-b pb-2">ข้อมูลบัญชีธนาคาร</h2>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
