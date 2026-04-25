@@ -17,6 +17,8 @@ use App\Models\EditingJob;
 use App\Models\Payslip;
 use App\Models\PaymentProof;
 use App\Models\ExpenseClaim;
+use App\Models\OtRequest;
+use App\Models\LeaveRequest;
 use App\Models\ModuleToggle;
 use App\Models\CompanyHoliday;
 use App\Services\Payroll\PayrollCalculationService;
@@ -312,6 +314,94 @@ class WorkspaceController extends Controller
         }
     }
 
+    public function saveFreelanceLayerRates(Request $request, Employee $employee, int $month, int $year)
+    {
+        abort_unless(Auth::user()?->hasRole('admin'), 403);
+        if ($employee->payroll_mode !== 'freelance_layer') {
+            return back()->withErrors(['error' => 'ใช้ได้เฉพาะโหมด Freelance']);
+        }
+
+        $validated = $request->validate([
+            'rates' => 'array',
+            'rates.*.id' => 'nullable|integer',
+            'rates.*.layer_from' => 'required|integer|min:1',
+            'rates.*.layer_to' => 'required|integer|gte:rates.*.layer_from',
+            'rates.*.rate_per_minute' => 'required|numeric|min:0',
+        ]);
+
+        return DB::transaction(function () use ($validated, $employee, $month, $year) {
+            $keepIds = [];
+            foreach ($validated['rates'] ?? [] as $row) {
+                $rule = LayerRateRule::updateOrCreate(
+                    ['id' => $row['id'] ?? null, 'employee_id' => $employee->id],
+                    [
+                        'employee_id' => $employee->id,
+                        'layer_from' => $row['layer_from'],
+                        'layer_to' => $row['layer_to'],
+                        'rate_per_minute' => $row['rate_per_minute'],
+                        'effective_date' => now()->toDateString(),
+                        'is_active' => true,
+                    ]
+                );
+                $keepIds[] = $rule->id;
+            }
+            LayerRateRule::where('employee_id', $employee->id)
+                ->whereNotIn('id', $keepIds ?: [0])
+                ->delete();
+
+            $result = $this->payrollService->calculateForEmployee($employee, $month, $year);
+            $this->payrollService->savePayrollItems($employee, $month, $year, $result);
+            $this->payrollService->syncWorkLogAmounts($employee, $month, $year);
+
+            return back()->with('success', 'บันทึก Price/min + คำนวณใหม่สำเร็จ');
+        });
+    }
+
+    public function updateWorkLogRate(Request $request, WorkLog $workLog)
+    {
+        abort_unless(Auth::user()?->hasRole('admin'), 403);
+
+        $validated = $request->validate([
+            'rate' => 'nullable|numeric|min:0',
+            'amount' => 'nullable|numeric|min:0',
+            'pricing_mode' => 'nullable|in:layer,custom',
+            'layer' => 'nullable|integer|min:1',
+        ]);
+
+        $updates = [];
+        if (array_key_exists('pricing_mode', $validated)) {
+            $updates['pricing_mode'] = $validated['pricing_mode'] ?? 'layer';
+        }
+
+        if (array_key_exists('layer', $validated) && $validated['layer'] !== null) {
+            $updates['layer'] = $validated['layer'];
+        }
+
+        if (array_key_exists('rate', $validated) && $validated['rate'] !== null) {
+            $updates['rate'] = $validated['rate'];
+            if (($updates['pricing_mode'] ?? $workLog->pricing_mode) === 'custom') {
+                $updates['custom_rate'] = $validated['rate'];
+            } else {
+                $updates['custom_rate'] = null; // Reset custom rate if switched to layer
+            }
+        }
+        
+        if (array_key_exists('amount', $validated) && $validated['amount'] !== null) {
+            $updates['amount'] = $validated['amount'];
+        }
+        
+        if ($updates) {
+            $workLog->update($updates);
+
+            // Re-sync amounts automatically if mode or layer changed
+            if (isset($updates['layer']) || isset($updates['pricing_mode'])) {
+                app(\App\Services\Payroll\PayrollCalculationService::class)->syncWorkLogAmounts($workLog->employee, $workLog->month, $workLog->year);
+            }
+        }
+
+        return back()->with('success', 'อัปเดตเรท/ยอดของ row สำเร็จ');
+    }
+
     public function recalculate(Employee $employee, int $month, int $year)
     {
         try {
@@ -420,6 +510,16 @@ class WorkspaceController extends Controller
                         ];
                     }
 
+                    $otEnabledNew = isset($data['ot_enabled']);
+                    $currentOtStatus = $log->ot_status ?? 'none';
+                    if (in_array($currentOtStatus, ['requested', 'approved'], true)) {
+                        $newOtStatus = $currentOtStatus;
+                    } elseif ($otEnabledNew) {
+                        $newOtStatus = 'admin_set';
+                    } else {
+                        $newOtStatus = 'none';
+                    }
+
                     $log->update([
                         'day_type' => $dayType,
                         'check_in' => $checkIn ?: null,
@@ -427,7 +527,8 @@ class WorkspaceController extends Controller
                         'late_minutes' => $lateMinutes,
                         'early_leave_minutes' => $earlyLeaveMinutes,
                         'ot_minutes' => $otMinutes,
-                        'ot_enabled' => isset($data['ot_enabled']),
+                        'ot_enabled' => $otEnabledNew,
+                        'ot_status' => $newOtStatus,
                         'lwop_flag' => $isLwop,
                         ...$swapAttributes,
                     ]);
@@ -553,6 +654,18 @@ class WorkspaceController extends Controller
                     ];
                 }
 
+                $otEnabledNew = !empty($data['ot_enabled']);
+                $currentOtStatus = $log->ot_status ?? 'none';
+
+                // Preserve employee-driven states; admin checkbox → admin_set
+                if (in_array($currentOtStatus, ['requested', 'approved'], true)) {
+                    $newOtStatus = $currentOtStatus;
+                } elseif ($otEnabledNew) {
+                    $newOtStatus = 'admin_set';
+                } else {
+                    $newOtStatus = 'none';
+                }
+
                 $log->update([
                     'day_type' => $dayType,
                     'check_in' => $checkIn ?: null,
@@ -560,7 +673,8 @@ class WorkspaceController extends Controller
                     'late_minutes' => $lateMinutes,
                     'early_leave_minutes' => $earlyLeaveMinutes,
                     'ot_minutes' => $otMinutes,
-                    'ot_enabled' => !empty($data['ot_enabled']),
+                    'ot_enabled' => $otEnabledNew,
+                    'ot_status' => $newOtStatus,
                     'lwop_flag' => $isLwop,
                     ...$swapAttributes,
                 ]);
@@ -646,7 +760,7 @@ class WorkspaceController extends Controller
                         'month' => $month,
                         'year' => $year,
                         'log_date' => $data['log_date'] ?? null,
-                        'work_log_type_id' => $data['work_log_type_id'] ?? null,
+                        // 'work_log_type_id' => $data['work_log_type_id'] ?? null,
                         'editing_job_id' => $data['editing_job_id'] ?? null,
                         'description' => $data['description'] ?? '',
                         'quantity' => $data['quantity'] ?? 1,
@@ -795,17 +909,12 @@ class WorkspaceController extends Controller
             }
         }
 
-        // OT Calculation
+        // OT Calculation (clock-based, unified workday + holiday)
+        // OT = minutes past standard checkout time
         if ($otEnabled) {
-            $gross = $inAt->diffInMinutes($outAt);
-            if ($isHolidayOvertimeDay) {
-                // §63: every net minute on a holiday is OT
-                $otMinutes = max(0, $gross - $meta['lunch_break_minutes']);
-            } else {
-                // §61: workday OT = net minutes beyond the standard day
-                $net = $gross - $meta['lunch_break_minutes'];
-                $otMinutes = max(0, $net - $meta['target_minutes_per_day']);
-            }
+            $otMinutes = $outAt->greaterThan($targetOutAt)
+                ? (int) $targetOutAt->diffInMinutes($outAt)
+                : 0;
         }
 
         return [
@@ -910,9 +1019,9 @@ class WorkspaceController extends Controller
         $data = $this->getWorkspaceViewData($employee, $month, $year);
 
         $viewFile = match($employee->payroll_mode) {
-            'monthly_staff', 'office_staff', 'youtuber_salary' => 'workspace.partials.attendance-grid',
+            'monthly_staff', 'office_staff' => 'workspace.partials.attendance-grid',
+            'youtuber_salary' => 'workspace.partials.youtuber-recording-sessions',
             'freelance_layer' => 'workspace.partials.freelance-layer-grid',
-            'freelance_fixed' => 'workspace.partials.freelance-fixed-grid',
             'youtuber_settlement' => 'workspace.partials.youtuber-settlement-grid',
             default => null
         };
@@ -952,7 +1061,7 @@ class WorkspaceController extends Controller
             'company_holiday' => 'bg-purple-100 text-purple-800',
         ];
 
-        if (in_array($employee->payroll_mode, ['monthly_staff', 'office_staff', 'youtuber_salary'])) {
+        if (in_array($employee->payroll_mode, ['monthly_staff', 'office_staff'])) {
             $this->ensureAttendanceLogs($employee, $month, $year);
             $this->syncAttendanceDerivedMetrics($employee, $month, $year);
         }
@@ -990,26 +1099,306 @@ class WorkspaceController extends Controller
         })->get();
 
         $claims = ExpenseClaim::where('employee_id', $employee->id)->where('month', $month)->where('year', $year)->get();
-        $panel = 'edit_jobs';
-        $hasEditAssignments = EditingJob::where('assigned_to', $employee->id)->active()->exists();
-        if (in_array($employee->payroll_mode, ['freelance_layer', 'freelance_fixed'], true)) {
-            $panel = $hasEditAssignments ? 'edit_jobs' : 'none';
+        $isYoutuber = in_array($employee->payroll_mode, ['youtuber_salary', 'youtuber_settlement']);
+        $assignedEditJobs = collect();
+        $performanceSummary = [
+            'total_duration_hms' => '00:00:00',
+            'final_count' => 0
+        ];
+        $panel = 'none';
+
+        if (!$isYoutuber) {
+            $hasEditAssignments = EditingJob::where('assigned_to', $employee->id)->active()->exists();
+            if ($employee->payroll_mode === 'freelance_layer') {
+                $panel = $hasEditAssignments ? 'edit_jobs' : 'none';
+            } else {
+                $panel = 'edit_jobs'; // Default for monthly/office editors
+            }
+            
+            $assignedEditJobs = $hasEditAssignments ? EditingJob::with('game')->where('assigned_to', $employee->id)->active()
+                ->orderByRaw("CASE status WHEN 'assigned' THEN 1 WHEN 'in_progress' THEN 2 WHEN 'review_ready' THEN 3 WHEN 'final' THEN 4 ELSE 99 END")
+                ->orderBy('deadline_date')->get() : collect();
+
+            $monthlyFinalJobs = EditingJob::where('assigned_to', $employee->id)->where('status', 'final')
+                ->whereMonth('finalized_at', $month)->whereYear('finalized_at', $year)->get();
+
+            $totalMonthlySeconds = $monthlyFinalJobs->sum(fn($j) => ($j->video_duration_minutes * 60) + $j->video_duration_seconds);
+            $performanceSummary = [
+                'total_duration_hms' => DurationInput::formatSecondsAsHms($totalMonthlySeconds),
+                'final_count' => $monthlyFinalJobs->count()
+            ];
+        } else {
+            // It's a Youtuber - They don't see editing pipeline anymore
+            $panel = 'none';
+            $assignedEditJobs = collect();
+            
+            // Calculate YTD Income (Finalized Payslips only)
+            $ytdIncome = \App\Models\Payslip::where('employee_id', $employee->id)
+                ->where('year', $year)
+                ->where('status', 'finalized')
+                ->sum('net_pay');
+
+            $performanceSummary = [
+                'ytd_income' => $ytdIncome,
+                'revenue_label' => 'รายได้สะสมปีนี้ (YTD)',
+                'is_youtuber' => true
+            ];
         }
-        $assignedEditJobs = $hasEditAssignments ? EditingJob::with('game')->where('assigned_to', $employee->id)->active()
-            ->orderByRaw("CASE status WHEN 'assigned' THEN 1 WHEN 'in_progress' THEN 2 WHEN 'review_ready' THEN 3 WHEN 'final' THEN 4 ELSE 99 END")
-            ->orderBy('deadline_date')->get() : collect();
 
         $recordingAssignments = collect();
-        $monthlyFinalJobs = EditingJob::where('assigned_to', $employee->id)->where('status', 'final')
-            ->whereMonth('finalized_at', $month)->whereYear('finalized_at', $year)->get();
 
-        $totalMonthlySeconds = $monthlyFinalJobs->sum(fn($j) => ($j->video_duration_minutes * 60) + $j->video_duration_seconds);
-        $performanceSummary = [
-            'total_duration_hms' => DurationInput::formatSecondsAsHms($totalMonthlySeconds),
-            'final_count' => $monthlyFinalJobs->count()
-        ];
+        // Recording sessions for YouTubers — show sessions they participated in this month
+        $recordingSessions = collect();
+        if ($employee->payroll_mode === 'youtuber_salary') {
+            $recordingSessions = \App\Models\RecordingSession::with(['game', 'youtubers'])
+                ->whereHas('youtubers', fn($q) => $q->where('employees.id', $employee->id))
+                ->whereMonth('session_date', $month)
+                ->whereYear('session_date', $year)
+                ->orderByDesc('session_date')
+                ->get();
+        }
+
         $workspaceEditEnabled = $this->isWorkspaceEditingEnabled($employee);
         $vacationBalance = $employee->getVacationBalance($year);
+
+        // Recent OT & Leave requests for Quick Actions panel
+        $recentOtRequests = OtRequest::where('employee_id', $employee->id)
+            ->whereMonth('log_date', $month)->whereYear('log_date', $year)
+            ->orderByDesc('created_at')->limit(5)->get();
+        $recentLeaveRequests = LeaveRequest::where('employee_id', $employee->id)
+            ->whereMonth('leave_date', $month)->whereYear('leave_date', $year)
+            ->orderByDesc('created_at')->limit(5)->get();
+        $recentSwapRequests = \App\Models\DaySwapRequest::where('employee_id', $employee->id)
+            ->where(function($q) use ($month, $year) {
+                $q->where(function($q2) use ($month, $year) {
+                    $q2->whereMonth('work_date', $month)->whereYear('work_date', $year);
+                })->orWhere(function($q2) use ($month, $year) {
+                    $q2->whereMonth('off_date', $month)->whereYear('off_date', $year);
+                });
+            })
+            ->orderByDesc('created_at')->limit(5)->get();
+
+        $leaveTypes = [
+            'sick_leave'     => 'ลาป่วย',
+            'personal_leave' => 'ลากิจ',
+            'vacation_leave' => 'ลาพักร้อน',
+            'lwop'           => 'ลาไม่รับค่าจ้าง (LWOP)',
+        ];
+
+        // ── Owner Calendar Data (non-admin gets a personal calendar in the workspace) ──
+        $ownerCalendar = [];
+        if (!$isAdmin) {
+            $calDate = Carbon::create($year, $month, 1);
+            $calStart = $calDate->copy()->startOfMonth()->startOfWeek(Carbon::SUNDAY);
+            $calEnd   = $calDate->copy()->endOfMonth()->endOfWeek(Carbon::SATURDAY);
+
+            // Company holidays for this month
+            $calHolidays = CompanyHoliday::where('is_active', true)
+                ->whereBetween('holiday_date', [$calStart, $calEnd])
+                ->get()->groupBy(fn($h) => Carbon::parse($h->holiday_date)->format('Y-m-d'));
+
+            // Employee's own leave requests
+            $calLeaves = LeaveRequest::where('employee_id', $employee->id)
+                ->whereIn('status', ['pending', 'approved'])
+                ->whereBetween('leave_date', [$calStart, $calEnd])
+                ->get()->groupBy(fn($l) => Carbon::parse($l->leave_date)->format('Y-m-d'));
+
+            // Employee's own OT requests
+            $calOts = OtRequest::where('employee_id', $employee->id)
+                ->whereIn('status', ['pending', 'approved'])
+                ->whereBetween('log_date', [$calStart, $calEnd])
+                ->get()->groupBy(fn($o) => Carbon::parse($o->log_date)->format('Y-m-d'));
+
+            // Employee's assigned editing jobs (deadlines this month)
+            $calEditJobs = EditingJob::where('assigned_to', $employee->id)
+                ->active()
+                ->whereBetween('deadline_date', [$calStart, $calEnd])
+                ->get()->groupBy(fn($j) => Carbon::parse($j->deadline_date)->format('Y-m-d'));
+
+            // Recording jobs for this employee (if they participate)
+            $calRecordingJobs = collect();
+            if (class_exists(\App\Models\RecordingJob::class)) {
+                $calRecordingJobs = \App\Models\RecordingJob::with('assignees')
+                    ->whereBetween('scheduled_date', [$calStart, $calEnd])
+                    ->whereHas('assignees', fn($q) => $q->where('employee_id', $employee->id))
+                    ->get()->groupBy(fn($rj) => Carbon::parse($rj->scheduled_date)->format('Y-m-d'));
+            }
+
+            // Attendance logs for this employee this month
+            $calAttLogs = AttendanceLog::where('employee_id', $employee->id)
+                ->whereBetween('log_date', [$calStart, $calEnd])
+                ->get()->keyBy(fn($log) => Carbon::parse($log->log_date)->format('Y-m-d'));
+
+            $miniCalendarDays = [];
+            $d2 = $calStart->copy();
+            while ($d2 <= $calEnd) {
+                $ds = $d2->format('Y-m-d');
+                $dots = [];
+                $events = [];
+
+                if ($calHolidays->has($ds)) {
+                    $dots[] = 'holiday';
+                    foreach ($calHolidays[$ds] as $h) {
+                        $events[] = ['type' => 'holiday', 'label' => '🏢 ' . $h->name, 'color' => 'purple'];
+                    }
+                }
+                if ($calLeaves->has($ds)) {
+                    $dots[] = 'leave';
+                    foreach ($calLeaves[$ds] as $l) {
+                        $typeLabel = $leaveTypes[$l->leave_type] ?? $l->leave_type;
+                        $badge = $l->status === 'pending' ? '⏳' : '✓';
+                        $events[] = ['type' => 'leave', 'label' => "{$badge} {$typeLabel}", 'color' => 'blue', 'status' => $l->status];
+                    }
+                }
+                if ($calOts->has($ds)) {
+                    $dots[] = 'ot';
+                    foreach ($calOts[$ds] as $o) {
+                        $badge = $o->status === 'pending' ? '⏳' : '✓';
+                        $events[] = ['type' => 'ot', 'label' => "{$badge} OT {$o->requested_minutes} นาที", 'color' => 'indigo', 'status' => $o->status];
+                    }
+                }
+                if ($calEditJobs->has($ds)) {
+                    $dots[] = 'edit';
+                    foreach ($calEditJobs[$ds] as $j) {
+                        $events[] = ['type' => 'edit', 'label' => '✂️ ' . $j->job_name, 'color' => 'sky'];
+                    }
+                }
+                if ($calRecordingJobs->has($ds)) {
+                    $dots[] = 'recording';
+                    foreach ($calRecordingJobs[$ds] as $rj) {
+                        $events[] = ['type' => 'recording', 'label' => '🎥 ' . $rj->title, 'color' => 'amber'];
+                    }
+                }
+
+                // Attendance status
+                $attStatus = null;
+                if ($calAttLogs->has($ds)) {
+                    $log = $calAttLogs[$ds];
+                    if (!in_array($log->day_type, ['workday', 'holiday', 'company_holiday', 'not_started'])) {
+                        $attStatus = $log->day_type;
+                    }
+                }
+
+                $miniCalendarDays[] = [
+                    'date'             => $d2->copy(),
+                    'date_str'         => $ds,
+                    'is_today'         => $d2->isToday(),
+                    'is_current_month' => $d2->month === $calDate->month,
+                    'is_weekend'       => $d2->isWeekend(),
+                    'dots'             => $dots,
+                    'events'           => $events,
+                    'att_status'       => $attStatus,
+                ];
+                $d2->addDay();
+            }
+
+            // Upcoming events (next 14 days)
+            $upcomingStart = Carbon::today();
+            $upcomingEnd   = Carbon::today()->addDays(14);
+
+            $upcoming = collect();
+
+            // Upcoming holidays
+            $upHolidays = CompanyHoliday::where('is_active', true)
+                ->whereBetween('holiday_date', [$upcomingStart, $upcomingEnd])
+                ->orderBy('holiday_date')->get();
+            foreach ($upHolidays as $h) {
+                $upcoming->push(['date' => Carbon::parse($h->holiday_date), 'label' => $h->name, 'icon' => '🏢', 'color' => 'purple', 'sub' => 'วันหยุดบริษัท']);
+            }
+
+            // Upcoming editing deadlines
+            $upEdits = EditingJob::where('assigned_to', $employee->id)->active()
+                ->whereBetween('deadline_date', [$upcomingStart, $upcomingEnd])
+                ->orderBy('deadline_date')->get();
+            foreach ($upEdits as $ej) {
+                $upcoming->push(['date' => Carbon::parse($ej->deadline_date), 'label' => $ej->job_name, 'icon' => '✂️', 'color' => 'sky', 'sub' => 'ครบกำหนด']);
+            }
+
+            // Upcoming recording jobs
+            if (class_exists(\App\Models\RecordingJob::class)) {
+                $upRecs = \App\Models\RecordingJob::with('assignees')
+                    ->whereBetween('scheduled_date', [$upcomingStart, $upcomingEnd])
+                    ->whereHas('assignees', fn($q) => $q->where('employee_id', $employee->id))
+                    ->orderBy('scheduled_date')->get();
+                foreach ($upRecs as $rj) {
+                    $upcoming->push([
+                        'date' => Carbon::parse($rj->scheduled_date), 'label' => $rj->title, 'icon' => '🎥', 'color' => 'amber',
+                        'sub' => $rj->scheduled_time ? Carbon::parse($rj->scheduled_time)->format('H:i') . ' น.' : 'ทั้งวัน',
+                    ]);
+                }
+            }
+
+            $upcoming = $upcoming->sortBy(fn($e) => $e['date']->timestamp)->values();
+
+            $ownerCalendar = [
+                'miniCalendarDays' => $miniCalendarDays,
+                'upcomingEvents'   => $upcoming,
+                'calendarDate'     => $calDate,
+            ];
+        }
+
+        // Build request markers per date for the attendance grid
+        // (swap/leave/OT — pending or approved — visible on each row).
+        $monthStart = Carbon::create($year, $month, 1)->startOfMonth()->toDateString();
+        $monthEnd   = Carbon::create($year, $month, 1)->endOfMonth()->toDateString();
+        $dayRequests = [];
+
+        $pushReq = function (string $date, array $req) use (&$dayRequests) {
+            $key = Carbon::parse($date)->toDateString();
+            $dayRequests[$key][] = $req;
+        };
+
+        foreach (LeaveRequest::where('employee_id', $employee->id)
+            ->whereIn('status', ['pending', 'approved'])
+            ->whereBetween('leave_date', [$monthStart, $monthEnd])
+            ->get() as $l) {
+            $typeLabel = $leaveTypes[$l->leave_type] ?? $l->leave_type;
+            $badge = $l->status === 'pending' ? '⏳' : '✓';
+            $pushReq($l->leave_date, [
+                'icon'   => '🏖️',
+                'label'  => "{$badge} ลา: {$typeLabel}",
+                'color'  => $l->status === 'pending' ? 'amber' : 'blue',
+                'status' => $l->status,
+                'note'   => $l->reason,
+            ]);
+        }
+
+        foreach (OtRequest::where('employee_id', $employee->id)
+            ->whereIn('status', ['pending', 'approved'])
+            ->whereBetween('log_date', [$monthStart, $monthEnd])
+            ->get() as $o) {
+            $badge = $o->status === 'pending' ? '⏳' : '✓';
+            $pushReq($o->log_date, [
+                'icon'   => '⏰',
+                'label'  => "{$badge} OT: {$o->requested_minutes} น.",
+                'color'  => $o->status === 'pending' ? 'amber' : 'indigo',
+                'status' => $o->status,
+                'note'   => $o->reason,
+            ]);
+        }
+
+        foreach (\App\Models\DaySwapRequest::where('employee_id', $employee->id)
+            ->whereIn('status', ['pending', 'approved'])
+            ->where(function ($q) use ($monthStart, $monthEnd) {
+                $q->whereBetween('work_date', [$monthStart, $monthEnd])
+                  ->orWhereBetween('off_date', [$monthStart, $monthEnd]);
+            })->get() as $s) {
+            $badge = $s->status === 'pending' ? '⏳' : '✓';
+            $pushReq($s->work_date, [
+                'icon'   => '🔄',
+                'label'  => "{$badge} สลับ: มาทำงาน (แทนวัน " . Carbon::parse($s->off_date)->format('j M') . ')',
+                'color'  => $s->status === 'pending' ? 'amber' : 'teal',
+                'status' => $s->status,
+                'note'   => $s->reason,
+            ]);
+            $pushReq($s->off_date, [
+                'icon'   => '🔄',
+                'label'  => "{$badge} สลับ: หยุดแทน (มาทำงาน " . Carbon::parse($s->work_date)->format('j M') . ')',
+                'color'  => $s->status === 'pending' ? 'amber' : 'teal',
+                'status' => $s->status,
+                'note'   => $s->reason,
+            ]);
+        }
 
         return [
             'attendanceLogs' => $attendanceLogs, 'workLogs' => $workLogs, 'layerRates' => $layerRates,
@@ -1018,8 +1407,16 @@ class WorkspaceController extends Controller
             'dayTypeColors' => $dayTypeColors, 'attendanceMeta' => $attendanceMeta,
             'attendanceReadOnly' => $attendanceReadOnly, 'isAdmin' => $isAdmin,
             'assignedEditJobs' => $assignedEditJobs, 'recordingAssignments' => $recordingAssignments,
+            'recordingSessions' => $recordingSessions,
             'panel' => $panel, 'workspaceEditEnabled' => $workspaceEditEnabled, 'performanceSummary' => $performanceSummary,
-            'vacationBalance' => $vacationBalance
+            'vacationBalance' => $vacationBalance,
+            'recentOtRequests' => $recentOtRequests,
+            'recentLeaveRequests' => $recentLeaveRequests,
+            'recentSwapRequests' => $recentSwapRequests,
+            'leaveTypes' => $leaveTypes,
+            'ownerCalendar' => $ownerCalendar,
+            'dayRequests' => $dayRequests,
+            'canManageWorkspace' => $isAdmin,
         ];
     }
 }

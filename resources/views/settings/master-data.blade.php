@@ -53,14 +53,19 @@
             เกม
             <span class="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-gray-200 text-gray-600">{{ $games->count() }}</span>
         </button>
-        <button @click="activeTab = 'layer_rate_templates'" :class="activeTab === 'layer_rate_templates' ? 'border-indigo-500 text-indigo-600 bg-indigo-50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'" class="px-4 py-2.5 text-sm font-semibold border-b-2 rounded-t-lg transition-all">
-            เทมเพลตเรท FL Layer
-            <span class="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-gray-200 text-gray-600">{{ $layerRateRules->count() }}</span>
-        </button>
+
         <button @click="activeTab = 'workspace_access'" :class="activeTab === 'workspace_access' ? 'border-indigo-500 text-indigo-600 bg-indigo-50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'" class="px-4 py-2.5 text-sm font-semibold border-b-2 rounded-t-lg transition-all">
             คุมสิทธิ์ Workspace
             <span class="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-gray-200 text-gray-600">{{ $employees->count() }}</span>
         </button>
+
+        @php $isAdmin = auth()->user()?->hasRole('admin'); @endphp
+        @if($isAdmin)
+        <button @click="activeTab = 'fl_layer_rate'" :class="activeTab === 'fl_layer_rate' ? 'border-indigo-500 text-indigo-600 bg-indigo-50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'" class="px-4 py-2.5 text-sm font-semibold border-b-2 rounded-t-lg transition-all">
+            FL Layer Rate
+            <span class="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-emerald-100 text-emerald-700">admin</span>
+        </button>
+        @endif
     </div>
 
     <!-- ===================== TAB: Payroll Item Types ===================== -->
@@ -225,8 +230,7 @@
                 @php
                     $modes = [
                         'monthly_staff' => ['label' => 'พนักงานรายเดือน', 'color' => 'blue'],
-                        'freelance_layer' => ['label' => 'ฟรีแลนซ์เรทเลเยอร์', 'color' => 'green'],
-                        'freelance_fixed' => ['label' => 'ฟรีแลนซ์ฟิกเรท', 'color' => 'emerald'],
+                        'freelance_layer' => ['label' => 'ฟรีแลนซ์', 'color' => 'green'],
                         'youtuber_salary' => ['label' => 'YouTuber เงินเดือน', 'color' => 'purple'],
                         'youtuber_settlement' => ['label' => 'YouTuber Settlement', 'color' => 'orange'],
                         'custom_hybrid' => ['label' => 'รูปแบบผสม', 'color' => 'pink'],
@@ -652,8 +656,111 @@
         </div>
     </div>
 
-    <!-- ===================== TAB: FL Layer Rate Templates ===================== -->
-    <div x-show="activeTab === 'layer_rate_templates'" x-cloak x-data="{ selectedEmployeeId: '' }">
+    <!-- TAB: FL Layer Rate (admin only) -->
+    @if($isAdmin ?? false)
+    <div x-show="activeTab === 'fl_layer_rate'" x-cloak x-data="{ selectedEmployeeId: '' }" class="space-y-6">
+
+        {{-- Global Templates --}}
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="bg-white rounded-2xl shadow-sm border p-5">
+                <h3 class="text-sm font-bold text-gray-700 mb-1 flex items-center gap-2">
+                    <span class="w-6 h-6 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs">T</span>
+                    เพิ่ม Template ราคา FL Layer (ใช้ทั่วทั้งระบบ)
+                </h3>
+                <p class="text-[11px] text-gray-500 mb-3">ราคาเริ่มต้นต่อช่วง layer ใช้กับทุกคน (override ได้ด้วยราคาเฉพาะบุคคลด้านล่าง)</p>
+                <form action="{{ route('settings.master-data.layer-rate-templates.store') }}" method="POST" class="space-y-3">
+                    @csrf
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">ชื่อ Template</label>
+                        <input type="text" name="label" placeholder="เช่น L1-L3 มาตรฐาน" class="w-full px-3 py-2 border rounded-lg text-sm">
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Layer From *</label>
+                            <input type="number" name="layer_from" min="1" required class="w-full px-3 py-2 border rounded-lg text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Layer To *</label>
+                            <input type="number" name="layer_to" min="1" required class="w-full px-3 py-2 border rounded-lg text-sm">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Rate per minute *</label>
+                        <input type="number" name="rate_per_minute" step="0.0001" min="0" required class="w-full px-3 py-2 border rounded-lg text-sm">
+                    </div>
+                    <label class="inline-flex items-center gap-2 text-xs font-medium text-gray-600">
+                        <input type="checkbox" name="is_active" value="1" checked class="rounded border-gray-300 text-indigo-600">
+                        เปิดใช้งาน
+                    </label>
+                    <button type="submit" class="w-full bg-indigo-600 text-white py-2.5 rounded-xl font-bold text-sm hover:bg-indigo-700 transition">เพิ่ม Template</button>
+                </form>
+            </div>
+
+            <div class="lg:col-span-2 bg-white rounded-2xl shadow-sm border overflow-hidden">
+                <div class="px-5 py-3 bg-indigo-50 border-b border-indigo-100">
+                    <h3 class="font-bold text-indigo-800 text-sm">Template ราคาเลเยอร์ (Global)</h3>
+                </div>
+                <div class="overflow-x-auto max-h-[50vh]">
+                    <table class="w-full text-sm">
+                        <thead class="bg-gray-50 sticky top-0">
+                            <tr class="text-gray-500">
+                                <th class="text-left px-4 py-2.5 font-medium">ชื่อ</th>
+                                <th class="text-left px-4 py-2.5 font-medium">ช่วงเลเยอร์</th>
+                                <th class="text-left px-4 py-2.5 font-medium">เรท/นาที</th>
+                                <th class="text-left px-4 py-2.5 font-medium">สถานะ</th>
+                                <th class="text-right px-4 py-2.5 font-medium">จัดการ</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y">
+                            @forelse(($layerRateTemplates ?? []) as $tpl)
+                            <tr class="group hover:bg-gray-50" x-data="{ editing: false }">
+                                <td colspan="5" class="px-4 py-3">
+                                    <div x-show="!editing" class="flex items-center justify-between gap-4">
+                                        <div class="min-w-[160px] font-semibold text-gray-800">{{ $tpl->label ?: '—' }}</div>
+                                        <div class="min-w-[120px] text-sm text-gray-700">L{{ $tpl->layer_from }} - L{{ $tpl->layer_to }}</div>
+                                        <div class="min-w-[140px] text-sm font-semibold text-gray-800">{{ number_format((float) $tpl->rate_per_minute, 4) }}/นาที</div>
+                                        <div class="min-w-[80px]">
+                                            <span class="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold {{ $tpl->is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-500' }}">
+                                                {{ $tpl->is_active ? 'ใช้งาน' : 'ปิด' }}
+                                            </span>
+                                        </div>
+                                        <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-auto">
+                                            <button @click="editing = true" class="px-2 py-1 text-[10px] font-bold text-indigo-600 bg-indigo-50 rounded border border-indigo-200 hover:bg-indigo-100">แก้ไข</button>
+                                            <form action="{{ route('settings.master-data.layer-rate-templates.delete', $tpl->id) }}" method="POST" onsubmit="return confirm('ลบ Template L{{ $tpl->layer_from }}-L{{ $tpl->layer_to }} ?')">
+                                                @csrf @method('DELETE')
+                                                <button type="submit" class="px-2 py-1 text-[10px] font-bold text-red-600 bg-red-50 rounded border border-red-200 hover:bg-red-100">ลบ</button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                    <form x-show="editing" x-cloak action="{{ route('settings.master-data.layer-rate-templates.update', $tpl->id) }}" method="POST" class="grid grid-cols-1 md:grid-cols-6 gap-2 mt-1">
+                                        @csrf @method('PATCH')
+                                        <input type="text" name="label" value="{{ $tpl->label }}" placeholder="ชื่อ" class="md:col-span-2 px-2 py-1.5 border rounded text-sm">
+                                        <input type="number" name="layer_from" value="{{ $tpl->layer_from }}" min="1" required class="px-2 py-1.5 border rounded text-sm">
+                                        <input type="number" name="layer_to" value="{{ $tpl->layer_to }}" min="1" required class="px-2 py-1.5 border rounded text-sm">
+                                        <input type="number" name="rate_per_minute" value="{{ (float) $tpl->rate_per_minute }}" step="0.0001" min="0" required class="px-2 py-1.5 border rounded text-sm">
+                                        <div class="md:col-span-6 flex items-center justify-between">
+                                            <label class="inline-flex items-center gap-2 text-xs text-gray-600">
+                                                <input type="checkbox" name="is_active" value="1" {{ $tpl->is_active ? 'checked' : '' }} class="rounded border-gray-300 text-indigo-600">
+                                                เปิดใช้งาน
+                                            </label>
+                                            <div class="flex items-center gap-2">
+                                                <button type="button" @click="editing = false" class="px-3 py-1.5 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200">ยกเลิก</button>
+                                                <button type="submit" class="px-3 py-1.5 text-xs text-white bg-indigo-600 rounded hover:bg-indigo-700">บันทึก</button>
+                                            </div>
+                                        </div>
+                                    </form>
+                                </td>
+                            </tr>
+                            @empty
+                            <tr><td colspan="5" class="px-4 py-8 text-center text-gray-400 italic">ยังไม่มี Template</td></tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        {{-- Per-employee overrides --}}
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div class="bg-white rounded-2xl shadow-sm border p-5">
                 <h3 class="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
@@ -783,6 +890,7 @@
             </div>
         </div>
     </div>
+    @endif
 
     <!-- ===================== TAB: Workspace Access ===================== -->
     <div x-show="activeTab === 'workspace_access'" x-cloak>

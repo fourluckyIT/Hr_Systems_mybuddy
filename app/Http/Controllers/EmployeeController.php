@@ -6,6 +6,7 @@ use App\Models\Employee;
 use App\Models\Department;
 use App\Models\Position;
 use App\Models\Role;
+use App\Models\User;
 use App\Models\EmployeeProfile;
 use App\Models\EmployeeSalaryProfile;
 use App\Models\EmployeeBankAccount;
@@ -106,7 +107,7 @@ class EmployeeController extends Controller
             'department_id' => 'nullable|exists:departments,id',
             'position_id' => 'nullable|exists:positions,id',
             'role_id' => 'nullable|exists:roles,id',
-            'payroll_mode' => 'required|in:monthly_staff,office_staff,freelance_layer,freelance_fixed,youtuber_salary,youtuber_settlement,custom_hybrid',
+            'payroll_mode' => 'required|in:monthly_staff,office_staff,freelance_layer,youtuber_salary,youtuber_settlement,custom_hybrid',
             'status' => 'nullable|string|in:active,inactive,probation,terminated',
             'start_date' => 'nullable|date',
             'effective_date' => 'nullable|date',
@@ -116,9 +117,18 @@ class EmployeeController extends Controller
             'account_name' => 'nullable|string|max:255',
             'phone' => 'nullable|string|max:20',
             'id_card' => 'nullable|string|max:20',
+            'email' => 'required|email|max:255|unique:users,email',
+            'password' => 'required|string|min:6|max:255',
+        ]);
+
+        $user = User::create([
+            'name' => trim($validated['first_name'] . ' ' . $validated['last_name']),
+            'email' => $validated['email'],
+            'password' => $validated['password'],
         ]);
 
         $employee = Employee::create([
+            'user_id' => $user->id,
             'first_name' => $validated['first_name'],
             'last_name' => $validated['last_name'],
             'nickname' => $validated['nickname'] ?? null,
@@ -158,8 +168,8 @@ class EmployeeController extends Controller
             ]);
         }
 
-        if ($employee->user) {
-            $employee->user->roles()->sync([$validated['role_id']]);
+        if (!empty($validated['role_id'])) {
+            $user->roles()->sync([$validated['role_id']]);
         }
 
         if (in_array($employee->payroll_mode, ['monthly_staff', 'office_staff', 'youtuber_salary'], true)) {
@@ -198,7 +208,7 @@ class EmployeeController extends Controller
 
         if (!$prefix && $payrollMode) {
             $prefix = match ($payrollMode) {
-                'freelance_layer', 'freelance_fixed' => 'FL',
+                'freelance_layer' => 'FL',
                 'youtuber_salary', 'youtuber_settlement' => 'YT',
                 'monthly_staff' => 'STAFF',
                 'office_staff' => 'OFFICE',
@@ -251,7 +261,7 @@ class EmployeeController extends Controller
             'employee_code' => 'nullable|string|max:50|unique:employees,employee_code,' . $employee->id,
             'department_id' => 'nullable|exists:departments,id',
             'position_id' => 'nullable|exists:positions,id',
-            'payroll_mode' => 'required|in:monthly_staff,office_staff,freelance_layer,freelance_fixed,youtuber_salary,youtuber_settlement,custom_hybrid',
+            'payroll_mode' => 'required|in:monthly_staff,office_staff,freelance_layer,youtuber_salary,youtuber_settlement,custom_hybrid',
             'start_date' => 'nullable|date',
             'base_salary' => 'nullable|numeric|min:0',
             'bank_name' => 'nullable|string|max:255',
@@ -259,11 +269,41 @@ class EmployeeController extends Controller
             'account_name' => 'nullable|string|max:255',
             'phone' => 'nullable|string|max:20',
             'id_card' => 'nullable|string|max:20',
+            'tier_source' => 'nullable|in:avg,monthly_total,manual',
+            'tier_override_id' => 'nullable|exists:performance_tiers,id',
+            'tier_override_note' => 'nullable|string|max:255',
+            'fixed_rate_per_clip' => 'nullable|numeric|min:0',
+            'email' => [
+                $employee->user ? 'nullable' : 'required',
+                'email', 'max:255',
+                \Illuminate\Validation\Rule::unique('users', 'email')->ignore($employee->user?->id),
+            ],
+            'password' => [$employee->user ? 'nullable' : 'required', 'string', 'min:6', 'max:255'],
         ]);
 
         $oldData = $employee->getAttributes();
 
-        $employee->update([
+        if ($employee->user) {
+            $userUpdates = [];
+            if (!empty($validated['email']) && $validated['email'] !== $employee->user->email) {
+                $userUpdates['email'] = $validated['email'];
+            }
+            if (!empty($validated['password'])) {
+                $userUpdates['password'] = $validated['password'];
+            }
+            $userUpdates['name'] = trim($validated['first_name'] . ' ' . $validated['last_name']);
+            $employee->user->update($userUpdates);
+        } else {
+            $newUser = User::create([
+                'name' => trim($validated['first_name'] . ' ' . $validated['last_name']),
+                'email' => $validated['email'],
+                'password' => $validated['password'],
+            ]);
+            $employee->user_id = $newUser->id;
+            $employee->save();
+        }
+
+        $updates = [
             'first_name' => $validated['first_name'],
             'last_name' => $validated['last_name'],
             'nickname' => $validated['nickname'] ?? null,
@@ -272,7 +312,16 @@ class EmployeeController extends Controller
             'position_id' => $validated['position_id'] ?? null,
             'payroll_mode' => $validated['payroll_mode'],
             'start_date' => $validated['start_date'] ?? null,
-        ]);
+            'tier_source' => $validated['tier_source'] ?? 'avg',
+            'tier_override_id' => $validated['tier_override_id'] ?? null,
+            'tier_override_note' => $validated['tier_override_note'] ?? null,
+        ];
+
+        if ($request->user()?->hasRole('admin') && array_key_exists('fixed_rate_per_clip', $validated)) {
+            $updates['fixed_rate_per_clip'] = $validated['fixed_rate_per_clip'];
+        }
+
+        $employee->update($updates);
 
         EmployeeProfile::updateOrCreate(
             ['employee_id' => $employee->id],

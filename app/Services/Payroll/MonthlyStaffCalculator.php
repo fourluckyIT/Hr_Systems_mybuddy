@@ -105,12 +105,9 @@ class MonthlyStaffCalculator
 
             if ($log->ot_enabled && $log->ot_minutes > 0) {
                 $isHolidayOt = $isHolidayLike;
-                $rawOt = (int) $log->ot_minutes;
-
-                // For holidays: raw ot_minutes is net worked; subtract standard day to get true OT.
-                $candidateOtMinutes = $isHolidayOt
-                    ? max(0, $rawOt - $targetMinutesPerDay)
-                    : $rawOt;
+                // ot_minutes now stores clock-based OT (minutes past standard checkout)
+                // for both workday and holiday, so no further conversion needed.
+                $candidateOtMinutes = (int) $log->ot_minutes;
 
                 if ($candidateOtMinutes > 0) {
                     $weekStart = Carbon::parse($log->log_date)->startOfWeek(Carbon::MONDAY)->toDateString();
@@ -193,7 +190,11 @@ class MonthlyStaffCalculator
             : 0;
 
         // Diligence allowance logic (Tiered - Global via RuleService)
-        $diligenceAmount = $enableDiligence
+        // Guard: require attendance records for modes that clock in.
+        // youtuber_salary doesn't clock in — always eligible when enabled.
+        $isYoutuberSalary = $employee->payroll_mode === 'youtuber_salary';
+        $hasAttendanceData = $attendanceLogs->isNotEmpty() || $isYoutuberSalary;
+        $diligenceAmount = ($enableDiligence && $hasAttendanceData)
             ? $this->ruleService->calculateDiligence($lateCount, $lwopDays)
             : 0;
 

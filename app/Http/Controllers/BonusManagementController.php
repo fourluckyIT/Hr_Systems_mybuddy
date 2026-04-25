@@ -153,10 +153,12 @@ class BonusManagementController extends Controller
             'cycle_id' => 'required|exists:bonus_cycles,id',
             'employee_id' => 'required|exists:employees,id',
             'base_reference' => 'required|numeric|min:0',
-            'tier_code' => 'required|string|exists:performance_tiers,tier_code',
+            'tier_code' => 'nullable|string|exists:performance_tiers,tier_code',
             'absent_days' => 'nullable|integer|min:0',
             'late_count' => 'nullable|integer|min:0',
             'leave_days' => 'nullable|integer|min:0',
+            'clip_duration_minutes_per_month' => 'nullable|integer|min:0',
+            'qualified_months' => 'nullable|integer|min:0',
         ]);
 
         try {
@@ -164,11 +166,13 @@ class BonusManagementController extends Controller
                 (int) $validated['employee_id'],
                 (int) $validated['cycle_id'],
                 (float) $validated['base_reference'],
-                $validated['tier_code'],
+                $validated['tier_code'] ?? null,
                 0.0,
                 isset($validated['absent_days']) ? (int) $validated['absent_days'] : null,
                 isset($validated['late_count']) ? (int) $validated['late_count'] : null,
                 isset($validated['leave_days']) ? (int) $validated['leave_days'] : null,
+                isset($validated['clip_duration_minutes_per_month']) ? (int) $validated['clip_duration_minutes_per_month'] : null,
+                isset($validated['qualified_months']) ? (int) $validated['qualified_months'] : null,
             );
         } catch (DomainException $e) {
             return back()->withErrors(['bonus' => $e->getMessage()]);
@@ -185,7 +189,9 @@ class BonusManagementController extends Controller
             'cycle_id' => 'required|exists:bonus_cycles,id',
             'employee_ids' => 'required|array|min:1',
             'employee_ids.*' => 'required|exists:employees,id',
-            'tier_code' => 'required|string|exists:performance_tiers,tier_code',
+            'tier_code' => 'nullable|string|exists:performance_tiers,tier_code',
+            'clip_duration_minutes_per_month' => 'nullable|integer|min:0',
+            'qualified_months' => 'nullable|integer|min:0',
         ]);
 
         $employeesPayload = Employee::query()
@@ -196,8 +202,10 @@ class BonusManagementController extends Controller
                 return [
                     'employee_id' => $employee->id,
                     'base_reference' => (float) ($employee->salaryProfile?->base_salary ?? 0),
-                    'tier_id' => $validated['tier_code'],
+                    'tier_id' => $validated['tier_code'] ?? null,
                     'attendance_adjustment' => 0,
+                    'clip_duration_minutes_per_month' => isset($validated['clip_duration_minutes_per_month']) ? (int) $validated['clip_duration_minutes_per_month'] : null,
+                    'qualified_months' => isset($validated['qualified_months']) ? (int) $validated['qualified_months'] : null,
                 ];
             })
             ->values()

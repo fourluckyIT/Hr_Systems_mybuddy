@@ -11,8 +11,9 @@ class Employee extends Model
 
     protected $fillable = [
         'user_id', 'employee_code', 'first_name', 'last_name', 'nickname',
-        'department_id', 'position_id', 'payroll_mode', 'advance_ceiling_percent', 'status', 'is_active',
+        'department_id', 'position_id', 'payroll_mode', 'advance_ceiling_percent', 'fixed_rate_per_clip', 'status', 'is_active',
         'start_date', 'probation_end_date', 'end_date', 'vacation_entitlement',
+        'tier_override_id', 'tier_source', 'tier_override_note',
     ];
 
     protected function casts(): array
@@ -128,6 +129,21 @@ class Employee extends Model
     public function editingJobs()
     {
         return $this->hasMany(EditingJob::class, 'assigned_to');
+    }
+
+    public function otRequests()
+    {
+        return $this->hasMany(OtRequest::class);
+    }
+
+    public function extraIncomeEntries()
+    {
+        return $this->hasMany(ExtraIncomeEntry::class);
+    }
+
+    public function tierOverride()
+    {
+        return $this->belongsTo(PerformanceTier::class, 'tier_override_id');
     }
 
     public function isModuleEnabled(string $moduleName): bool

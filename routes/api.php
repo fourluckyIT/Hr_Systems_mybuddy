@@ -4,7 +4,7 @@ use App\Http\Controllers\BonusController;
 use App\Http\Controllers\EditingJobController;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware('auth')->group(function () {
+Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('bonus')->group(function () {
         Route::post('/calculate', [BonusController::class, 'calculate']);
         Route::post('/batch-calculate', [BonusController::class, 'batchCalculate']);

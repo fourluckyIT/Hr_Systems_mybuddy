@@ -5,6 +5,7 @@ namespace App\Services\Payroll;
 use App\Models\Employee;
 use App\Models\WorkLog;
 use App\Models\LayerRateRule;
+use App\Models\LayerRateTemplate;
 
 class FreelanceLayerCalculator
 {
@@ -18,24 +19,22 @@ class FreelanceLayerCalculator
             ->orderBy('sort_order')
             ->get();
 
-        // Load layer rate rules for this employee
-        $layerRules = LayerRateRule::where('employee_id', $employee->id)
-            ->where('is_active', true)
-            ->orderBy('layer_from')
-            ->get();
+        $layerRules = $this->loadRules($employee);
+        $templates  = $this->loadTemplates();
 
         $totalIncome = 0;
         $totalMinutes = 0;
         $totalSeconds = 0;
 
         foreach ($workLogs as $log) {
-            // duration_minutes = hours*60 + minutes + (seconds / 60)
             $durationMinutes = ($log->hours * 60) + $log->minutes + ($log->seconds / 60);
             $totalMinutes += $log->minutes + ($log->hours * 60);
             $totalSeconds += $log->seconds;
 
-            $rate = $this->resolveRate($layerRules, $log);
-            $amount = round($durationMinutes * $rate, 2);
+            $rate = $this->resolveRate($layerRules, $templates, $log);
+            $amount = $log->pricing_mode === 'custom'
+                ? round($rate, 2)
+                : round($durationMinutes * $rate, 2);
 
             $totalIncome += $amount;
         }
@@ -76,15 +75,18 @@ class FreelanceLayerCalculator
             ->where('year', $year)
             ->get();
 
-        $layerRules = LayerRateRule::where('employee_id', $employee->id)
-            ->where('is_active', true)
-            ->orderBy('layer_from')
-            ->get();
+        $layerRules = $this->loadRules($employee);
+        $templates  = $this->loadTemplates();
 
         foreach ($workLogs as $log) {
             $durationMinutes = ($log->hours * 60) + $log->minutes + ($log->seconds / 60);
-            $rate = $this->resolveRate($layerRules, $log);
-            $amount = round($durationMinutes * $rate, 2);
+            $rate = $this->resolveRate($layerRules, $templates, $log);
+            
+            if ($log->pricing_mode === 'custom') {
+                $amount = round($rate, 2); // Fixed rate
+            } else {
+                $amount = round($durationMinutes * $rate, 2); // layer or custom_rate_per_min
+            }
 
             if ((float) $log->amount !== $amount || (float) $log->rate !== $rate) {
                 $log->update(['amount' => $amount, 'rate' => $rate]);
@@ -92,13 +94,28 @@ class FreelanceLayerCalculator
         }
     }
 
-    protected function findRateForLayer($layerRules, ?int $layer): float
+    protected function loadRules(Employee $employee)
+    {
+        return LayerRateRule::where('employee_id', $employee->id)
+            ->where('is_active', true)
+            ->orderBy('layer_from')
+            ->get();
+    }
+
+    protected function loadTemplates()
+    {
+        return LayerRateTemplate::where('is_active', true)
+            ->orderBy('layer_from')
+            ->get();
+    }
+
+    protected function findRateForLayer($rules, ?int $layer): float
     {
         if (!$layer) {
             return 0;
         }
 
-        foreach ($layerRules as $rule) {
+        foreach ($rules as $rule) {
             if ($layer >= $rule->layer_from && $layer <= $rule->layer_to) {
                 return (float) $rule->rate_per_minute;
             }
@@ -107,9 +124,9 @@ class FreelanceLayerCalculator
         return 0;
     }
 
-    protected function resolveRate($layerRules, WorkLog $log): float
+    protected function resolveRate($layerRules, $templates, WorkLog $log): float
     {
-        if ($log->pricing_mode === 'custom') {
+        if ($log->pricing_mode === 'custom' || $log->pricing_mode === 'custom_rate_per_min') {
             return (float) ($log->custom_rate ?? $log->rate ?? 0);
         }
 
@@ -117,10 +134,14 @@ class FreelanceLayerCalculator
             return (float) $log->rate;
         }
 
-        $matchedRate = $this->findRateForLayer($layerRules, $log->layer);
+        $override = $this->findRateForLayer($layerRules, $log->layer);
+        if ($override > 0) {
+            return $override;
+        }
 
-        if ($matchedRate > 0) {
-            return $matchedRate;
+        $template = $this->findRateForLayer($templates, $log->layer);
+        if ($template > 0) {
+            return $template;
         }
 
         return (float) ($log->rate ?? 0);

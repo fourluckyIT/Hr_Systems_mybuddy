@@ -172,9 +172,4 @@ class CompanyFinanceController extends Controller
         return back()->with('success', 'ลบ Subscription สำเร็จ');
     }
 
-    // Legacy route - redirect to new finance page
-    public function expenses()
-    {
-        return redirect()->route('company.finance');
-    }
 }

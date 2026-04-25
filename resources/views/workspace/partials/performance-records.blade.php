@@ -2,7 +2,10 @@
     @if(($panel ?? 'recording_queue') === 'edit_jobs')
     <div class="px-4 py-3 bg-indigo-700 text-white font-semibold text-sm flex items-center justify-between">
         <h3>งานตัดต่อที่ได้รับมอบหมาย (Assigned Edit Jobs)</h3>
-        <span class="text-[10px] px-1.5 py-0.5 bg-white/20 text-white rounded uppercase font-bold">{{ ($assignedEditJobs ?? collect())->count() }}</span>
+        @php
+            $activeCount = ($assignedEditJobs ?? collect())->whereNotIn('status', ['final'])->count();
+        @endphp
+        <span class="text-[10px] px-1.5 py-0.5 bg-white/20 text-white rounded uppercase font-bold">{{ $activeCount }}</span>
     </div>
 
     <div class="p-4">
@@ -65,24 +68,56 @@
                                     <button class="px-2 py-1 rounded bg-indigo-600 text-white text-[11px] font-semibold hover:bg-indigo-700">เริ่มงาน</button>
                                 </form>
                             @elseif($job->status === 'in_progress')
-                                <form action="{{ route('work.editing-job.mark-ready', $job) }}" method="POST" class="flex items-center gap-2">@csrf
-                                    @if($needsLayerCount)
-                                        <input type="number" name="layer_count" min="1" value="{{ $job->layer_count ?? 1 }}" class="w-20 border border-gray-300 rounded px-2 py-1 text-[11px]" placeholder="Layer">
-                                    @endif
+                                <form action="{{ route('work.editing-job.mark-ready', $job) }}" method="POST" class="inline">@csrf
                                     <button class="px-2 py-1 rounded bg-blue-600 text-white text-[11px] font-semibold hover:bg-blue-700">ส่งงาน</button>
                                 </form>
                             @elseif($job->status === 'review_ready')
-                                <form action="{{ route('work.editing-job.finalize', $job) }}" method="POST" class="flex flex-col gap-1 items-start">
+                                <form action="{{ route('work.editing-job.finalize', $job) }}" method="POST" class="flex flex-col gap-1.5" x-data="{ mode: '{{ $job->assignee?->fixed_rate_per_clip > 0 ? 'custom' : 'layer' }}' }">
                                     @csrf
-                                    <div class="flex items-center gap-1">
-                                        <input type="number" name="video_duration_minutes" class="w-14 border border-gray-300 rounded px-1.5 py-1 text-[11px]" placeholder="นาที" title="ความยาววิดีโอ (นาที)">
-                                        <span class="text-[11px] text-gray-500">:</span>
-                                        <input type="number" name="video_duration_seconds" class="w-14 border border-gray-300 rounded px-1.5 py-1 text-[11px]" placeholder="วินาที" min="0" max="59" title="ความยาววิดีโอ (วินาที)">
-                                    </div>
                                     <div class="flex items-center gap-2">
+                                        @if($needsLayerCount)
+                                            <select name="pricing_mode" x-model="mode" class="border border-gray-200 rounded px-1.5 py-1 text-[10px] bg-gray-50 focus:ring-0 cursor-pointer text-gray-600" title="เลือกวิธีคิดเงิน">
+                                                <option value="layer">ตาม Layer</option>
+                                                <option value="custom">เหมาคลิป (Fix)</option>
+                                                <option value="custom_rate_per_min">เรท/นาที (อิสระ)</option>
+                                            </select>
+                                            
+                                            <div x-show="mode === 'layer'" class="flex items-center gap-1 bg-white border border-gray-200 rounded px-1.5 py-0.5">
+                                                <span class="text-[10px] text-gray-400 font-bold">L</span>
+                                                <input type="number" name="layer_count" min="1" value="{{ $job->layer_count ?? 1 }}" 
+                                                       class="w-10 border-0 bg-transparent p-0 text-center text-[11px] font-bold text-indigo-600 focus:ring-0" 
+                                                       title="จำนวนเลเยอร์ (Complexity Layer)">
+                                            </div>
+
+                                            <div x-show="mode === 'custom'" x-cloak class="flex items-center gap-1 bg-white border border-gray-200 rounded px-1.5 py-0.5" title="ใส่ราคางานเหมาคลิป">
+                                                <span class="text-[10px] text-gray-400 font-bold">฿</span>
+                                                <input type="number" name="fix_amount" step="0.01" min="0" value="{{ $job->assignee?->fixed_rate_per_clip ?? 0 }}"
+                                                       class="w-16 border-0 bg-transparent p-0 text-right text-[11px] font-bold text-orange-600 focus:ring-0" placeholder="ยอดเงิน">
+                                            </div>
+
+                                            <div x-show="mode === 'custom_rate_per_min'" x-cloak class="flex items-center gap-1 bg-white border border-gray-200 rounded px-1.5 py-0.5" title="ใส่เรทต่อนาที (แยกอิสระ)">
+                                                <span class="text-[10px] text-gray-400 font-bold">เรท</span>
+                                                <input type="number" name="custom_rate" step="0.0001" min="0"
+                                                       class="w-16 border-0 bg-transparent p-0 text-right text-[11px] font-bold text-teal-600 focus:ring-0" placeholder="/ นาที">
+                                            </div>
+                                        @endif
+                                        <div class="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded px-1 py-0.5">
+                                            <input type="number" name="video_duration_hours" class="w-8 border-0 bg-transparent p-0 text-center text-[11px] focus:ring-0" placeholder="ชม." title="ชั่วโมง">
+                                            <span class="text-[10px] text-gray-400">:</span>
+                                            <input type="number" name="video_duration_minutes" class="w-8 border-0 bg-transparent p-0 text-center text-[11px] focus:ring-0" placeholder="น." title="นาที">
+                                            <span class="text-[10px] text-gray-400">:</span>
+                                            <input type="number" name="video_duration_seconds" class="w-8 border-0 bg-transparent p-0 text-center text-[11px] focus:ring-0" placeholder="ว." min="0" max="59" title="วินาที">
+                                        </div>
                                         <input type="date" name="finalized_at" value="{{ date('Y-m-d') }}" class="w-28 border border-gray-300 rounded px-2 py-1 text-[11px]" required title="วันที่ปิดงาน (Final)">
-                                        <button class="px-2 py-1 rounded bg-emerald-600 text-white text-[11px] font-semibold hover:bg-emerald-700 whitespace-nowrap">ปิดงาน</button>
+                                        <button class="px-3 py-1 rounded bg-emerald-600 text-white text-[11px] font-bold hover:bg-emerald-700 whitespace-nowrap shadow-sm transition">ปิดงาน</button>
                                     </div>
+                                    @if($needsLayerCount)
+                                        <div class="text-[9.5px] text-gray-400 italic">
+                                            <span x-show="mode === 'layer'">💡 ระบุ Layer เพื่อให้ระบบคำนวณเงินจากเรท Price/min ที่ตั้งไว้</span>
+                                            <span x-show="mode === 'custom'" x-cloak>💡 ใส่ยอดเงินเหมาจ่ายสำหรับคลิปนี้เลย (ควรใส่เวลาเก็บเป็นสถิติด้วย)</span>
+                                            <span x-show="mode === 'custom_rate_per_min'" x-cloak>💡 ใส่เรทเงินแยกเฉพาะคลิปนี้ (รายได้ = เรทกำหนดเอง x ระยะเวลาคลิป)</span>
+                                        </div>
+                                    @endif
                                 </form>
                             @endif
                         @else

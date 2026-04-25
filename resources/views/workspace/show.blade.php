@@ -52,17 +52,6 @@
     // Unfinalize Confirm Modal
     unfinalizeConfirmOpen: false,
 
-    // Swap Modal State
-    modalSwapOpen: false,
-    isSubmitting: false,
-    swapError: '',
-    swapData: {
-        employee_id: {{ $employee->id }},
-        work_date: '',
-        off_date: '',
-        reason: ''
-    },
-
     isBeforeStart(m, y) {
         return (y < this.startYear) || (y === this.startYear && m < this.startMonth);
     },
@@ -72,44 +61,6 @@
     goTo(m, y) {
         if (this.isBeforeStart(m, y) || this.isFuture(m, y)) return;
         window.location.href = '{{ route('workspace.show', ['employee' => $employee->id, 'month' => '__M__', 'year' => '__Y__']) }}'.replace('__M__', m).replace('__Y__', y);
-    },
-
-    async submitSwap() {
-        this.isSubmitting = true;
-        this.swapError = '';
-        
-        try {
-            const response = await fetch('{{ route('leave.swap.store') }}', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
-                },
-                body: JSON.stringify(this.swapData)
-            });
-
-            const result = await response.json();
-
-            if (response.ok) {
-                // Seamlessly refresh UI
-                await this.refreshWorkspaceUI();
-                this.modalSwapOpen = false;
-                // Reset swap data
-                this.swapData.work_date = '';
-                this.swapData.off_date = '';
-                this.swapData.reason = '';
-            } else {
-                this.swapError = result.message || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล';
-                if (result.errors) {
-                    this.swapError = Object.values(result.errors).flat().join(' ');
-                }
-            }
-        } catch (e) {
-            this.swapError = 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้';
-        } finally {
-            this.isSubmitting = false;
-        }
     },
 
     async refreshWorkspaceUI() {
@@ -146,249 +97,176 @@
 </div>
 @endif
 
-    {{-- Integrated Swap Modal --}}
-    <div x-show="modalSwapOpen" 
-         x-cloak 
-         class="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden"
-         x-transition:enter="transition ease-out duration-300"
-         x-transition:enter-start="opacity-0"
-         x-transition:enter-end="opacity-100"
-         x-transition:leave="transition ease-in duration-200"
-         x-transition:leave-start="opacity-100"
-         x-transition:leave-end="opacity-0">
-        
-        {{-- Backdrop with blur --}}
-        <div class="absolute inset-0 bg-white/60 backdrop-blur-sm" @click="modalSwapOpen = false"></div>
+<!-- Header -->
+<div class="mb-6 space-y-4">
+    {{-- Row 1: Employee Info & Toggles --}}
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div class="flex items-center gap-4">
+            <a href="{{ $canManageWorkspace ? route('employees.index') : route('workspace.my') }}" class="text-gray-400 hover:text-gray-600 transition-colors">&larr;</a>
+            <div>
+                <h1 class="text-2xl font-bold text-gray-800">{{ $employee->full_name }}</h1>
+                <div class="flex items-center gap-3 mt-1">
+                    <span class="text-sm font-medium text-gray-500">{{ $employee->position?->name ?? '-' }}</span>
+                    <span class="w-1 h-1 bg-gray-300 rounded-full"></span>
+                    <span class="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider
+                        @switch($employee->payroll_mode)
+                            @case('monthly_staff') bg-blue-100 text-blue-700 @break
+                            @case('office_staff') bg-cyan-100 text-cyan-700 @break
+                            @case('freelance_layer') bg-emerald-100 text-emerald-700 @break
+                            @case('youtuber_salary') bg-indigo-100 text-indigo-700 @break
+                            @case('youtuber_settlement') bg-violet-100 text-violet-700 @break
+                            @default bg-gray-100 text-gray-700
+                        @endswitch">
+                        {{ str_replace('_', ' ', $employee->payroll_mode) }}
+                    </span>
+                    
+                    @if($canManageWorkspace && in_array($employee->payroll_mode, ['monthly_staff', 'office_staff', 'youtuber_salary']))
+                    <div class="flex items-center gap-1.5 ml-1">
+                        <form action="{{ route('workspace.module.toggle', $employee->id) }}" method="POST" class="inline">
+                            @csrf
+                            <input type="hidden" name="module_name" value="sso_deduction">
+                            <button type="submit" class="px-2 py-0.5 rounded-md text-[9px] font-bold border transition-all
+                                {{ $employee->isModuleEnabled('sso_deduction') ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-gray-50 border-gray-200 text-gray-400' }}" title="ประกันสังคม">
+                                SSO
+                            </button>
+                        </form>
 
-        {{-- Modal Dialog --}}
-        <div class="relative bg-white w-full max-w-lg mx-4 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.1)] border border-gray-100 overflow-hidden"
-             x-show="modalSwapOpen"
-             x-transition:enter="transition ease-out duration-300"
-             x-transition:enter-start="opacity-0 scale-95 translate-y-4"
-             x-transition:enter-end="opacity-100 scale-100 translate-y-0"
-             x-transition:leave="transition ease-in duration-200"
-             x-transition:leave-start="opacity-100 scale-100 translate-y-0"
-             x-transition:leave-end="opacity-0 scale-95 translate-y-4">
-            
-            <div class="p-8">
-                <div class="flex justify-between items-center mb-6">
-                    <div>
-                        <h2 class="text-xl font-bold text-gray-800">Quick Swap</h2>
-                        <p class="text-xs text-gray-500 mt-1">สลับวันหยุดรายสัปดาห์</p>
+                        @if(in_array($employee->payroll_mode, ['monthly_staff', 'office_staff']))
+                        <form action="{{ route('workspace.module.toggle', $employee->id) }}" method="POST" class="inline">
+                            @csrf
+                            <input type="hidden" name="module_name" value="deduct_late">
+                            <button type="submit" class="px-2 py-0.5 rounded-md text-[9px] font-bold border transition-all
+                                {{ $employee->isModuleEnabled('deduct_late') ? 'bg-rose-50 border-rose-200 text-rose-700' : 'bg-gray-50 border-gray-200 text-gray-400' }}" title="หักมาสาย">
+                                LATE
+                            </button>
+                        </form>
+
+                        <form action="{{ route('workspace.module.toggle', $employee->id) }}" method="POST" class="inline">
+                            @csrf
+                            <input type="hidden" name="module_name" value="deduct_early">
+                            <button type="submit" class="px-2 py-0.5 rounded-md text-[9px] font-bold border transition-all
+                                {{ $employee->isModuleEnabled('deduct_early') ? 'bg-amber-50 border-amber-200 text-amber-700' : 'bg-gray-50 border-gray-200 text-gray-400' }}" title="หักออกเร็ว">
+                                EARLY
+                            </button>
+                        </form>
+                        @endif
                     </div>
-                    <button @click="modalSwapOpen = false" class="p-2 hover:bg-gray-100 rounded-full transition-colors">
-                        <svg class="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                    </button>
+                    @endif
                 </div>
-
-                <form @submit.prevent="submitSwap" class="space-y-6">
-                    <div class="grid grid-cols-2 gap-4">
-                        <div class="space-y-1.5">
-                            <label class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">มาทำงานวันที่ (วันหยุด)</label>
-                            <input type="date" x-model="swapData.work_date" required
-                                   class="w-full bg-gray-50 border-0 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-amber-500/20 transition-all">
-                        </div>
-                        <div class="space-y-1.5">
-                            <label class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">หยุดแทนวันที่ (วันทำงาน)</label>
-                            <input type="date" x-model="swapData.off_date" required
-                                   class="w-full bg-gray-50 border-0 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-amber-500/20 transition-all">
-                        </div>
-                    </div>
-
-                    <div class="space-y-1.5">
-                        <label class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">เหตุผล / บันทึกเพิ่มเติม</label>
-                        <textarea x-model="swapData.reason" rows="3" placeholder="ระบุเหตุผลในการขอสลับวัน (ถ้ามี)"
-                                  class="w-full bg-gray-50 border-0 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-amber-500/20 transition-all resize-none"></textarea>
-                    </div>
-
-                    <div x-show="swapError" x-text="swapError" x-cloak
-                         class="p-4 bg-rose-50 text-rose-600 rounded-2xl text-xs font-medium border border-rose-100 transition-all">
-                    </div>
-
-                    <div class="flex gap-3 pt-2">
-                        <button type="button" @click="modalSwapOpen = false"
-                                class="flex-1 py-3 text-sm font-bold text-gray-500 hover:bg-gray-50 rounded-2xl transition-colors">
-                            ยกเลิก
-                        </button>
-                        <button type="submit" :disabled="isSubmitting"
-                                class="flex-[2] py-3 bg-indigo-600 text-white rounded-2xl text-sm font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-                            <span x-show="!isSubmitting">บันทึกการสลับวัน</span>
-                            <span x-show="isSubmitting" class="flex items-center justify-center gap-2">
-                                <svg class="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                                กำลังดำเนินการ...
-                            </span>
-                        </button>
-                    </div>
-                </form>
             </div>
         </div>
     </div>
 
-<!-- Header -->
-<div class="flex items-center justify-between mb-4">
-    <div class="flex items-center gap-4">
-        <a href="{{ $canManageWorkspace ? route('employees.index') : route('workspace.my') }}" class="text-gray-400 hover:text-gray-600">&larr;</a>
-        <div>
-            <h1 class="text-xl font-bold">{{ $employee->full_name }}</h1>
-            <div class="flex items-center gap-2 text-sm text-gray-500">
-                <span>{{ $employee->position?->name ?? '-' }}</span>
-                <span class="inline-block px-2 py-0.5 rounded-full text-xs font-medium
-                    @switch($employee->payroll_mode)
-                        @case('monthly_staff') bg-blue-100 text-blue-700 @break
-                        @case('office_staff') bg-cyan-100 text-cyan-700 @break
-                        @case('freelance_layer') bg-emerald-100 text-emerald-700 @break
-                        @case('freelance_fixed') bg-teal-100 text-teal-700 @break
-                        @case('youtuber_salary') bg-indigo-100 text-indigo-700 @break
-                        @case('youtuber_settlement') bg-violet-100 text-violet-700 @break
-                        @default bg-gray-100 text-gray-700
-                    @endswitch">
-                    {{ $employee->payroll_mode }}
+    {{-- Row 2: Navigation & Status Actions --}}
+    <div class="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-gray-100">
+        {{-- Left: Month Navigation --}}
+        <div class="flex items-center gap-1.5 relative">
+            @if($prevIsBeforeStart)
+                <span class="w-9 h-9 flex items-center justify-center bg-gray-50 rounded-xl text-gray-300 cursor-not-allowed select-none border border-gray-100" title="ไม่สามารถย้อนกลับก่อนวันเริ่มงาน">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
                 </span>
-                @if($canManageWorkspace && in_array($employee->payroll_mode, ['monthly_staff', 'office_staff', 'youtuber_salary']))
-                <div class="flex items-center gap-2 ml-2">
-                    <form action="{{ route('workspace.module.toggle', $employee->id) }}" method="POST">
-                        @csrf
-                        <input type="hidden" name="module_name" value="sso_deduction">
-                        <button type="submit" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border transition-all
-                            {{ $employee->isModuleEnabled('sso_deduction') ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-gray-50 border-gray-200 text-gray-400' }}" title="เปิด/ปิดการคิดเงินประกันสังคม">
-                            <span class="w-1.5 h-1.5 rounded-full {{ $employee->isModuleEnabled('sso_deduction') ? 'bg-indigo-500' : 'bg-gray-300' }}"></span>
-                            SSO
-                        </button>
-                    </form>
+            @else
+                <a href="{{ route('workspace.show', ['employee' => $employee->id, 'month' => $prevMonth, 'year' => $prevYear]) }}"
+                   class="w-9 h-9 flex items-center justify-center bg-white border border-gray-200 rounded-xl text-gray-500 hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm">
+                   <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+                </a>
+            @endif
 
-                    <form action="{{ route('workspace.module.toggle', $employee->id) }}" method="POST">
-                        @csrf
-                        <input type="hidden" name="module_name" value="deduct_late">
-                        <button type="submit" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border transition-all
-                            {{ $employee->isModuleEnabled('deduct_late') ? 'bg-red-50 border-red-200 text-red-700' : 'bg-gray-50 border-gray-200 text-gray-400' }}" title="เปิด/ปิดการหักเงินมาสาย">
-                            <span class="w-1.5 h-1.5 rounded-full {{ $employee->isModuleEnabled('deduct_late') ? 'bg-red-500' : 'bg-gray-300' }}"></span>
-                            หักมาสาย
-                        </button>
-                    </form>
+            <button @click="open = !open" type="button"
+                    class="h-9 px-4 bg-indigo-50 text-indigo-700 rounded-xl font-bold text-sm hover:bg-indigo-100 transition-colors relative cursor-pointer flex items-center gap-2 border border-indigo-100 shadow-sm">
+                <svg class="w-4 h-4 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                {{ $monthNames[$month] }} {{ $year + 543 }}
+                <svg class="w-3 h-3 opacity-40 transition-transform" :class="open ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </button>
 
-                    <form action="{{ route('workspace.module.toggle', $employee->id) }}" method="POST">
-                        @csrf
-                        <input type="hidden" name="module_name" value="deduct_early">
-                        <button type="submit" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border transition-all
-                            {{ $employee->isModuleEnabled('deduct_early') ? 'bg-amber-50 border-amber-200 text-amber-700' : 'bg-gray-50 border-gray-200 text-gray-400' }}" title="เปิด/ปิดการหักเงินออกก่อนเวลา">
-                            <span class="w-1.5 h-1.5 rounded-full {{ $employee->isModuleEnabled('deduct_early') ? 'bg-amber-500' : 'bg-gray-300' }}"></span>
-                            หักออกเร็ว
-                        </button>
-                    </form>
+            @if($nextIsFuture)
+                <span class="w-9 h-9 flex items-center justify-center bg-gray-50 rounded-xl text-gray-300 cursor-not-allowed select-none border border-gray-100" title="ไม่สามารถเลือกเดือนล่วงหน้าได้">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                </span>
+            @else
+                <a href="{{ route('workspace.show', ['employee' => $employee->id, 'month' => $nextMonth, 'year' => $nextYear]) }}"
+                   class="w-9 h-9 flex items-center justify-center bg-white border border-gray-200 rounded-xl text-gray-500 hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm">
+                   <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                </a>
+            @endif
+
+            {{-- Month Picker Dropdown --}}
+            <div x-show="open" x-cloak x-transition @click.away="open = false"
+                 class="absolute z-50 mt-1 top-full bg-white border border-gray-200 rounded-2xl shadow-2xl p-5 w-[280px]">
+                {{-- Year nav --}}
+                <div class="flex items-center justify-between mb-4">
+                    <button @click="if(pickerYear > startYear) pickerYear--" type="button"
+                            :class="pickerYear <= startYear ? 'text-gray-200 cursor-not-allowed' : 'hover:bg-gray-100 text-gray-500'"
+                            class="p-1.5 rounded-lg transition-colors border border-transparent">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+                    </button>
+                    <span class="text-sm font-bold text-gray-800" x-text="'พ.ศ. ' + (pickerYear + 543)"></span>
+                    <button @click="if(pickerYear < currentYearReal) pickerYear++" type="button"
+                            :class="pickerYear >= currentYearReal ? 'text-gray-200 cursor-not-allowed' : 'hover:bg-gray-100 text-gray-500'"
+                            class="p-1.5 rounded-lg transition-colors border border-transparent">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                    </button>
+                </div>
+
+                @if($startDate)
+                <div class="mb-3 text-[10px] text-gray-400 text-center font-medium">
+                    วันเริ่มงาน: {{ $startDate->format('d/m/') }}{{ $startDate->year + 543 }}
                 </div>
                 @endif
-            </div>
-        </div>
-    </div>
 
+                <div class="grid grid-cols-3 gap-2">
+                    <template x-for="(name, idx) in thaiMonths" :key="idx">
+                        <button
+                            @click="if(!isBeforeStart(idx + 1, pickerYear) && !isFuture(idx + 1, pickerYear)) { goTo(idx + 1, pickerYear); open = false; }"
+                            type="button"
+                            :disabled="isBeforeStart(idx + 1, pickerYear) || isFuture(idx + 1, pickerYear)"
+                            :class="{
+                                'bg-indigo-600 text-white font-bold shadow-md shadow-indigo-100': (idx + 1) === currentMonth && pickerYear === currentYear,
+                                'opacity-30 cursor-not-allowed': isBeforeStart(idx + 1, pickerYear) || isFuture(idx + 1, pickerYear),
+                                'bg-gray-50 text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 border-transparent hover:border-indigo-100': !isBeforeStart(idx + 1, pickerYear) && !isFuture(idx + 1, pickerYear) && !((idx + 1) === currentMonth && pickerYear === currentYear)
+                            }"
+                            class="px-2 py-2.5 rounded-xl text-xs font-semibold transition-all text-center border"
+                            x-text="name">
+                        </button>
+                    </template>
+                </div>
 
-    <div class="flex items-center gap-2 relative">
-        {{-- ← Prev month arrow: disabled when before start_date --}}
-        @if($prevIsBeforeStart)
-            <span class="px-3 py-1 bg-gray-100 rounded-lg text-sm text-gray-300 cursor-not-allowed select-none" title="ไม่สามารถย้อนกลับก่อนวันเริ่มงาน">&larr;</span>
-        @else
-            <a href="{{ route('workspace.show', ['employee' => $employee->id, 'month' => $prevMonth, 'year' => $prevYear]) }}"
-               class="px-3 py-1 bg-gray-100 rounded-lg text-sm hover:bg-gray-200">&larr;</a>
-        @endif
-
-        {{-- Clickable month badge → opens picker --}}
-        <button @click="open = !open" type="button"
-                class="px-4 py-1 bg-indigo-50 text-indigo-700 rounded-lg font-semibold text-sm hover:bg-indigo-100 transition-colors relative cursor-pointer flex items-center gap-1.5">
-            <svg class="w-3.5 h-3.5 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-            {{ $monthNames[$month] }} {{ $year + 543 }}
-            <svg class="w-3 h-3 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-        </button>
-
-        {{-- Month Picker Dropdown --}}
-        <div x-show="open" x-cloak x-transition @click.away="open = false"
-             class="absolute z-50 mt-2 top-full bg-white border border-gray-200 rounded-xl shadow-xl p-4 w-[280px]">
-            {{-- Year nav --}}
-            <div class="flex items-center justify-between mb-3">
-                {{-- ← Year back: disabled when already at start year --}}
-                <button @click="if(pickerYear > startYear) pickerYear--" type="button"
-                        :class="pickerYear <= startYear ? 'text-gray-200 cursor-not-allowed' : 'hover:bg-gray-100 text-gray-500'"
-                        class="p-1 rounded transition-colors">
-                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
-                </button>
-                <span class="text-sm font-bold text-gray-800" x-text="'พ.ศ. ' + (pickerYear + 543)"></span>
-                <button @click="if(pickerYear < currentYearReal) pickerYear++" type="button"
-                        :class="pickerYear >= currentYearReal ? 'text-gray-200 cursor-not-allowed' : 'hover:bg-gray-100 text-gray-500'"
-                        class="p-1 rounded transition-colors">
-                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-                </button>
-            </div>
-
-            {{-- Start-date label hint --}}
-            @if($startDate)
-            <div class="mb-2 text-[10px] text-gray-400 text-center">
-                วันเริ่มงาน: {{ $startDate->format('d/m/') }}{{ $startDate->year + 543 }}
-                &nbsp;·&nbsp; เดือนก่อนหน้าไม่สามารถเลือกได้
-            </div>
-            @endif
-
-            {{-- Month grid --}}
-            <div class="grid grid-cols-3 gap-1.5">
-                <template x-for="(name, idx) in thaiMonths" :key="idx">
-                    <button
-                        @click="if(!isBeforeStart(idx + 1, pickerYear) && !isFuture(idx + 1, pickerYear)) { goTo(idx + 1, pickerYear); open = false; }"
-                        type="button"
-                        :disabled="isBeforeStart(idx + 1, pickerYear) || isFuture(idx + 1, pickerYear)"
-                        :class="{
-                            'bg-indigo-600 text-white font-bold shadow-sm': (idx + 1) === currentMonth && pickerYear === currentYear,
-                            'bg-gray-50 text-gray-200 cursor-not-allowed': isBeforeStart(idx + 1, pickerYear) || isFuture(idx + 1, pickerYear),
-                            'bg-gray-50 text-gray-700 hover:bg-indigo-50 hover:text-indigo-700': !isBeforeStart(idx + 1, pickerYear) && !isFuture(idx + 1, pickerYear) && !((idx + 1) === currentMonth && pickerYear === currentYear)
-                        }"
-                        class="px-2 py-2 rounded-lg text-xs font-medium transition-all text-center"
-                        x-text="name">
+                <div class="mt-4 pt-3 border-t border-gray-50 flex justify-center">
+                    <button @click="goTo({{ now()->month }}, {{ now()->year }}); open = false" type="button"
+                            class="text-[11px] text-indigo-600 hover:text-indigo-800 font-bold uppercase tracking-wider">
+                        ⏎ เดือนปัจจุบัน
                     </button>
-                </template>
+                </div>
             </div>
+        </div>
 
-            {{-- Quick jump to current month --}}
-            <div class="mt-3 pt-3 border-t border-gray-100 flex justify-center">
-                <button @click="goTo({{ now()->month }}, {{ now()->year }}); open = false" type="button"
-                        class="text-[11px] text-indigo-600 hover:text-indigo-800 font-medium">
-                    ⏎ เดือนนี้
+        {{-- Right: Status & Actions --}}
+        <div class="flex items-center gap-3">
+            @if($payslip && $payslip->status === 'finalized')
+            <div class="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-xl border border-emerald-100 shadow-sm">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <span class="text-[10px] font-bold uppercase tracking-widest">Finalized</span>
+                
+                @if($canManageWorkspace)
+                <button type="button" @click="unfinalizeConfirmOpen = true"
+                        class="ml-1 p-1 text-emerald-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all" title="ยกเลิก Finalize">
+                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                 </button>
+                @endif
             </div>
-        </div>
-
-        @if($nextIsFuture)
-            <span class="px-3 py-1 bg-gray-100 rounded-lg text-sm text-gray-300 cursor-not-allowed select-none" title="ไม่สามารถเลือกเดือนล่วงหน้าได้">&rarr;</span>
-        @else
-            <a href="{{ route('workspace.show', ['employee' => $employee->id, 'month' => $nextMonth, 'year' => $nextYear]) }}"
-               class="px-3 py-1 bg-gray-100 rounded-lg text-sm hover:bg-gray-200">&rarr;</a>
-        @endif
-
-        @if($payslip && $payslip->status === 'finalized')
-        <div class="flex items-center gap-2 group">
-            <span class="px-2 py-1 bg-green-100 text-green-700 rounded-lg text-[10px] font-bold uppercase tracking-wider border border-green-200">Finalized</span>
-            
-            @if($canManageWorkspace)
-            <button type="button" @click="unfinalizeConfirmOpen = true"
-                    class="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="ยกเลิก Finalize">
-                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-            </button>
+            @else
+            <div class="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-700 rounded-xl border border-amber-100 shadow-sm">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <span class="text-[10px] font-bold uppercase tracking-widest">Draft</span>
+            </div>
             @endif
+
+            <a href="{{ route('payslip.preview', ['employee' => $employee->id, 'month' => $month, 'year' => $year]) }}"
+               class="h-9 px-6 {{ ($payslip && $payslip->status === 'finalized') ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200' : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200' }} text-white rounded-xl text-sm font-bold transition-all shadow-lg flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                Slip
+            </a>
         </div>
-        @else
-        <span class="px-2 py-1 bg-yellow-100 text-yellow-700 rounded-lg text-[10px] font-bold uppercase tracking-wider border border-yellow-200">Draft</span>
-        @endif
-
-        @if($canManageWorkspace)
-        <button @click="modalSwapOpen = true"
-           class="ml-2 px-4 py-2 bg-amber-500 text-white rounded-xl text-sm font-bold hover:bg-amber-600 transition-all shadow-lg shadow-amber-200 flex items-center gap-2" title="ส่งคำขอสลับวันทำงาน">
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
-            ขอ Swap วันหยุด
-        </button>
-        @endif
-
-        <a href="{{ route('payslip.preview', ['employee' => $employee->id, 'month' => $month, 'year' => $year]) }}"
-           class="ml-3 px-5 py-2 {{ ($payslip && $payslip->status === 'finalized') ? 'bg-green-600 hover:bg-green-700 shadow-green-200' : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200' }} text-white rounded-xl text-sm font-bold transition-all shadow-lg flex items-center gap-2">
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-            Slip
-        </a>
-
     </div>
 </div>
 
@@ -402,9 +280,10 @@
         <p class="text-xs text-red-600 font-medium">รายหัก</p>
         <p id="summary-total-deduction" class="text-2xl font-bold text-red-700 transition-all">{{ number_format($summary['total_deduction'] ?? 0, 2) }}</p>
     </div>
-    <div class="bg-indigo-50 border border-indigo-200 rounded-xl p-4">
+    <div id="summary-net-pay-card" class="bg-indigo-50 border border-indigo-200 rounded-xl p-4 transition-colors" x-data>
         <p class="text-xs text-indigo-600 font-medium">รายได้สุทธิ</p>
         <p id="summary-net-pay" class="text-2xl font-bold text-indigo-700 transition-all">{{ number_format($summary['net_pay'] ?? 0, 2) }}</p>
+        <p id="summary-stale-flag" class="hidden mt-1 text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded">⚠ ยังไม่ได้คำนวณใหม่</p>
     </div>
     <div class="bg-teal-50 border border-teal-200 rounded-xl p-4 relative group">
         <p class="text-xs text-teal-600 font-medium">ลาพักร้อน (ปีนี้)</p>
@@ -416,10 +295,18 @@
             <p class="text-[10px] text-teal-500 font-bold" x-text="'เหลือ ' + vacationBalance.remaining + ' วัน'"></p>
         </div>
     </div>
+    @if($employee->payroll_mode !== 'youtuber_salary' && $employee->payroll_mode !== 'youtuber_settlement')
     <div class="bg-amber-50 border border-amber-200 rounded-xl p-4">
         <p class="text-xs text-amber-600 font-medium">ระยะเวลารวม (เดือนนี้)</p>
         <p class="text-2xl font-bold text-amber-700">{{ $performanceSummary['total_duration_hms'] ?? '00:00:00' }}</p>
     </div>
+    @else
+    <div class="bg-indigo-50 border border-indigo-200 rounded-xl p-4">
+        <p class="text-xs text-indigo-600 font-medium">{{ $performanceSummary['revenue_label'] ?? 'รายได้สะสม' }}</p>
+        <p class="text-2xl font-bold text-indigo-700">{{ number_format($performanceSummary['ytd_income'] ?? 0, 2) }}</p>
+        <p class="text-[10px] text-indigo-400 font-bold uppercase mt-1">สรุปรายได้ที่ปิดยอดแล้ว</p>
+    </div>
+    @endif
 </div>
 
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -434,22 +321,24 @@
         <div class="{{ (!($workspaceEditEnabled ?? true) || !$canManageWorkspace) ? 'opacity-60 pointer-events-none select-none' : '' }}">
         @if(in_array($employee->payroll_mode, ['monthly_staff', 'office_staff']))
             @if($attendanceReadOnly ?? false)
-                {{-- owner sees placeholder for current month --}}
-                <div class="bg-white rounded-xl shadow-sm border p-6 text-center text-gray-400 text-sm">
-                    <svg class="w-10 h-10 mx-auto mb-2 text-amber-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-                    ตารางเข้างานสำหรับเดือนนี้จะแสดงหลังสิ้นเดือน
-                </div>
+                {{-- Owner sees personal calendar for current month --}}
+                @if(!empty($ownerCalendar))
+                    @include('workspace.partials.owner-calendar')
+                @else
+                    <div class="bg-white rounded-xl shadow-sm border p-6 text-center text-gray-400 text-sm">
+                        <svg class="w-10 h-10 mx-auto mb-2 text-amber-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                        ตารางเข้างานสำหรับเดือนนี้จะแสดงหลังสิ้นเดือน
+                    </div>
+                @endif
             @else
                 @include('workspace.partials.attendance-grid')
             @endif
+        @elseif($employee->payroll_mode === 'youtuber_salary')
+            @include('workspace.partials.youtuber-recording-sessions')
         @elseif($employee->payroll_mode === 'freelance_layer')
             @include('workspace.partials.freelance-layer-grid')
-        @elseif($employee->payroll_mode === 'freelance_fixed')
-            @include('workspace.partials.freelance-fixed-grid')
         @elseif($employee->payroll_mode === 'youtuber_settlement')
             @include('workspace.partials.youtuber-settlement-grid')
-        @elseif($employee->payroll_mode === 'youtuber_salary')
-            @include('workspace.partials.youtuber-salary-grid')
         @else
             {{-- custom_hybrid or unknown mode --}}
             <div class="bg-white rounded-xl shadow-sm border p-6 text-center text-gray-400 text-sm">
@@ -460,7 +349,133 @@
         @endif
         </div>
 
-        @if(!in_array($employee->payroll_mode, ['youtuber_salary', 'youtuber_settlement'], true))
+        {{-- Current Jobs: Always show for owner (non-admin) when they have assigned jobs --}}
+        @if(!$canManageWorkspace && ($assignedEditJobs ?? collect())->isNotEmpty())
+        <div class="bg-white rounded-xl shadow-sm border overflow-hidden">
+            <div class="px-4 py-3 bg-indigo-700 text-white font-semibold text-sm flex items-center justify-between">
+                <h3 class="flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                    งานของฉัน
+                </h3>
+                @php $ownerActiveCount = ($assignedEditJobs ?? collect())->whereNotIn('status', ['final'])->count(); @endphp
+                <span class="text-[10px] px-2 py-0.5 bg-white/20 text-white rounded-full uppercase font-bold">{{ $ownerActiveCount }} กำลังดำเนินการ</span>
+            </div>
+            <div class="p-4">
+                @php
+                    $ownerActiveJobs = ($assignedEditJobs ?? collect())->whereNotIn('status', ['final']);
+                    $ownerCompletedJobs = ($assignedEditJobs ?? collect())->where('status', 'final');
+                    $currentEmployeeId = auth()->user()?->employee?->id;
+                    $statusColors = [
+                        'assigned' => 'bg-blue-100 text-blue-700',
+                        'in_progress' => 'bg-yellow-100 text-yellow-700',
+                        'review_ready' => 'bg-purple-100 text-purple-700',
+                        'final' => 'bg-emerald-100 text-emerald-700',
+                    ];
+                    $statusTH = [
+                        'assigned' => 'ได้รับมอบหมาย',
+                        'in_progress' => 'กำลังตัดต่อ',
+                        'review_ready' => 'รอตรวจ',
+                        'final' => 'ปิดงาน/Final',
+                    ];
+                @endphp
+
+                @if($ownerActiveJobs->isNotEmpty())
+                <div class="overflow-x-auto rounded-xl border border-indigo-100">
+                    <table class="w-full text-xs">
+                        <thead class="bg-indigo-50 text-indigo-600">
+                            <tr>
+                                <th class="px-3 py-2 text-left">ชื่องาน</th>
+                                <th class="px-3 py-2 text-left">เกม</th>
+                                <th class="px-3 py-2 text-left">กำหนดส่ง</th>
+                                <th class="px-3 py-2 text-left">สถานะ</th>
+                                <th class="px-3 py-2 text-left">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($ownerActiveJobs as $job)
+                            @php
+                                $canActOnJob = ($workspaceEditEnabled ?? true) && ((int) $job->assigned_to === (int) $currentEmployeeId);
+                            @endphp
+                            <tr class="border-t border-indigo-50 hover:bg-indigo-50/30 transition-colors">
+                                <td class="px-3 py-2.5 font-semibold text-gray-800">{{ $job->job_name ?? '-' }}</td>
+                                <td class="px-3 py-2.5 text-gray-500">{{ $job->game?->game_name ?? '-' }}</td>
+                                <td class="px-3 py-2.5 {{ $job->isOverdue() ? 'text-red-600 font-bold' : '' }}">
+                                    {{ $job->deadline_date?->format('d/m/Y') ?? '-' }}
+                                    @if($job->isOverdue()) <span class="text-red-500">⚠️</span> @endif
+                                </td>
+                                <td class="px-3 py-2.5">
+                                    <span class="inline-block px-2 py-0.5 rounded-md text-[10px] font-semibold {{ $statusColors[$job->status] ?? 'bg-gray-100 text-gray-600' }}">
+                                        {{ $statusTH[$job->status] ?? ($job->status ?? '-') }}
+                                    </span>
+                                </td>
+                                <td class="px-3 py-2.5">
+                                    @if($canActOnJob)
+                                        @if($job->status === 'assigned')
+                                            <form action="{{ route('work.editing-job.start', $job) }}" method="POST" class="inline">@csrf
+                                                <button class="px-2.5 py-1 rounded-md bg-indigo-600 text-white text-[11px] font-semibold hover:bg-indigo-700 transition-colors">เริ่มงาน</button>
+                                            </form>
+                                        @elseif($job->status === 'in_progress')
+                                            <form action="{{ route('work.editing-job.mark-ready', $job) }}" method="POST" class="inline">@csrf
+                                                <button class="px-2.5 py-1 rounded-md bg-blue-600 text-white text-[11px] font-semibold hover:bg-blue-700 transition-colors">ส่งงาน</button>
+                                            </form>
+                                        @elseif($job->status === 'review_ready')
+                                            <span class="text-[10px] text-purple-600 font-medium">🔍 รอ Admin ตรวจสอบ</span>
+                                        @endif
+                                    @else
+                                        <span class="text-[11px] text-gray-400">-</span>
+                                    @endif
+                                </td>
+                            </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+                @else
+                <div class="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-6 text-center">
+                    <div class="text-sm font-semibold text-emerald-600">✅ ไม่มีงานค้าง</div>
+                    <div class="mt-1 text-xs text-gray-400">ทุกงานถูกส่งไปแล้ว</div>
+                </div>
+                @endif
+
+                @if($ownerCompletedJobs->isNotEmpty())
+                <div class="mt-4">
+                    <h4 class="text-xs font-semibold text-slate-600 mb-2 flex items-center gap-2">
+                        งานที่ปิดแล้วเดือนนี้
+                        <span class="bg-slate-200 text-slate-700 text-[10px] px-2 py-0.5 rounded-full font-medium">{{ $ownerCompletedJobs->count() }}</span>
+                    </h4>
+                    <div class="overflow-x-auto rounded-xl border border-slate-200">
+                        <table class="w-full text-xs">
+                            <thead class="bg-slate-50 text-slate-600">
+                                <tr>
+                                    <th class="px-3 py-2 text-left">ชื่องาน</th>
+                                    <th class="px-3 py-2 text-left">เกม</th>
+                                    <th class="px-3 py-2 text-left">วันที่เสร็จ</th>
+                                    <th class="px-3 py-2 text-left">สถานะ</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($ownerCompletedJobs as $job)
+                                <tr class="border-t border-slate-100 hover:bg-slate-50/60 transition-colors">
+                                    <td class="px-3 py-2 font-medium text-gray-700">{{ $job->job_name ?? '-' }}</td>
+                                    <td class="px-3 py-2 text-gray-500">{{ $job->game?->game_name ?? '-' }}</td>
+                                    <td class="px-3 py-2 text-gray-500">{{ $job->finalized_at?->format('d/m/Y') ?? '-' }}</td>
+                                    <td class="px-3 py-2">
+                                        <span class="inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-700">ปิดงาน/Final</span>
+                                    </td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                @endif
+            </div>
+        </div>
+        @endif
+
+        {{-- YouTuber doesn't need to see production/performance pipeline here anymore --}}
+        {{-- FL layer/fixed merge the Assigned Edit Jobs inside their own grid card --}}
+        @if($canManageWorkspace && !in_array($employee->payroll_mode, ['youtuber_salary', 'youtuber_settlement', 'freelance_layer'], true) && ($panel ?? '') !== 'none')
             @include('workspace.partials.performance-records')
         @endif
     </div>
@@ -474,15 +489,14 @@
                         'monthly_staff'         => 'สรุปเงินเดือน',
                         'office_staff'          => 'สรุปเงินเดือน',
                         'youtuber_salary'       => 'สรุปเงินเดือน',
-                        'freelance_layer'       => 'สรุปค่าจ้าง (Layer)',
-                        'freelance_fixed'       => 'สรุปค่าจ้าง (Fixed)',
+                        'freelance_layer'       => 'สรุปค่าจ้าง',
                         'youtuber_settlement'   => 'สรุปรายรับ-รายจ่าย',
                         default                 => 'สรุปรายได้',
                     };
                 @endphp
                 <h3 class="font-semibold text-sm mb-3">{{ $panelTitle }}</h3>
 
-            @if(isset($summary['total_work_hours']) && in_array($employee->payroll_mode, ['monthly_staff', 'office_staff', 'youtuber_salary']))
+            @if(isset($summary['total_work_hours']) && in_array($employee->payroll_mode, ['monthly_staff', 'office_staff']))
             <div class="space-y-2 mb-4 text-sm">
                 <div class="flex justify-between">
                     <span class="text-gray-500">ชั่วโมงรวม</span>
@@ -518,14 +532,6 @@
                     <span class="text-gray-500">เวลารวม</span>
                     <span class="font-medium">{{ sprintf('%d:%02d:%02d', $fl_h, $fl_m, $fl_s) }}</span>
                 </div>
-                <div class="flex justify-between">
-                    <span class="text-gray-500">จำนวนรายการ</span>
-                    <span class="font-medium">{{ $summary['work_log_count'] ?? 0 }} รายการ</span>
-                </div>
-            </div>
-            <hr class="my-3">
-            @elseif(isset($summary['work_log_count']) && $employee->payroll_mode === 'freelance_fixed')
-            <div class="space-y-2 mb-4 text-sm">
                 <div class="flex justify-between">
                     <span class="text-gray-500">จำนวนรายการ</span>
                     <span class="font-medium">{{ $summary['work_log_count'] ?? 0 }} รายการ</span>
@@ -594,14 +600,19 @@
         @if($canManageWorkspace)
         <form method="POST" action="{{ route('workspace.recalculate', ['employee' => $employee->id, 'month' => $month, 'year' => $year]) }}">
             @csrf
-            <button type="submit" {{ !($workspaceEditEnabled ?? true) ? 'disabled' : '' }} class="w-full bg-indigo-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                คำนวณใหม่
+            <button type="submit" data-shortcut-recalculate id="recalculate-btn" {{ !($workspaceEditEnabled ?? true) ? 'disabled' : '' }} class="w-full bg-indigo-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                คำนวณใหม่ <span class="text-[10px] opacity-60 ml-1">Ctrl+R</span>
             </button>
         </form>
         @endif
 
+        {{-- Quick Actions Panel — only for attendance-tracked employees --}}
+        @if(in_array($employee->payroll_mode, ['monthly_staff', 'office_staff']))
+            @include('workspace.partials.quick-actions')
+        @endif
+
         <div class="{{ !($workspaceEditEnabled ?? true) ? 'opacity-60 pointer-events-none select-none' : '' }}">
-            @include('workspace.partials.claims-grid')
+            @include('workspace.partials.payroll-adjustments')
         </div>
     </div>
 </div>
@@ -628,3 +639,44 @@
     </div>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+(function () {
+    const card = document.getElementById('summary-net-pay-card');
+    const flag = document.getElementById('summary-stale-flag');
+    const recalcBtn = document.getElementById('recalculate-btn');
+    if (!card || !flag) return;
+
+    let isStale = false;
+    const markStale = () => {
+        if (isStale) return;
+        isStale = true;
+        flag.classList.remove('hidden');
+        card.classList.add('ring-2', 'ring-amber-400');
+        if (recalcBtn) recalcBtn.classList.add('animate-pulse');
+    };
+
+    document.addEventListener('change', (e) => {
+        const t = e.target;
+        if (!t) return;
+        if (t.closest('#summary-net-pay-card')) return;
+        if (t.matches('input, select, textarea')) markStale();
+    }, true);
+
+    try {
+        const key = 'xhr_recent_employees';
+        const current = {
+            id: {{ (int) $employee->id }},
+            name: {!! json_encode($employee->full_name ?? $employee->first_name) !!},
+            url: {!! json_encode(route('workspace.show', ['employee' => $employee->id, 'month' => $month, 'year' => $year])) !!},
+            opened_at: Date.now(),
+        };
+        const raw = localStorage.getItem(key);
+        let list = raw ? JSON.parse(raw) : [];
+        list = [current, ...list.filter(r => r.id !== current.id)].slice(0, 8);
+        localStorage.setItem(key, JSON.stringify(list));
+    } catch (e) { /* ignore */ }
+})();
+</script>
+@endpush
