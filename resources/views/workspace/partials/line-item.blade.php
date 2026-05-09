@@ -1,9 +1,8 @@
 @php
     $note = trim((string) ($item['notes'] ?? $item['note'] ?? ''));
     $hasNote = $note !== '';
-    // Split on `; ` only — the deliberate separator from the calculator. Comma-separated parts inside
-    // an entry (e.g., "1 May, 4 May") stay together intentionally.
-    $parts = $hasNote ? array_values(array_filter(array_map('trim', preg_split('/\s*;\s+/', $note)))) : [];
+    // Split on newlines (the deliberate separator from the calculator). Falls back to `; ` for legacy data.
+    $parts = $hasNote ? array_values(array_filter(array_map('trim', preg_split('/\r?\n|\s*;\s+/', $note)))) : [];
 @endphp
 <div class="flex justify-between text-sm py-1 group/row relative">
     <span class="text-gray-600 inline-flex items-center gap-1 relative">

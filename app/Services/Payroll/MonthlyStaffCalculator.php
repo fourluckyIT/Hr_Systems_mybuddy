@@ -285,29 +285,29 @@ class MonthlyStaffCalculator
         $sortOrder = 0;
 
         $items[] = $this->resolveItem('base_salary', 'income', 'ฐานเงินเดือน', $baseSalary, 'master', ++$sortOrder, $existingItems);
-        $items[] = $this->resolveItem('holiday_work_pay', 'income', 'ค่าทำงานวันหยุด', $holidayWorkPay, 'auto', ++$sortOrder, $existingItems, !empty($holidayRegularDates) ? implode(', ', array_unique($holidayRegularDates)) : null);
-        
+        $items[] = $this->resolveItem('holiday_work_pay', 'income', 'ค่าทำงานวันหยุด', $holidayWorkPay, 'auto', ++$sortOrder, $existingItems, !empty($holidayRegularDates) ? implode("\n", array_unique($holidayRegularDates)) : null);
+
         // Flat one-entry-per-bullet — each line already carries its own tag like "(OT)" or "(OT วันหยุดบริษัท)"
         $otAllEntries = array_unique(array_merge($otDates, $holidayOtDates));
-        $otNote = !empty($otAllEntries) ? implode('; ', $otAllEntries) : null;
+        $otNote = !empty($otAllEntries) ? implode("\n", $otAllEntries) : null;
         $items[] = $this->resolveItem('overtime', 'income', 'ค่าล่วงเวลา', $overtimePay, 'auto', ++$sortOrder, $existingItems, $otNote);
-        
+
         $items[] = $this->resolveItem('diligence', 'income', 'เบี้ยขยัน', $diligenceAmount, 'auto', ++$sortOrder, $existingItems);
 
         $sortOrder = 0;
         $items[] = $this->resolveItem('cash_advance', 'deduction', 'เงินหักล่วงหน้า', 0, 'manual', ++$sortOrder, $existingItems);
-        $items[] = $this->resolveItem('lwop', 'deduction', 'ขาดงาน', $lwopDeduction, 'auto', ++$sortOrder, $existingItems, !empty($lwopDates) ? implode(', ', array_unique($lwopDates)) : null);
+        $items[] = $this->resolveItem('lwop', 'deduction', 'ขาดงาน', $lwopDeduction, 'auto', ++$sortOrder, $existingItems, !empty($lwopDates) ? implode("\n", array_unique($lwopDates)) : null);
         // If late minutes accumulated but deduction is 0 (rule disabled or grace ate it), prepend an explanation
-        $lateNote = !empty($lateDates) ? implode(', ', array_unique($lateDates)) : null;
+        $lateNote = !empty($lateDates) ? implode("\n", array_unique($lateDates)) : null;
         if ($lateNote && $lateDeduction == 0 && $totalLateMinutes > 0) {
             $reason = (!$lateRule || ($lateRule->config['type'] ?? 'none') === 'none')
                 ? 'กฎหักมาสายปิดอยู่ — ไม่หักเงิน'
                 : ('ภายในช่วงผ่อนผัน ' . ((int)($lateRule->config['grace_period_minutes'] ?? 0)) . ' นาที — ไม่หักเงิน');
-            $lateNote = $reason . '; ' . $lateNote;
+            $lateNote = $reason . "\n" . $lateNote;
         }
-        $earlyNote = !empty($earlyLeaveDates) ? implode(', ', array_unique($earlyLeaveDates)) : null;
+        $earlyNote = !empty($earlyLeaveDates) ? implode("\n", array_unique($earlyLeaveDates)) : null;
         if ($earlyNote && $earlyLeaveDeduction == 0 && $totalEarlyLeaveMinutes > 0) {
-            $earlyNote = 'กฎหักออกก่อนเวลาปิดอยู่ — ไม่หักเงิน; ' . $earlyNote;
+            $earlyNote = 'กฎหักออกก่อนเวลาปิดอยู่ — ไม่หักเงิน' . "\n" . $earlyNote;
         }
         $items[] = $this->resolveItem('late_deduction', 'deduction', 'มาสาย', $lateDeduction, 'auto', ++$sortOrder, $existingItems, $lateNote);
         $items[] = $this->resolveItem('early_leave_deduction', 'deduction', 'ออกก่อนเวลา', $earlyLeaveDeduction, 'auto', ++$sortOrder, $existingItems, $earlyNote);
