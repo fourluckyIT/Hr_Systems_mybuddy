@@ -33,9 +33,18 @@ class CalendarController extends Controller
             }
         }
 
-        // We want a 7-day week (Sunday to Saturday)
-        $startDate = $currentDate->copy()->startOfWeek(Carbon::SUNDAY);
-        $endDate = $currentDate->copy()->endOfWeek(Carbon::SATURDAY);
+        // View mode: week (default) or month
+        $viewMode = $request->query('view') === 'month' ? 'month' : 'week';
+
+        if ($viewMode === 'month') {
+            // Full calendar grid covering the current month, padded to whole weeks
+            $startDate = $currentDate->copy()->startOfMonth()->startOfWeek(Carbon::SUNDAY);
+            $endDate   = $currentDate->copy()->endOfMonth()->endOfWeek(Carbon::SATURDAY);
+        } else {
+            // 7-day week (Sunday to Saturday)
+            $startDate = $currentDate->copy()->startOfWeek(Carbon::SUNDAY);
+            $endDate   = $currentDate->copy()->endOfWeek(Carbon::SATURDAY);
+        }
 
         // Fetch Company Holidays (eager-load type so views can resolve color/icon without N+1)
         $holidays = CompanyHoliday::with('holidayType')
@@ -43,38 +52,50 @@ class CalendarController extends Controller
             ->whereBetween('holiday_date', [$startDate, $endDate])
             ->get();
 
-        // Fetch Attendance Logs (Leaves/LWOP/Not Started)
-        $logs = AttendanceLog::with('employee')
-            ->whereBetween('log_date', [$startDate, $endDate])
-            ->whereNotIn('day_type', ['workday', 'holiday', 'company_holiday', 'not_started'])
-            ->get();
-
-        // Fetch Recording Jobs
-        $recordingJobs = RecordingJob::with('assignees.employee')
-            ->whereBetween('scheduled_date', [$startDate, $endDate])
-            ->get();
-
-        // Fetch Editing Jobs (Consolidated Pipeline)
-        $editingJobs = EditingJob::with(['game', 'assignee'])
-            ->active()
-            ->whereBetween('deadline_date', [$startDate, $endDate])
-            ->get();
-
-        // Fetch personal leave / swap requests
-        $user = Auth::user();
+        // Auth + employee filter
+        $user    = Auth::user();
         $isAdmin = $user->hasRole('admin');
 
+        // Admin can pick any employee (or none = global). Non-admin is forced to their own employee_id.
+        $rawFilter = $request->query('employee');
+        $rawFilter = ctype_digit((string) $rawFilter) ? (int) $rawFilter : null;
+        $filterEmployeeId = $isAdmin ? $rawFilter : ($user->employee?->id);
+
+        // Fetch Attendance Logs (Leaves/LWOP/Not Started)
+        $logsQuery = AttendanceLog::with('employee')
+            ->whereBetween('log_date', [$startDate, $endDate])
+            ->whereNotIn('day_type', ['workday', 'holiday', 'company_holiday', 'not_started']);
+        if ($filterEmployeeId) $logsQuery->where('employee_id', $filterEmployeeId);
+        $logs = $logsQuery->get();
+
+        // Fetch Recording Jobs
+        $recordingJobsQuery = RecordingJob::with('assignees.employee')
+            ->whereBetween('scheduled_date', [$startDate, $endDate]);
+        if ($filterEmployeeId) {
+            $recordingJobsQuery->whereHas('assignees', fn($q) => $q->where('employee_id', $filterEmployeeId));
+        }
+        $recordingJobs = $recordingJobsQuery->get();
+
+        // Fetch Editing Jobs (Consolidated Pipeline)
+        $editingJobsQuery = EditingJob::with(['game', 'assignee'])
+            ->active()
+            ->whereBetween('deadline_date', [$startDate, $endDate]);
+        if ($filterEmployeeId) $editingJobsQuery->where('assigned_to', $filterEmployeeId);
+        $editingJobs = $editingJobsQuery->get();
+
+        // Personal leave / swap requests — same filter rule
         $leaveQuery = LeaveRequest::with('employee')
             ->whereIn('status', ['pending', 'approved'])
             ->whereBetween('leave_date', [$startDate, $endDate]);
         $swapQuery = DaySwapRequest::with('employee')
             ->whereIn('status', ['pending', 'approved'])
-            ->whereBetween('work_date', [$startDate, $endDate]);
-
-        if (!$isAdmin) {
-            $myEmployeeId = $user->employee?->id;
-            $leaveQuery->where('employee_id', $myEmployeeId);
-            $swapQuery->where('employee_id', $myEmployeeId);
+            ->where(function ($q) use ($startDate, $endDate) {
+                $q->whereBetween('work_date', [$startDate, $endDate])
+                  ->orWhereBetween('off_date',  [$startDate, $endDate]);
+            });
+        if ($filterEmployeeId) {
+            $leaveQuery->where('employee_id', $filterEmployeeId);
+            $swapQuery->where('employee_id', $filterEmployeeId);
         }
 
         $leaveRequests = $leaveQuery->get();
@@ -172,34 +193,59 @@ class CalendarController extends Controller
             ];
         }
 
-        // Add Day-Swap Requests to events (personal)
+        // Add Day-Swap Requests to events (personal). Show on BOTH the work_date and off_date,
+        // with a clear label naming the employee and the counterpart date so admins can see who swapped what.
         foreach ($swapRequests as $sr) {
-            $dateStr = Carbon::parse($sr->work_date)->format('Y-m-d');
             $isPending = $sr->status === 'pending';
             $color = $isPending ? 'bg-orange-50 text-orange-600 border-orange-200' : 'bg-orange-100 text-orange-800 border-orange-200';
             $badge = $isPending ? '⏳' : '⇄';
+            $name = $sr->employee->nickname ?: trim(($sr->employee->first_name ?? '') . ' ' . ($sr->employee->last_name ?? ''));
+            $workStr = Carbon::parse($sr->work_date)->format('d/m');
+            $offStr  = Carbon::parse($sr->off_date)->format('d/m');
 
-            $events[$dateStr][] = [
-                'type'       => 'day_swap_request',
-                'id'         => $sr->id,
-                'label'      => "{$badge} {$sr->employee->nickname}: สลับวัน",
-                'color'      => $color,
-                'is_all_day' => true,
-                'model'      => $sr,
-            ];
+            // Side that becomes a workday
+            $workDate = Carbon::parse($sr->work_date)->format('Y-m-d');
+            if ($workDate >= $startDate->format('Y-m-d') && $workDate <= $endDate->format('Y-m-d')) {
+                $events[$workDate][] = [
+                    'type'       => 'day_swap_request',
+                    'id'         => $sr->id,
+                    'label'      => "{$badge} {$name}: มาทำงาน (แทนวันที่ {$offStr})",
+                    'color'      => $color,
+                    'is_all_day' => true,
+                    'model'      => $sr,
+                ];
+            }
+
+            // Side that becomes a holiday
+            $offDate = Carbon::parse($sr->off_date)->format('Y-m-d');
+            if ($offDate >= $startDate->format('Y-m-d') && $offDate <= $endDate->format('Y-m-d')) {
+                $events[$offDate][] = [
+                    'type'       => 'day_swap_request',
+                    'id'         => $sr->id,
+                    'label'      => "{$badge} {$name}: หยุดแทน (มาทำงาน {$workStr})",
+                    'color'      => $color,
+                    'is_all_day' => true,
+                    'model'      => $sr,
+                ];
+            }
         }
 
-        // Generate the 7 days for the view
+        // Generate the days for the view (week → 7 days; month → full padded month grid)
         $weekDays = [];
         $d = $startDate->copy();
         while ($d <= $endDate) {
             $weekDays[] = [
-                'date' => $d->copy(),
-                'date_str' => $d->format('Y-m-d'),
-                'is_today' => $d->isToday(),
+                'date'             => $d->copy(),
+                'date_str'         => $d->format('Y-m-d'),
+                'is_today'         => $d->isToday(),
+                'is_current_month' => $d->month === $currentDate->month,
+                'is_weekend'       => $d->isWeekend(),
             ];
             $d->addDay();
         }
+
+        // Chunk into weeks of 7 days for the month-grid blade
+        $monthWeeks = array_chunk($weekDays, 7);
 
         // Required meta for action modals
         $employees = Employee::active()->orderBy('first_name')->get();
@@ -247,20 +293,43 @@ class CalendarController extends Controller
         $upcomingStart = Carbon::today();
         $upcomingEnd   = Carbon::today()->addDays(14);
 
+        // Holidays are global — always shown
         $upcomingHolidays = CompanyHoliday::with('holidayType')
             ->where('is_active', true)
             ->whereBetween('holiday_date', [$upcomingStart, $upcomingEnd])
             ->orderBy('holiday_date')->get();
 
-        $upcomingRecording = RecordingJob::with('assignees.employee')
+        // Person-scoped: respect $filterEmployeeId same as main calendar
+        $upRecQuery = RecordingJob::with('assignees.employee')
             ->whereBetween('scheduled_date', [$upcomingStart, $upcomingEnd])
-            ->orderBy('scheduled_date')->orderBy('scheduled_time')
-            ->get();
+            ->orderBy('scheduled_date')->orderBy('scheduled_time');
+        if ($filterEmployeeId) {
+            $upRecQuery->whereHas('assignees', fn($q) => $q->where('employee_id', $filterEmployeeId));
+        }
+        $upcomingRecording = $upRecQuery->get();
 
-        $upcomingEdits = EditingJob::with(['game', 'assignee'])
+        $upEditQuery = EditingJob::with(['game', 'assignee'])
             ->active()
             ->whereBetween('deadline_date', [$upcomingStart, $upcomingEnd])
-            ->orderBy('deadline_date')->get();
+            ->orderBy('deadline_date');
+        if ($filterEmployeeId) $upEditQuery->where('assigned_to', $filterEmployeeId);
+        $upcomingEdits = $upEditQuery->get();
+
+        $upLeaveQuery = LeaveRequest::with('employee')
+            ->whereIn('status', ['pending', 'approved'])
+            ->whereBetween('leave_date', [$upcomingStart, $upcomingEnd])
+            ->orderBy('leave_date');
+        if ($filterEmployeeId) $upLeaveQuery->where('employee_id', $filterEmployeeId);
+        $upcomingLeaves = $upLeaveQuery->get();
+
+        $upSwapQuery = DaySwapRequest::with('employee')
+            ->whereIn('status', ['pending', 'approved'])
+            ->where(function ($q) use ($upcomingStart, $upcomingEnd) {
+                $q->whereBetween('work_date', [$upcomingStart, $upcomingEnd])
+                  ->orWhereBetween('off_date',  [$upcomingStart, $upcomingEnd]);
+            });
+        if ($filterEmployeeId) $upSwapQuery->where('employee_id', $filterEmployeeId);
+        $upcomingSwaps = $upSwapQuery->get();
 
         $upcomingEvents = collect();
         foreach ($upcomingHolidays as $h) {
@@ -297,6 +366,44 @@ class CalendarController extends Controller
                 'sub'   => 'ครบกำหนด',
             ]);
         }
+        $leaveTypeLabelsUp = ['sick_leave' => 'ลาป่วย', 'personal_leave' => 'ลากิจ', 'vacation_leave' => 'ลาพักร้อน', 'lwop' => 'LWOP'];
+        foreach ($upcomingLeaves as $lr) {
+            $name = $lr->employee->nickname ?: trim(($lr->employee->first_name ?? '') . ' ' . ($lr->employee->last_name ?? ''));
+            $typeLabel = $leaveTypeLabelsUp[$lr->leave_type] ?? $lr->leave_type;
+            $isPending = $lr->status === 'pending';
+            $upcomingEvents->push([
+                'date'  => Carbon::parse($lr->leave_date),
+                'label' => "{$name}: {$typeLabel}",
+                'type'  => 'leave_request',
+                'color' => $isPending ? 'bg-blue-50 text-blue-600' : 'bg-blue-100 text-blue-700',
+                'dot'   => 'bg-blue-400',
+                'icon'  => $isPending ? '⏳' : '📅',
+                'sub'   => $isPending ? 'รออนุมัติ' : 'อนุมัติแล้ว',
+            ]);
+        }
+        foreach ($upcomingSwaps as $sr) {
+            $name = $sr->employee->nickname ?: trim(($sr->employee->first_name ?? '') . ' ' . ($sr->employee->last_name ?? ''));
+            $isPending = $sr->status === 'pending';
+            $workDate = Carbon::parse($sr->work_date);
+            $offDate  = Carbon::parse($sr->off_date);
+            // Add one upcoming entry per side that falls inside the window
+            foreach ([
+                ['date' => $workDate, 'sub' => 'มาทำงาน (สลับกับ ' . $offDate->format('d/m') . ')'],
+                ['date' => $offDate,  'sub' => 'หยุดแทน (มาทำงาน ' . $workDate->format('d/m') . ')'],
+            ] as $part) {
+                if ($part['date']->between($upcomingStart, $upcomingEnd)) {
+                    $upcomingEvents->push([
+                        'date'  => $part['date'],
+                        'label' => "{$name}: สลับวัน",
+                        'type'  => 'day_swap_request',
+                        'color' => $isPending ? 'bg-orange-50 text-orange-600' : 'bg-orange-100 text-orange-700',
+                        'dot'   => 'bg-orange-400',
+                        'icon'  => $isPending ? '⏳' : '⇄',
+                        'sub'   => $part['sub'],
+                    ]);
+                }
+            }
+        }
         $upcomingEvents = $upcomingEvents->sortBy(fn($e) => $e['date']->timestamp)->values();
 
         $games = \App\Models\Game::where('is_active', true)->orderBy('game_name')->get();
@@ -309,7 +416,8 @@ class CalendarController extends Controller
         ];
 
         return view('calendar.index', compact(
-            'weekDays', 'events', 'startDate', 'endDate', 'currentDate',
+            'weekDays', 'monthWeeks', 'viewMode', 'filterEmployeeId',
+            'events', 'startDate', 'endDate', 'currentDate',
             'employees', 'youtubers', 'activeJobStages', 'jobStages', 'mediaResources',
             'miniCalendarDays', 'upcomingEvents', 'games', 'isAdmin', 'leaveTypes'
         ));

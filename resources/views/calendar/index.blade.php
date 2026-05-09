@@ -82,23 +82,76 @@
     {{-- ============================================================ --}}
     {{-- HEADER (Week Navigation) — full width                        --}}
     {{-- ============================================================ --}}
+    @php
+        $isMonthView = ($viewMode ?? 'week') === 'month';
+        $filterEmployeeId = $filterEmployeeId ?? null;
+        $persist = array_filter([
+            'view'     => $isMonthView ? 'month' : null,
+            'employee' => $filterEmployeeId,
+        ]);
+        $prevDate = $isMonthView
+            ? $currentDate->copy()->subMonth()->startOfMonth()->format('Y-m-d')
+            : $startDate->copy()->subWeek()->format('Y-m-d');
+        $nextDate = $isMonthView
+            ? $currentDate->copy()->addMonth()->startOfMonth()->format('Y-m-d')
+            : $startDate->copy()->addWeek()->format('Y-m-d');
+        $headerSubtitle = $isMonthView
+            ? $currentDate->translatedFormat('F Y') . ' — ตารางงานรายเดือน'
+            : $startDate->translatedFormat('d F') . ' - ' . $endDate->translatedFormat('d F Y') . ' — ตารางงานรายสัปดาห์';
+        $selectedEmployee = $filterEmployeeId ? $employees->firstWhere('id', $filterEmployeeId) : null;
+    @endphp
     <div class="flex items-center justify-between mb-4">
         <div>
-            <h1 class="text-2xl font-bold text-gray-900">ปฏิทินหลักบริษัท</h1>
-            <p class="text-sm text-gray-500">
-                {{ $startDate->translatedFormat('d F') }} - {{ $endDate->translatedFormat('d F Y') }} — ตารางงานรายสัปดาห์
-            </p>
+            <h1 class="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                ปฏิทินหลักบริษัท
+                @if($selectedEmployee)
+                    <span class="px-2 py-0.5 text-xs font-semibold bg-indigo-100 text-indigo-700 rounded-full inline-flex items-center gap-1">
+                        👤 {{ $selectedEmployee->nickname ?: trim(($selectedEmployee->first_name ?? '') . ' ' . ($selectedEmployee->last_name ?? '')) }}
+                        <a href="{{ route('calendar.index', array_filter(['date' => $currentDate->format('Y-m-d'), 'view' => $isMonthView ? 'month' : null])) }}" class="text-indigo-400 hover:text-indigo-700 ml-0.5">×</a>
+                    </span>
+                @endif
+            </h1>
+            <p class="text-sm text-gray-500">{{ $headerSubtitle }}</p>
         </div>
         <div class="flex items-center gap-2">
-            <a href="{{ route('calendar.index', ['date' => $startDate->copy()->subWeek()->format('Y-m-d')]) }}"
+            {{-- Employee filter (admin only) --}}
+            @if($isAdmin)
+            <form method="GET" action="{{ route('calendar.index') }}" class="mr-2">
+                <input type="hidden" name="date" value="{{ $currentDate->format('Y-m-d') }}">
+                @if($isMonthView)<input type="hidden" name="view" value="month">@endif
+                <select name="employee" onchange="this.form.submit()"
+                        class="text-xs font-medium border border-gray-200 rounded-lg px-3 py-1.5 bg-white hover:border-indigo-300 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-200 transition-colors min-w-[160px]">
+                    <option value="">🌐 ทั้งหมด (Global)</option>
+                    @foreach($employees as $emp)
+                        <option value="{{ $emp->id }}" {{ $filterEmployeeId === $emp->id ? 'selected' : '' }}>
+                            {{ $emp->nickname ?: trim(($emp->first_name ?? '') . ' ' . ($emp->last_name ?? '')) }}
+                        </option>
+                    @endforeach
+                </select>
+            </form>
+            @endif
+
+            {{-- View mode toggle --}}
+            <div class="flex bg-gray-100 rounded-lg p-0.5 mr-2">
+                <a href="{{ route('calendar.index', array_merge(['date' => $currentDate->format('Y-m-d')], array_filter(['employee' => $filterEmployeeId]))) }}"
+                   class="px-3 py-1 text-xs font-semibold rounded-md transition-colors {{ !$isMonthView ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-700' }}">
+                    สัปดาห์
+                </a>
+                <a href="{{ route('calendar.index', array_merge(['date' => $currentDate->format('Y-m-d'), 'view' => 'month'], array_filter(['employee' => $filterEmployeeId]))) }}"
+                   class="px-3 py-1 text-xs font-semibold rounded-md transition-colors {{ $isMonthView ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-700' }}">
+                    เดือน
+                </a>
+            </div>
+
+            <a href="{{ route('calendar.index', array_merge(['date' => $prevDate], $persist)) }}"
                class="p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-600">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
             </a>
-            <a href="{{ route('calendar.index') }}"
+            <a href="{{ route('calendar.index', $persist) }}"
                class="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-xs font-medium text-indigo-700 rounded-lg transition-colors">
-                สัปดาห์นี้
+                {{ $isMonthView ? 'เดือนนี้' : 'สัปดาห์นี้' }}
             </a>
-            <a href="{{ route('calendar.index', ['date' => $startDate->copy()->addWeek()->format('Y-m-d')]) }}"
+            <a href="{{ route('calendar.index', array_merge(['date' => $nextDate], $persist)) }}"
                class="p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-600">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" /></svg>
             </a>
@@ -224,6 +277,86 @@
         {{-- ============================= --}}
         <div class="flex-1 min-w-0">
 
+    @if($isMonthView)
+    {{-- ============================= --}}
+    {{-- MONTH GRID (Google-style)     --}}
+    {{-- ============================= --}}
+    @php
+        // Map event types/color classes to a single Tailwind color name for the left bar
+        $typeBarColor = [
+            'company_holiday'   => 'bg-purple-400',
+            'attendance_log'    => 'bg-teal-400',
+            'recording_job'     => 'bg-amber-400',
+            'editing_job'       => 'bg-sky-400',
+            'leave_request'     => 'bg-blue-400',
+            'day_swap_request'  => 'bg-orange-400',
+        ];
+        $formatEventTime = function($ev) {
+            if (!empty($ev['start_time'])) {
+                try {
+                    return \Carbon\Carbon::createFromFormat('H:i', $ev['start_time'])->format('g:ia');
+                } catch (\Throwable $e) {
+                    return $ev['start_time'];
+                }
+            }
+            return null;
+        };
+    @endphp
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div class="grid grid-cols-7 border-b border-gray-200">
+            @foreach(['SUN','MON','TUE','WED','THU','FRI','SAT'] as $i => $wl)
+            <div class="px-3 py-3 text-[11px] font-semibold tracking-wider {{ in_array($i, [0,6]) ? 'text-gray-400' : 'text-gray-500' }} border-r border-gray-200 last:border-r-0">{{ $wl }}</div>
+            @endforeach
+        </div>
+
+        @foreach($monthWeeks as $week)
+        <div class="grid grid-cols-7 border-b border-gray-200 last:border-b-0">
+            @foreach($week as $day)
+            @php
+                $dayEvents = collect($events[$day['date_str']] ?? [])->sortBy(function($ev) {
+                    // All-day first, then by time
+                    return ($ev['is_all_day'] ? '00:00' : ($ev['start_time'] ?? '99:99'));
+                })->values();
+                $maxShow   = 4;
+                $shown     = $dayEvents->take($maxShow);
+                $extra     = max(0, $dayEvents->count() - $shown->count());
+            @endphp
+            <div class="border-r border-gray-200 last:border-r-0 min-h-[120px] px-2 pt-2 pb-1 cursor-pointer transition-colors hover:bg-gray-50
+                        {{ $day['is_current_month'] ? 'bg-white' : 'bg-gray-50/40' }}"
+                 @click="openDay('{{ $day['date_str'] }}')">
+                <div class="mb-1">
+                    <span class="inline-flex items-center justify-center w-7 h-7 text-[12px] font-medium rounded-full
+                        {{ $day['is_today'] ? 'bg-indigo-600 text-white font-semibold' : '' }}
+                        {{ !$day['is_today'] && !$day['is_current_month'] ? 'text-gray-300' : '' }}
+                        {{ !$day['is_today'] && $day['is_current_month'] ? 'text-gray-700' : '' }}">
+                        {{ $day['date']->format('j') }}
+                    </span>
+                </div>
+                <div class="space-y-1">
+                    @foreach($shown as $ev)
+                    @php
+                        $bar  = $typeBarColor[$ev['type']] ?? 'bg-gray-400';
+                        $time = $formatEventTime($ev);
+                    @endphp
+                    <div class="flex items-center gap-1.5 text-[11px] text-gray-700 leading-tight">
+                        <span class="w-0.5 h-3.5 rounded-sm flex-none {{ $bar }}"></span>
+                        @if($time)
+                        <span class="text-gray-500 flex-none">{{ $time }}</span>
+                        <span class="text-gray-300 flex-none">·</span>
+                        @endif
+                        <span class="truncate font-medium text-gray-800">{{ $ev['label'] }}</span>
+                    </div>
+                    @endforeach
+                    @if($extra > 0)
+                    <div class="text-[10px] text-gray-500 pl-2">+ อีก {{ $extra }} รายการ</div>
+                    @endif
+                </div>
+            </div>
+            @endforeach
+        </div>
+        @endforeach
+    </div>
+    @else
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-[800px]">
 
         {{-- Weekday Headers --}}
@@ -323,6 +456,7 @@
             </div>
         </div>
     </div>
+    @endif
 
     {{-- Legend --}}
     <div class="flex items-center gap-5 mt-4 px-1">

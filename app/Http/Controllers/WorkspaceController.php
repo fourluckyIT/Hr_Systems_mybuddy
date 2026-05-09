@@ -1345,6 +1345,21 @@ class WorkspaceController extends Controller
                 ->whereBetween('log_date', [$calStart, $calEnd])
                 ->get()->keyBy(fn($log) => Carbon::parse($log->log_date)->format('Y-m-d'));
 
+            // Approved day-swaps overlapping the calendar window
+            $calSwaps = \App\Models\DaySwapRequest::where('employee_id', $employee->id)
+                ->where('status', 'approved')
+                ->where(function ($q) use ($calStart, $calEnd) {
+                    $q->whereBetween('work_date', [$calStart, $calEnd])
+                      ->orWhereBetween('off_date',  [$calStart, $calEnd]);
+                })
+                ->get();
+            $swapWorkMap = [];   // date_str → swap (this date became a workday)
+            $swapOffMap  = [];   // date_str → swap (this date became a holiday)
+            foreach ($calSwaps as $sw) {
+                $swapWorkMap[Carbon::parse($sw->work_date)->format('Y-m-d')] = $sw;
+                $swapOffMap[Carbon::parse($sw->off_date)->format('Y-m-d')]   = $sw;
+            }
+
             $miniCalendarDays = [];
             $d2 = $calStart->copy();
             while ($d2 <= $calEnd) {
@@ -1352,11 +1367,29 @@ class WorkspaceController extends Controller
                 $dots = [];
                 $events = [];
 
+                $isSwappedToWork    = isset($swapWorkMap[$ds]);
+                $isSwappedToHoliday = isset($swapOffMap[$ds]);
+
                 if ($calHolidays->has($ds)) {
                     $dots[] = 'holiday';
                     foreach ($calHolidays[$ds] as $h) {
                         $events[] = ['type' => 'holiday', 'label' => '🏢 ' . $h->name, 'color' => 'purple'];
                     }
+                }
+
+                // Day swap: reflect approved swaps in the calendar
+                if ($isSwappedToWork) {
+                    $sw = $swapWorkMap[$ds];
+                    $offStr = Carbon::parse($sw->off_date)->format('d/m/y');
+                    $events[] = ['type' => 'swap', 'label' => "🔄 มาทำงาน (สลับกับ {$offStr})", 'color' => 'amber', 'status' => 'approved'];
+                }
+                if ($isSwappedToHoliday) {
+                    $sw = $swapOffMap[$ds];
+                    $workStr = Carbon::parse($sw->work_date)->format('d/m/y');
+                    if (!in_array('holiday', $dots, true)) {
+                        $dots[] = 'holiday';
+                    }
+                    $events[] = ['type' => 'swap', 'label' => "🔄 หยุดแทน (สลับกับ {$workStr})", 'color' => 'amber', 'status' => 'approved'];
                 }
                 if ($calLeaves->has($ds)) {
                     $dots[] = 'leave';
@@ -1395,15 +1428,21 @@ class WorkspaceController extends Controller
                     }
                 }
 
+                // Effective weekend flag: a swap flips weekend/workday for that specific date
+                $effectiveWeekend = $d2->isWeekend();
+                if ($isSwappedToWork)    $effectiveWeekend = false;
+                if ($isSwappedToHoliday) $effectiveWeekend = true;
+
                 $miniCalendarDays[] = [
                     'date'             => $d2->copy(),
                     'date_str'         => $ds,
                     'is_today'         => $d2->isToday(),
                     'is_current_month' => $d2->month === $calDate->month,
-                    'is_weekend'       => $d2->isWeekend(),
+                    'is_weekend'       => $effectiveWeekend,
                     'dots'             => $dots,
                     'events'           => $events,
                     'att_status'       => $attStatus,
+                    'is_swapped'       => $isSwappedToWork || $isSwappedToHoliday,
                 ];
                 $d2->addDay();
             }
