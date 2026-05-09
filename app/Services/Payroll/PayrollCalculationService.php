@@ -140,9 +140,9 @@ class PayrollCalculationService
         });
     }
 
-    public function finalizePayslip(Employee $employee, int $month, int $year): Payslip
+    public function finalizePayslip(Employee $employee, int $month, int $year, ?string $paymentDate = null): Payslip
     {
-        return DB::transaction(function () use ($employee, $month, $year) {
+        return DB::transaction(function () use ($employee, $month, $year, $paymentDate) {
             $batch = PayrollBatch::where('month', $month)->where('year', $year)->first();
 
             $items = PayrollItem::where('employee_id', $employee->id)
@@ -164,6 +164,7 @@ class PayrollCalculationService
                     'status' => 'finalized',
                     'finalized_at' => now(),
                     'finalized_by' => auth()->id(),
+                    'payment_date' => $paymentDate ?? now()->toDateString(),
                 ]
             );
 

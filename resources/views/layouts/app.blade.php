@@ -28,7 +28,7 @@
 
             <div class="flex justify-between h-14">
                 <div class="flex items-center space-x-6">
-                    <a href="{{ $isOwnerOnly ? route('workspace.my') : route('employees.index') }}" class="text-lg font-bold text-indigo-600">xHR Payroll</a>
+                    <a href="{{ route('welcome') }}" class="text-lg font-bold text-indigo-600">xHR Payroll</a>
 
                     @php
                         $navLink = 'text-sm text-gray-600 hover:text-indigo-600';
@@ -38,14 +38,15 @@
 
                     @if($isOwnerOnly)
                         <a href="{{ route('workspace.my') }}" class="{{ $navLink }} {{ request()->routeIs('workspace.*') ? $navActive : '' }}">My Workspace</a>
-                        <a href="{{ route('leave.index') }}" class="{{ $navLink }} {{ request()->routeIs('leave.*') ? $navActive : '' }}">ลา / OT / สลับวัน</a>
+                        <a href="{{ route('portal.index') }}" class="{{ $navLink }} {{ request()->routeIs('portal.*') || request()->routeIs('leave.*') ? $navActive : '' }}">📄 ศูนย์เอกสาร</a>
                         <a href="{{ route('calendar.index') }}" class="{{ $navLink }} {{ request()->routeIs('calendar.*') ? $navActive : '' }}">ปฏิทินบริษัท</a>
                     @elseif($isAdmin)
                         {{-- Primary (daily use) --}}
                         <a href="{{ route('employees.index') }}" class="{{ $navLink }} {{ request()->routeIs('employees.*') ? $navActive : '' }}">พนักงาน</a>
                         <a href="{{ route('work.index') }}" class="{{ $navLink }} {{ request()->routeIs('work.*') || request()->routeIs('settings.works.*') ? $navActive : '' }}">WORK Center</a>
-                        <a href="{{ route('leave.index') }}" class="{{ $navLink }} {{ request()->routeIs('leave.*') ? $navActive : '' }}">การลา/สลับวัน</a>
+                        <a href="{{ route('leave-management.index') }}" class="{{ $navLink }} {{ request()->routeIs('leave-management.*') ? $navActive : '' }}">สิทธิวันลา (Batch)</a>
                         <a href="{{ route('payroll-batches.index') }}" class="{{ $navLink }} {{ request()->routeIs('payroll-batches.*') ? $navActive : '' }}">รอบบิลเงินเดือน</a>
+                        <a href="{{ route('portal.index') }}" class="{{ $navLink }} {{ request()->routeIs('portal.*') || request()->routeIs('leave.*') ? $navActive : '' }}">📄 ศูนย์เอกสาร</a>
                         <a href="{{ route('company.finance') }}" class="{{ $navLink }} {{ request()->routeIs('company.*') || request()->routeIs('expense-tracker.*') ? $navActive : '' }}">การเงิน</a>
 
                         {{-- รายงาน dropdown --}}
@@ -58,24 +59,73 @@
                             <div x-show="open" x-cloak x-transition class="absolute left-0 mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-50">
                                 <a href="{{ route('calendar.index') }}" class="{{ $dropItem }}">ปฏิทินบริษัท</a>
                                 <a href="{{ route('annual.index') }}" class="{{ $dropItem }}">สรุปรายปี</a>
+                                <a href="{{ route('leave-management.index') }}" class="{{ $dropItem }}">🏖️ จัดการวันลา</a>
                                 <a href="{{ route('expense-tracker.index') }}" class="{{ $dropItem }}">รายรับ-จ่าย (Tracker)</a>
                                 <a href="{{ route('audit-logs.index') }}" class="{{ $dropItem }}">Audit Log</a>
                             </div>
                         </div>
 
-                        {{-- ตั้งค่า dropdown --}}
+                        {{-- ตั้งค่า dropdown (ERP Style) --}}
                         @php $settingsActive = request()->routeIs('settings.*'); @endphp
                         <div x-data="{ open: false }" class="relative" @click.outside="open = false">
                             <button @click="open = !open" class="{{ $navLink }} flex items-center gap-1 {{ $settingsActive ? $navActive : '' }}">
                                 ตั้งค่า
-                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                <svg class="w-3 h-3 transition-transform duration-200" :class="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                             </button>
-                            <div x-show="open" x-cloak x-transition class="absolute left-0 mt-1 w-56 bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-50">
-                                <a href="{{ route('settings.master-data') }}" class="{{ $dropItem }}">Master Data</a>
-{{-- <a href="{{ route('settings.works.index') }}" class="{{ $dropItem }}">Work Types</a> --}}
-                                <a href="{{ route('settings.bonus.index') }}" class="{{ $dropItem }}">Bonus Manager</a>
-                                <a href="{{ route('settings.rules') }}" class="{{ $dropItem }}">กติกาคำนวณ</a>
-                                <a href="{{ route('settings.company') }}" class="{{ $dropItem }}">ตั้งค่าบริษัท</a>
+                            <div x-show="open" x-cloak x-transition:enter="transition ease-out duration-100" x-transition:enter-start="transform opacity-0 scale-95" x-transition:enter-end="transform opacity-100 scale-100" x-transition:leave="transition ease-in duration-75" x-transition:leave-start="transform opacity-100 scale-100" x-transition:leave-end="transform opacity-0 scale-95" 
+                                 class="absolute left-0 mt-2 w-80 bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden divide-y divide-gray-100">
+                                
+                                <!-- Core Setup -->
+                                <a href="{{ route('settings.company') }}" class="block p-4 hover:bg-slate-50 transition-colors group">
+                                    <div class="flex items-start gap-3">
+                                        <div class="p-2 bg-indigo-50 text-indigo-600 rounded-lg group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+                                        </div>
+                                        <div>
+                                            <div class="text-sm font-bold text-gray-800 group-hover:text-indigo-700">ตั้งค่าบริษัท (Company)</div>
+                                            <div class="text-[11px] text-gray-500 mt-0.5">โลโก้บริษัท, ลายเซ็นต์, วันหยุดประจำปี</div>
+                                        </div>
+                                    </div>
+                                </a>
+
+                                <!-- HR Data -->
+                                <a href="{{ route('settings.master-data') }}" class="block p-4 hover:bg-slate-50 transition-colors group">
+                                    <div class="flex items-start gap-3">
+                                        <div class="p-2 bg-emerald-50 text-emerald-600 rounded-lg group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"/></svg>
+                                        </div>
+                                        <div>
+                                            <div class="text-sm font-bold text-gray-800 group-hover:text-emerald-700">Master Data</div>
+                                            <div class="text-[11px] text-gray-500 mt-0.5">จัดการแผนก, ตำแหน่ง, เลเวลพนักงาน</div>
+                                        </div>
+                                    </div>
+                                </a>
+
+                                <!-- Calculation -->
+                                <a href="{{ route('settings.rules') }}" class="block p-4 hover:bg-slate-50 transition-colors group">
+                                    <div class="flex items-start gap-3">
+                                        <div class="p-2 bg-amber-50 text-amber-600 rounded-lg group-hover:bg-amber-600 group-hover:text-white transition-colors">
+                                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                                        </div>
+                                        <div>
+                                            <div class="text-sm font-bold text-gray-800 group-hover:text-amber-700">กติกาคำนวณ (Rules)</div>
+                                            <div class="text-[11px] text-gray-500 mt-0.5">ตั้งเพดานประกันสังคม, หักมาสาย, เรทโอที</div>
+                                        </div>
+                                    </div>
+                                </a>
+
+                                <!-- Performance -->
+                                <a href="{{ route('settings.bonus.index') }}" class="block p-4 hover:bg-slate-50 transition-colors group">
+                                    <div class="flex items-start gap-3">
+                                        <div class="p-2 bg-rose-50 text-rose-600 rounded-lg group-hover:bg-rose-600 group-hover:text-white transition-colors">
+                                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/></svg>
+                                        </div>
+                                        <div>
+                                            <div class="text-sm font-bold text-gray-800 group-hover:text-rose-700">Bonus Manager</div>
+                                            <div class="text-[11px] text-gray-500 mt-0.5">การตั้งเป้าหมาย, รอบโบนัสและ Tier ต่างๆ</div>
+                                        </div>
+                                    </div>
+                                </a>
                             </div>
                         </div>
                     @endif
@@ -126,33 +176,64 @@
 
     <!-- Flash Messages -->
     @if(session('success'))
-    <div class="max-w-7xl mx-auto px-4 mt-4">
-        <div class="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
-            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-            {{ session('success') }}
+    <div class="max-w-7xl mx-auto px-4 mt-4"
+         x-data="{ show: true }"
+         x-show="show"
+         x-init="setTimeout(() => show = false, 4000)"
+         x-transition:leave="transition ease-in duration-500"
+         x-transition:leave-start="opacity-100 translate-y-0"
+         x-transition:leave-end="opacity-0 -translate-y-2">
+        <div class="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2">
+                <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                {{ session('success') }}
+            </div>
+            <button @click="show = false" class="opacity-40 hover:opacity-80 transition-opacity ml-2 shrink-0">&times;</button>
         </div>
     </div>
     @endif
 
     @if($errors->any() || session('error'))
-    <div class="max-w-7xl mx-auto px-4 mt-4">
-        <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm flex items-start gap-2">
-            <svg class="w-4 h-4 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M12 3a9 9 0 100 18A9 9 0 0012 3z"></path></svg>
-            <div>
-                @if(session('error'))
-                    {{ session('error') }}
-                @else
-                    @foreach($errors->all() as $err) <div>{{ $err }}</div> @endforeach
-                @endif
+    <div class="max-w-7xl mx-auto px-4 mt-4"
+         x-data="{ show: true }"
+         x-show="show"
+         x-init="setTimeout(() => show = false, 6000)"
+         x-transition:leave="transition ease-in duration-500"
+         x-transition:leave-start="opacity-100 translate-y-0"
+         x-transition:leave-end="opacity-0 -translate-y-2">
+        <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm flex items-start justify-between gap-2">
+            <div class="flex items-start gap-2">
+                <svg class="w-4 h-4 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M12 3a9 9 0 100 18A9 9 0 0012 3z"></path></svg>
+                <div>
+                    @if(session('error'))
+                        {{ session('error') }}
+                    @else
+                        @foreach($errors->all() as $err) <div>{{ $err }}</div> @endforeach
+                    @endif
+                </div>
             </div>
+            <button @click="show = false" class="opacity-40 hover:opacity-80 transition-opacity ml-2 shrink-0">&times;</button>
         </div>
     </div>
     @endif
 
     <!-- Content -->
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-grow">
         @yield('content')
     </main>
+
+    <!-- Footer / Version Tracker -->
+    <footer class="mt-auto border-t border-gray-200 bg-white shadow-sm print:hidden">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex justify-between items-center text-[11px] text-gray-500">
+            <div class="font-medium">
+                xHR Payroll System &copy; {{ date('Y') }}
+            </div>
+            <div class="flex items-center gap-3">
+                <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> System Active</span>
+                <span class="font-bold text-gray-700 bg-gray-100 px-2 py-0.5 rounded border border-gray-200">v1.2.0 (Stable)</span>
+            </div>
+        </div>
+    </footer>
 
     {{-- Toast container --}}
     <div x-data="{ toasts: [] }"

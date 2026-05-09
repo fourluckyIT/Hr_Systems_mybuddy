@@ -11,7 +11,10 @@ use App\Models\ModuleToggle;
 use App\Models\LayerRateRule;
 use App\Models\LayerRateTemplate;
 use App\Models\Game;
+use App\Models\LeavePolicy;
+use App\Models\HolidayType;
 use App\Services\AuditLogService;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 
 class MasterDataController extends Controller
@@ -45,6 +48,18 @@ class MasterDataController extends Controller
 
         $games = Game::orderBy('game_name')->get();
 
+        $leavePolicies = LeavePolicy::withCount('employees')
+            ->orderByDesc('is_default')
+            ->orderBy('name')
+            ->get();
+
+        $holidayTypes = HolidayType::withCount('companyHolidays')
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get();
+
+        $colorPresets = HolidayType::COLOR_PRESETS;
+
         return view('settings.master-data', compact(
             'payrollItemTypes',
             'departments',
@@ -54,8 +69,92 @@ class MasterDataController extends Controller
             'freelanceLayerEmployees',
             'layerRateRules',
             'layerRateTemplates',
-            'games'
+            'games',
+            'leavePolicies',
+            'holidayTypes',
+            'colorPresets'
         ));
+    }
+
+    // ─── Leave Policies CRUD ─────────────────────────────────────────────
+    public function storeLeavePolicy(Request $request)
+    {
+        $this->requireAdmin();
+        $data = $this->validateLeavePolicy($request);
+
+        DB::transaction(function () use ($data) {
+            if (!empty($data['is_default'])) {
+                LeavePolicy::query()->update(['is_default' => false]);
+            }
+            $p = LeavePolicy::create($data);
+            $this->audit->logCreated($p, 'Leave policy created');
+        });
+
+        return back()->with('success', 'เพิ่มนโยบายวันลาสำเร็จ');
+    }
+
+    public function updateLeavePolicy(Request $request, LeavePolicy $leavePolicy)
+    {
+        $this->requireAdmin();
+        $data = $this->validateLeavePolicy($request);
+
+        DB::transaction(function () use ($data, $leavePolicy) {
+            if (!empty($data['is_default'])) {
+                LeavePolicy::where('id', '!=', $leavePolicy->id)->update(['is_default' => false]);
+            }
+            $old = $leavePolicy->getAttributes();
+            $leavePolicy->update($data);
+            $this->audit->log($leavePolicy, 'updated', 'leave_policy', $old, $leavePolicy->getAttributes(), 'Leave policy updated');
+        });
+
+        return back()->with('success', 'อัปเดตนโยบายวันลาสำเร็จ');
+    }
+
+    public function destroyLeavePolicy(LeavePolicy $leavePolicy)
+    {
+        $this->requireAdmin();
+
+        if ($leavePolicy->is_default) {
+            return back()->withErrors(['policy' => 'ลบนโยบาย default ไม่ได้ — กรุณาตั้งนโยบายอื่นเป็น default ก่อน']);
+        }
+
+        // employees ที่ผูกอยู่ — เปลี่ยนเป็น default ก่อนลบ
+        $defaultId = LeavePolicy::where('is_default', true)->value('id');
+        Employee::where('leave_policy_id', $leavePolicy->id)->update(['leave_policy_id' => $defaultId]);
+
+        $this->audit->logDeleted($leavePolicy, 'Leave policy deleted');
+        $leavePolicy->delete();
+
+        return back()->with('success', 'ลบนโยบายวันลาสำเร็จ');
+    }
+
+    protected function validateLeavePolicy(Request $request): array
+    {
+        $rules = [
+            'name' => 'required|string|max:100',
+            'is_default' => 'sometimes|boolean',
+            'is_active' => 'sometimes|boolean',
+            'vacation_days' => 'required|integer|min:0|max:365',
+            'sick_days' => 'required|integer|min:0|max:365',
+            'personal_days' => 'required|integer|min:0|max:365',
+            'allow_carryover' => 'sometimes|boolean',
+            'max_carryover_days' => 'nullable|integer|min:0|max:365',
+            'carryover_expires_months' => 'nullable|integer|min:1|max:24',
+            'allow_encashment' => 'sometimes|boolean',
+            'max_encash_days_per_year' => 'nullable|integer|min:0|max:365',
+            'encash_rate_formula' => 'required|in:salary_div_30,salary_div_22,manual',
+            'available_during_probation' => 'sometimes|boolean',
+            'apply_to_payroll_modes' => 'nullable|array',
+            'apply_to_payroll_modes.*' => 'string|in:monthly_staff,office_staff,freelance_layer,youtuber_salary,youtuber_settlement,custom_hybrid',
+            'note' => 'nullable|string|max:500',
+        ];
+
+        $data = $request->validate($rules);
+        // Default booleans
+        foreach (['is_default','is_active','allow_carryover','allow_encashment','available_during_probation'] as $b) {
+            $data[$b] = (bool) ($data[$b] ?? false);
+        }
+        return $data;
     }
 
     protected function requireAdmin(): void
@@ -447,5 +546,76 @@ class MasterDataController extends Controller
         $game->delete();
 
         return back()->with('success', 'ลบเกม "' . $name . '" สำเร็จ');
+    }
+
+    // === Holiday Types ===
+
+    public function storeHolidayType(Request $request)
+    {
+        $this->requireAdmin();
+        $validated = $request->validate([
+            'code' => 'required|string|max:50|unique:holiday_types,code|alpha_dash',
+            'name' => 'required|string|max:100',
+            'default_color' => ['required', 'string', 'max:30', \Illuminate\Validation\Rule::in(array_keys(HolidayType::COLOR_PRESETS))],
+            'icon' => 'nullable|string|max:10',
+            'sort_order' => 'nullable|integer|min:0',
+        ]);
+
+        $validated['is_system'] = false;
+        $validated['is_active'] = true;
+        $validated['sort_order'] = $validated['sort_order'] ?? 99;
+
+        $type = HolidayType::create($validated);
+        $this->audit->logCreated($type, 'เพิ่มประเภทวันหยุด: ' . $type->name);
+
+        return back()->with('success', "เพิ่มประเภทวันหยุด \"{$type->name}\" สำเร็จ");
+    }
+
+    public function updateHolidayType(Request $request, HolidayType $holidayType)
+    {
+        $this->requireAdmin();
+        $validated = $request->validate([
+            'name' => 'required|string|max:100',
+            'default_color' => ['required', 'string', 'max:30', \Illuminate\Validation\Rule::in(array_keys(HolidayType::COLOR_PRESETS))],
+            'icon' => 'nullable|string|max:10',
+            'sort_order' => 'nullable|integer|min:0',
+            'is_active' => 'nullable|boolean',
+        ]);
+
+        // System types: code is locked.
+        if (!$holidayType->is_system && $request->filled('code')) {
+            $request->validate([
+                'code' => 'required|string|max:50|alpha_dash|unique:holiday_types,code,' . $holidayType->id,
+            ]);
+            $validated['code'] = $request->input('code');
+        }
+
+        $validated['is_active'] = $request->boolean('is_active');
+
+        $old = $holidayType->toArray();
+        $holidayType->update($validated);
+        $this->audit->logUpdated($holidayType, collect($old)->only(array_keys($validated))->toArray(), 'แก้ไขประเภทวันหยุด');
+
+        return back()->with('success', "อัปเดตประเภทวันหยุด \"{$holidayType->name}\" สำเร็จ");
+    }
+
+    public function deleteHolidayType(HolidayType $holidayType)
+    {
+        $this->requireAdmin();
+
+        if ($holidayType->is_system) {
+            return back()->with('error', "ไม่สามารถลบประเภทวันหยุดระบบ \"{$holidayType->name}\" ได้");
+        }
+
+        $usage = $holidayType->companyHolidays()->count();
+        if ($usage > 0) {
+            return back()->with('error', "ไม่สามารถลบ \"{$holidayType->name}\" ได้ — มีวันหยุดใช้งานอยู่ {$usage} รายการ");
+        }
+
+        $name = $holidayType->name;
+        $this->audit->logDeleted($holidayType, 'ลบประเภทวันหยุด: ' . $name);
+        $holidayType->delete();
+
+        return back()->with('success', "ลบประเภทวันหยุด \"{$name}\" สำเร็จ");
     }
 }

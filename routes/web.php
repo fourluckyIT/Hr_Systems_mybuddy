@@ -20,23 +20,26 @@ use App\Http\Controllers\OtRequestController;
 use App\Http\Controllers\ExpenseTrackerController;
 use App\Http\Controllers\ExtraIncomeController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\PortalController;
+use App\Http\Controllers\LeaveBalanceController;
+use App\Http\Controllers\LeaveManagementController;
 
 // Auth
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
+// Root: send authed users to welcome, otherwise to login
+Route::get('/', function () {
+    return auth()->check()
+        ? redirect()->route('welcome')
+        : redirect()->route('login');
+});
+
 // All authenticated routes
 Route::middleware('auth')->group(function () {
 
-Route::get('/', function () {
-    $user = auth()->user();
-    if ($user && $user->hasRole('owner') && !$user->hasRole('admin')) {
-        return redirect()->route('workspace.my');
-    }
-
-    return redirect()->route('employees.index');
-});
+Route::get('/welcome', [\App\Http\Controllers\WelcomeController::class, 'index'])->name('welcome');
 
 Route::get('/my/workspace/{month?}/{year?}', [WorkspaceController::class, 'myWorkspace'])
     ->middleware('role:admin,owner')
@@ -46,6 +49,9 @@ Route::get('/my/workspace/{month?}/{year?}', [WorkspaceController::class, 'myWor
 Route::prefix('employees')->name('employees.')->middleware('role:admin')->group(function () {
     Route::get('/generate-code', [EmployeeController::class, 'generateCode'])->name('generate-code');
     Route::patch('/{employee}/toggle-status', [EmployeeController::class, 'toggleStatus'])->name('toggle-status');
+    Route::post('/{employee}/probation/pass', [EmployeeController::class, 'passProbation'])->name('probation.pass');
+    Route::post('/{employee}/probation/fail', [EmployeeController::class, 'failProbation'])->name('probation.fail');
+    Route::post('/{employee}/probation/extend', [EmployeeController::class, 'extendProbation'])->name('probation.extend');
 });
 
 // Employees CRUD
@@ -74,6 +80,7 @@ Route::prefix('workspace')->name('workspace.')->group(function () {
         Route::post('/{employee}/module/toggle', [WorkspaceController::class, 'toggleModule'])->name('module.toggle');
         Route::patch('/claims/{claim}/approve', [WorkspaceController::class, 'approveClaim'])->name('claims.approve');
         Route::delete('/claims/{claim}', [WorkspaceController::class, 'deleteClaim'])->name('claims.delete');
+        Route::get('/claims/{claim}/print', [WorkspaceController::class, 'printClaim'])->name('claims.print');
         Route::patch('/{employee}/advance-ceiling', [WorkspaceController::class, 'updateAdvanceCeiling'])->name('updateAdvanceCeiling');
         Route::post('/worklog/{workLog}/toggle', [WorkspaceController::class, 'toggleWorkLog'])->name('toggleWorkLog');
     });
@@ -82,9 +89,9 @@ Route::prefix('workspace')->name('workspace.')->group(function () {
 // Calendar
 Route::get('/calendar/{month?}/{year?}', [CalendarController::class, 'index'])->name('calendar.index');
 
-// Leave & Day-swap Requests
+// Leave & Day-swap Requests — page list moved to portal; routes kept for form submit + cancel
 Route::prefix('leave')->name('leave.')->group(function () {
-    Route::get('/', [LeaveRequestController::class, 'index'])->name('index');
+    Route::get('/', fn() => redirect()->route('portal.index'))->name('index');  // legacy redirect
     Route::post('/store', [LeaveRequestController::class, 'storeLeave'])->name('store');
     Route::post('/swap', [LeaveRequestController::class, 'storeSwap'])->name('swap.store');
     Route::post('/{leaveRequest}/cancel', [LeaveRequestController::class, 'cancelLeave'])->name('cancel');
@@ -119,6 +126,57 @@ Route::prefix('expense-tracker')->name('expense-tracker.')->middleware('role:adm
     Route::delete('/categories/{category}', [ExpenseTrackerController::class, 'destroyCategory'])->name('categories.delete');
 });
 
+// Employee-initiated leave balance requests — go through approval flow
+Route::prefix('leave-balance')->name('leave-balance.')->middleware('auth')->group(function () {
+    Route::post('/{employee}/carryover/request', [LeaveBalanceController::class, 'requestCarryover'])->name('carryover.request');
+    Route::post('/{employee}/encash/request', [LeaveBalanceController::class, 'requestEncash'])->name('encash.request');
+});
+
+// Leave balance management — carryover & encashment (admin only)
+Route::prefix('leave-balance')->name('leave-balance.')->middleware('role:admin')->group(function () {
+    Route::get('/{employee}/print-form', [LeaveBalanceController::class, 'printForm'])->name('print-form');
+    Route::post('/{employee}/carryover', [LeaveBalanceController::class, 'carryover'])->name('carryover');
+    Route::delete('/carryover/{carryover}', [LeaveBalanceController::class, 'deleteCarryover'])->name('carryover.delete');
+    Route::post('/{employee}/encash', [LeaveBalanceController::class, 'encash'])->name('encash');
+    Route::delete('/encashment/{encashment}', [LeaveBalanceController::class, 'deleteEncashment'])->name('encashment.delete');
+});
+
+// Centralized leave management dashboard (admin)
+Route::prefix('leave-management')->name('leave-management.')->middleware('role:admin')->group(function () {
+    Route::get('/', [LeaveManagementController::class, 'index'])->name('index');
+    Route::post('/batch-carryover', [LeaveManagementController::class, 'batchCarryover'])->name('batch-carryover');
+});
+
+// Document Portal — replaces salary-advance. Admin sees all; employees see their own.
+Route::prefix('portal')->name('portal.')->group(function () {
+    Route::get('/', [PortalController::class, 'index'])->name('index');
+    Route::get('/{type}/{id}', [PortalController::class, 'show'])
+        ->whereIn('type', ['leave', 'ot', 'swap', 'expense', 'carryover', 'encash'])
+        ->name('show');
+    Route::get('/{type}/{id}/print', [PortalController::class, 'print'])
+        ->whereIn('type', ['leave', 'ot', 'swap', 'expense', 'carryover', 'encash'])
+        ->name('print');
+    Route::post('/{type}/{id}/attachments', [PortalController::class, 'uploadAttachment'])
+        ->whereIn('type', ['leave', 'ot', 'swap', 'expense', 'carryover', 'encash'])
+        ->name('attachments.store');
+    Route::delete('/{type}/{id}/attachments/{attachment}', [PortalController::class, 'deleteAttachment'])
+        ->whereIn('type', ['leave', 'ot', 'swap', 'expense', 'carryover', 'encash'])
+        ->name('attachments.delete');
+
+    Route::middleware('role:admin')->group(function () {
+        Route::post('/{type}/{id}/approve', [PortalController::class, 'approve'])
+            ->whereIn('type', ['leave', 'ot', 'swap', 'expense', 'carryover', 'encash'])
+            ->name('approve');
+        Route::post('/{type}/{id}/reject', [PortalController::class, 'reject'])
+            ->whereIn('type', ['leave', 'ot', 'swap', 'expense', 'carryover', 'encash'])
+            ->name('reject');
+        Route::post('/bulk-export', [PortalController::class, 'bulkExport'])->name('bulk-export');
+    });
+});
+
+// Backwards compatibility — old /salary-advance URLs redirect to the portal
+Route::redirect('/salary-advance', '/portal?type=expense')->name('salary-advance.index');
+
 // Extra income entries per employee (admin)
 Route::prefix('workspace')->name('workspace.')->middleware('role:admin')->group(function () {
     Route::post('/{employee}/{month}/{year}/extra-income', [ExtraIncomeController::class, 'store'])->name('extra-income.store');
@@ -148,6 +206,9 @@ Route::prefix('payslip')->name('payslip.')->group(function () {
     Route::post('/{employee}/{month}/{year}/unfinalize', [PayslipController::class, 'unfinalize'])
         ->middleware('role:admin')
         ->name('unfinalize');
+    Route::post('/{employee}/{month}/{year}/update-payment-date', [PayslipController::class, 'updatePaymentDate'])
+        ->middleware('role:admin')
+        ->name('update-payment-date');
 });
 
 // Company Finance
@@ -205,10 +266,17 @@ Route::prefix('settings')->name('settings.')->middleware('role:admin')->group(fu
     Route::get('/bonus', [BonusManagementController::class, 'index'])->name('bonus.index');
     Route::post('/bonus/cycles', [BonusManagementController::class, 'storeCycle'])->name('bonus.cycles.store');
     Route::patch('/bonus/cycles/{cycle}', [BonusManagementController::class, 'updateCycle'])->name('bonus.cycles.update');
+    Route::delete('/bonus/cycles/{cycle}', [BonusManagementController::class, 'destroyCycle'])->name('bonus.cycles.destroy');
     Route::post('/bonus/calculate', [BonusManagementController::class, 'calculate'])->name('bonus.calculate');
     Route::post('/bonus/batch-calculate', [BonusManagementController::class, 'batchCalculate'])->name('bonus.batch-calculate');
     Route::post('/bonus/approve', [BonusManagementController::class, 'approve'])->name('bonus.approve');
     Route::put('/bonus/cycles/{cycle}/months', [BonusManagementController::class, 'updateSelectedMonths'])->name('bonus.cycles.months.update');
+    Route::post('/bonus/cycles/{cycle}/transition', [BonusManagementController::class, 'transitionCycle'])->name('bonus.cycles.transition');
+    Route::get('/bonus/cycles/{cycle}/preview-payslip-post', [BonusManagementController::class, 'previewPayslipPost'])->name('bonus.cycles.preview-payslip-post');
+    Route::post('/bonus/preview', [BonusManagementController::class, 'preview'])->name('bonus.preview');
+    Route::get('/bonus/cycles/{cycle}/employees/{employee}/metrics', [BonusManagementController::class, 'metricsForEmployee'])->name('bonus.metrics');
+    Route::post('/bonus/calculations/{calculation}/recalculate', [BonusManagementController::class, 'recalculateRow'])->name('bonus.calculations.recalculate');
+    Route::delete('/bonus/calculations/{calculation}', [BonusManagementController::class, 'destroyRow'])->name('bonus.calculations.destroy');
     
     // Performance Tiers
     Route::get('/tiers', [\App\Http\Controllers\PerformanceTierController::class, 'index'])->name('tiers.index');
@@ -249,6 +317,16 @@ Route::prefix('settings')->name('settings.')->middleware('role:admin')->group(fu
         Route::post('/games', [MasterDataController::class, 'storeGame'])->name('games.store');
         Route::patch('/games/{game}', [MasterDataController::class, 'updateGame'])->name('games.update');
         Route::delete('/games/{game}', [MasterDataController::class, 'deleteGame'])->name('games.delete');
+
+        // Leave Policies (Master Data)
+        Route::post('/leave-policies', [MasterDataController::class, 'storeLeavePolicy'])->name('leave-policies.store');
+        Route::patch('/leave-policies/{leavePolicy}', [MasterDataController::class, 'updateLeavePolicy'])->name('leave-policies.update');
+        Route::delete('/leave-policies/{leavePolicy}', [MasterDataController::class, 'destroyLeavePolicy'])->name('leave-policies.delete');
+
+        // Holiday Types (Master Data)
+        Route::post('/holiday-types', [MasterDataController::class, 'storeHolidayType'])->name('holiday-types.store');
+        Route::patch('/holiday-types/{holidayType}', [MasterDataController::class, 'updateHolidayType'])->name('holiday-types.update');
+        Route::delete('/holiday-types/{holidayType}', [MasterDataController::class, 'deleteHolidayType'])->name('holiday-types.delete');
     });
 
 /*

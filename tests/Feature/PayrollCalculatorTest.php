@@ -148,9 +148,9 @@ class PayrollCalculatorTest extends TestCase
         $items = collect($result['items']);
         $ot = $items->firstWhere('item_type_code', 'overtime');
 
-        // rate per minute = 19800 / (22*540) = 19800 / 11880 ~= 1.6667
-        // OT = 60 * 1.6667 * 1.5 = 150.00
-        $this->assertEquals(150.00, $ot['amount']);
+        // rate per minute = 19800 / (22*480) = 1.875
+        // OT = 60 * 1.875 * 1.5 = 168.75
+        $this->assertEquals(168.75, $ot['amount']);
     }
 
     public function test_monthly_staff_holiday_regular_and_ot_split(): void
@@ -165,7 +165,7 @@ class PayrollCalculatorTest extends TestCase
             'day_type' => 'holiday',
             'working_minutes' => 0,
             'late_minutes' => 0,
-            'ot_minutes' => 600,
+            'ot_minutes' => 60,
             'ot_enabled' => true,
             'lwop_flag' => false,
             'is_disabled' => false,
@@ -178,11 +178,11 @@ class PayrollCalculatorTest extends TestCase
         $holidayWorkPay = $items->firstWhere('item_type_code', 'holiday_work_pay');
         $ot = $items->firstWhere('item_type_code', 'overtime');
 
-        // rate per minute = 19800 / (22*540) = 1.6667
-        // holiday regular = 540 * 1.6667 * 1.0 = 900.00
-        // holiday OT excess = (600 - 540) * 1.6667 * 3.0 = 300.00
-        $this->assertEquals(900.00, $holidayWorkPay['amount']);
-        $this->assertEquals(300.00, $ot['amount']);
+        // rate per minute = 19800 / (22*480) = 1.875
+        // holiday regular = 540 * 1.875 * 1.0 = 1012.50
+        // holiday OT excess = (600 - 540) * 1.875 * 3.0 = 337.50
+        $this->assertEquals(1012.50, $holidayWorkPay['amount']);
+        $this->assertEquals(337.50, $ot['amount']);
     }
 
     public function test_monthly_staff_ot_is_capped_by_weekly_limit(): void
@@ -222,8 +222,9 @@ class PayrollCalculatorTest extends TestCase
         $ot = $items->firstWhere('item_type_code', 'overtime');
 
         // Weekly cap 2h = 120 minutes, workday multiplier 1.5
-        // OT = 120 * 1.6667 * 1.5 = 300.00
-        $this->assertEquals(300.00, $ot['amount']);
+        // rate per minute = 19800 / (22*480) = 1.875
+        // OT = 120 * 1.875 * 1.5 = 337.50
+        $this->assertEquals(337.50, $ot['amount']);
     }
 
     public function test_monthly_staff_late_grace_is_monthly_quota(): void
@@ -271,8 +272,8 @@ class PayrollCalculatorTest extends TestCase
         $late = collect($result['items'])->firstWhere('item_type_code', 'late_deduction');
 
         // total late = 15 minutes, monthly grace = 10 minutes => billable = 5
-        // rate per minute = 19800 / (22*540) = 1.6667 => deduction = 8.33
-        $this->assertEquals(8.33, $late['amount']);
+        // rate per minute = 19800 / (22*480) = 1.875 => deduction = 5 * 1.875 = 9.38
+        $this->assertEquals(9.38, $late['amount']);
     }
 
     public function test_monthly_staff_sso_deduction(): void
@@ -580,10 +581,17 @@ class PayrollCalculatorTest extends TestCase
             'is_active' => true,
             'effective_date' => '2025-01-01',
             'config' => [
-                'use_tiers' => false,
-                'amount' => $amount,
-                'require_zero_late' => true,
-                'require_zero_lwop' => true,
+                'use_tiers' => true,
+                'tiers' => [
+                    [
+                        'amount' => $amount,
+                        'check_lwop' => true,         'lwop_max' => 0,
+                        'check_late_count' => true,   'late_count_max' => 0,
+                        'check_late_minutes' => false,'late_minutes_max' => 0,
+                        'check_early_leave' => false, 'early_leave_max' => 0,
+                        'check_min_attended' => false,'min_attended_days' => 0,
+                    ],
+                ],
             ],
         ]);
     }

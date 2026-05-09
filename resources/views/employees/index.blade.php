@@ -98,6 +98,147 @@
         <button type="submit" class="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-200 ml-auto">ค้นหา</button>
     </form>
 
+    {{-- ───── Probation Watchlist ───── --}}
+    @php
+        // แสดงเฉพาะคนที่ยังอยู่ในระยะ probation (remaining >= 0) — ผ่านแล้วซ่อน
+        $probationList = $employees->filter(function ($e) {
+            if (!$e->is_active || !$e->probation_end_date) return false;
+            $rem = $e->probationDaysRemaining();
+            return $rem !== null && $rem >= 0;
+        })->sortBy('probation_end_date')->values();
+        $nearEnd = $probationList->filter(fn($e) => $e->isProbationNearEnd());
+    @endphp
+    @if($probationList->count() > 0)
+    <div x-data="{ open: {{ $nearEnd->count() > 0 ? 'true' : 'false' }} }" class="mb-6 bg-white rounded-xl border-2 {{ $nearEnd->count() > 0 ? 'border-amber-300' : 'border-gray-200' }} shadow-sm overflow-hidden">
+        <button type="button" @click="open = !open" class="w-full flex items-center justify-between p-4 hover:bg-gray-50">
+            <div class="flex items-center gap-3 text-left">
+                <div class="text-2xl">{{ $nearEnd->count() > 0 ? '⚠️' : '🕒' }}</div>
+                <div>
+                    <div class="text-sm font-bold text-gray-900">
+                        Probation Watchlist
+                        @if($nearEnd->count() > 0)
+                            <span class="ml-2 px-2 py-0.5 text-[10px] font-bold bg-amber-100 text-amber-800 rounded-full">{{ $nearEnd->count() }} ใกล้ครบ</span>
+                        @endif
+                    </div>
+                    <div class="text-xs text-gray-500">
+                        พนักงานทดลองงาน {{ $probationList->count() }} คน — จัดการก่อนครบ 119 วัน (ม.118 พรบ.คุ้มครองแรงงาน)
+                    </div>
+                </div>
+            </div>
+            <span class="text-gray-400 text-sm" x-text="open ? '▾' : '▸'"></span>
+        </button>
+        <div x-show="open" x-cloak class="border-t divide-y">
+            @foreach($probationList as $emp)
+                @php
+                    $remaining = $emp->probationDaysRemaining();
+                    $isExpired = $remaining < 0;
+                    $isNear = !$isExpired && $remaining <= \App\Models\Employee::PROBATION_NEAR_END_DAYS;
+                    $rowClass = $isExpired ? 'bg-red-50' : ($isNear ? 'bg-amber-50' : '');
+                    $daysFromStart = $emp->start_date ? (int) floor($emp->start_date->diffInDays(now())) : null;
+                @endphp
+                <div x-data="{ failOpen: false, extendOpen: false, passOpen: false }" class="{{ $rowClass }} px-4 py-3">
+                    <div class="flex items-center gap-3 flex-wrap">
+                        <div class="flex-1 min-w-[200px]">
+                            <div class="font-semibold text-gray-900">
+                                {{ $emp->display_name }}
+                                <span class="text-xs font-mono text-gray-400 ml-1">{{ $emp->employee_code }}</span>
+                            </div>
+                            <div class="text-xs text-gray-500">
+                                เริ่มงาน: {{ $emp->start_date?->format('d M Y') ?? '-' }}
+                                @if($daysFromStart !== null)
+                                    · ทำงานมา {{ $daysFromStart }} วัน
+                                    @if($daysFromStart >= 120)
+                                        <span class="text-red-600 font-semibold">(เกิน 120 วัน — ต้องจ่ายค่าชดเชยถ้าเลิกจ้าง)</span>
+                                    @endif
+                                @endif
+                            </div>
+                        </div>
+                        <div class="text-sm">
+                            <div class="text-gray-500 text-xs">ครบทดลอง</div>
+                            <div class="font-semibold {{ $isExpired ? 'text-gray-600 line-through' : ($isNear ? 'text-amber-700' : 'text-gray-700') }}">
+                                {{ $emp->probation_end_date->format('d M Y') }}
+                            </div>
+                        </div>
+                        <div class="text-sm">
+                            <div class="text-gray-500 text-xs">สถานะ</div>
+                            <div class="font-bold {{ $isExpired ? 'text-emerald-700' : ($isNear ? 'text-amber-700' : 'text-gray-700') }}">
+                                {{ $emp->probationStatusLabel() }}
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-1.5">
+                            <button type="button" @click="passOpen = !passOpen; extendOpen = false; failOpen = false" class="px-3 py-1.5 text-xs font-semibold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700">✓ ผ่าน</button>
+                            <button type="button" @click="extendOpen = !extendOpen; passOpen = false; failOpen = false" class="px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 rounded-lg hover:bg-indigo-100 border border-indigo-200">⏱ ขยาย</button>
+                            <button type="button" @click="failOpen = !failOpen; passOpen = false; extendOpen = false" class="px-3 py-1.5 text-xs font-semibold text-red-700 bg-red-50 rounded-lg hover:bg-red-100 border border-red-200">✕ ไม่ผ่าน</button>
+                        </div>
+                    </div>
+
+                    {{-- Pass probation form (with custom date) --}}
+                    <div x-show="passOpen" x-cloak class="mt-3 p-3 bg-emerald-50/50 rounded-lg border border-emerald-200">
+                        <form action="{{ route('employees.probation.pass', $emp) }}" method="POST" class="flex flex-wrap items-end gap-2"
+                              onsubmit="return confirm('ยืนยันให้ {{ $emp->full_name }} ผ่านทดลองงาน?')">
+                            @csrf
+                            <div>
+                                <label class="block text-[11px] font-semibold text-gray-700 mb-1">วันที่ผ่านทดลองงาน</label>
+                                <input type="date" name="passed_date" required value="{{ now()->subDay()->toDateString() }}"
+                                       max="{{ now()->toDateString() }}"
+                                       class="px-2 py-1.5 border rounded text-sm">
+                            </div>
+                            <input type="text" name="reason" placeholder="หมายเหตุ (ไม่บังคับ)" class="flex-1 min-w-[180px] px-2 py-1.5 border rounded text-sm">
+                            <button type="submit" class="px-3 py-1.5 text-xs font-semibold bg-emerald-600 text-white rounded">บันทึก</button>
+                        </form>
+                        <p class="text-[10px] text-gray-500 mt-1.5">
+                            🛈 วันนี้/ก่อนหน้า ระบุได้ — ไม่ใช่วันในอนาคต (ใช้ "ขยาย" แทนถ้าต้องการเลื่อนวันสิ้นสุดออกไป)
+                        </p>
+                    </div>
+
+                    {{-- Extend probation form --}}
+                    <div x-show="extendOpen" x-cloak class="mt-3 p-3 bg-indigo-50/50 rounded-lg border border-indigo-100">
+                        <form action="{{ route('employees.probation.extend', $emp) }}" method="POST" class="flex flex-wrap items-end gap-2">
+                            @csrf
+                            <div>
+                                <label class="block text-[11px] font-semibold text-gray-700 mb-1">ครบทดลองใหม่</label>
+                                <input type="date" name="new_end_date" required
+                                       value="{{ $emp->probation_end_date->copy()->addDays(30)->toDateString() }}"
+                                       max="{{ $emp->start_date?->copy()->addDays(\App\Models\Employee::PROBATION_LEGAL_LIMIT_DAYS)->toDateString() }}"
+                                       class="px-2 py-1.5 border rounded text-sm">
+                            </div>
+                            <input type="text" name="reason" placeholder="เหตุผล (ไม่บังคับ)" class="flex-1 min-w-[180px] px-2 py-1.5 border rounded text-sm">
+                            <button type="submit" class="px-3 py-1.5 text-xs font-semibold bg-indigo-600 text-white rounded">บันทึก</button>
+                        </form>
+                        @if($emp->start_date)
+                            <p class="text-[10px] text-gray-500 mt-1.5">
+                                ⚖️ สูงสุด {{ $emp->start_date->copy()->addDays(\App\Models\Employee::PROBATION_LEGAL_LIMIT_DAYS)->format('d M Y') }} (119 วันจากวันเริ่มงาน — ม.118)
+                            </p>
+                        @endif
+                    </div>
+
+                    {{-- Fail probation form --}}
+                    <div x-show="failOpen" x-cloak class="mt-3 p-3 bg-red-50/50 rounded-lg border border-red-200">
+                        <form action="{{ route('employees.probation.fail', $emp) }}" method="POST" class="flex flex-wrap items-end gap-2"
+                              onsubmit="return confirm('ยืนยันการเลิกจ้าง {{ $emp->full_name }}? การกระทำนี้จะตั้งสถานะเป็น terminated')">
+                            @csrf
+                            <div>
+                                <label class="block text-[11px] font-semibold text-gray-700 mb-1">วันสิ้นสุดการจ้าง</label>
+                                <input type="date" name="end_date" required value="{{ now()->addMonth()->toDateString() }}" class="px-2 py-1.5 border rounded text-sm">
+                            </div>
+                            <input type="text" name="reason" placeholder="เหตุผล" class="flex-1 min-w-[180px] px-2 py-1.5 border rounded text-sm">
+                            <button type="submit" class="px-3 py-1.5 text-xs font-semibold bg-red-600 text-white rounded">ยืนยันเลิกจ้าง</button>
+                        </form>
+                        <p class="text-[10px] text-red-700 mt-1.5">
+                            ⚖️ ม.17/1 — ต้องบอกล่วงหน้า ≥ 1 งวดจ่ายค่าจ้าง (หรือจ่ายแทนการบอกกล่าว)
+                            @if($daysFromStart !== null && $daysFromStart < 120)
+                                · ทำงาน {{ $daysFromStart }} วัน — ยังไม่ถึง 120 วัน ไม่ต้องจ่ายค่าชดเชย ม.118
+                            @elseif($daysFromStart !== null)
+                                · ⚠ ทำงาน {{ $daysFromStart }} วัน — เกิน 120 วันแล้ว <strong>ต้องจ่ายค่าชดเชย</strong> ม.118
+                            @endif
+                        </p>
+                    </div>
+                </div>
+            @endforeach
+        </div>
+    </div>
+    @endif
+
     @php
         $modeMeta = [
             'monthly_staff' => ['label' => 'พนักงานรายเดือน', 'badge' => 'bg-blue-100 text-blue-700'],
@@ -168,7 +309,21 @@
 
                         @foreach($groupContent as $emp)
                         <tr class="{{ !$emp->is_active ? 'bg-gray-50 text-gray-500' : '' }} hover:bg-slate-50 transition">
-                            <td class="px-4 py-3 font-medium">{{ $emp->display_name }}</td>
+                            <td class="px-4 py-3 font-medium">
+                                {{ $emp->display_name }}
+                                @php $probationRem = $emp->probationDaysRemaining(); @endphp
+                                @if($probationRem === null && $emp->is_active)
+                                    <span title="ยังไม่กำหนดวันสิ้นสุดทดลองงาน" class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">? Probation</span>
+                                @elseif($probationRem !== null && $probationRem >= 0)
+                                    <span title="วันสิ้นสุดทดลองงาน: {{ $emp->probation_end_date->format('d M Y') }}"
+                                          class="ml-1 text-[10px] px-1.5 py-0.5 rounded {{ $probationRem <= 14 ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-700' }}">
+                                        🕒 {{ $probationRem }}d
+                                    </span>
+                                @elseif($probationRem !== null)
+                                    <span title="ผ่านทดลองงานเมื่อ {{ $emp->probation_end_date->format('d M Y') }}"
+                                          class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">✓ ผ่าน</span>
+                                @endif
+                            </td>
                             <td class="px-4 py-3 font-mono text-xs text-gray-500">{{ $emp->employee_code ?: 'NO-CODE' }}</td>
                             <td class="px-4 py-3 text-center">
                                 <span class="inline-block px-2 py-0.5 rounded-full text-xs font-medium {{ $modeMeta[$emp->payroll_mode]['badge'] ?? 'bg-gray-100 text-gray-700' }}">
@@ -376,6 +531,31 @@
                     <div>
                         <label class="block text-xs font-medium text-gray-600 mb-1">เลขบัญชี</label>
                         <input type="text" name="account_number" class="w-full px-3 py-2 border rounded-lg text-sm">
+                    </div>
+                    <div class="col-span-2 mt-2 pt-3 border-t border-gray-100">
+                        <p class="text-xs font-semibold text-gray-700 mb-2">บัญชีผู้ใช้สำหรับล็อกอิน</p>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">อีเมล <span class="text-red-500">*</span></label>
+                        <input type="email" name="email" required class="w-full px-3 py-2 border rounded-lg text-sm" placeholder="user@example.com">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">รหัสผ่าน <span class="text-red-500">*</span></label>
+                        <input type="text" name="password" required minlength="6" class="w-full px-3 py-2 border rounded-lg text-sm" placeholder="อย่างน้อย 6 ตัวอักษร">
+                    </div>
+                    <div class="col-span-2">
+                        <label class="block text-xs font-medium text-gray-600 mb-1">สิทธิ์การใช้งาน (Role) <span class="text-red-500">*</span></label>
+                        <select name="role_id" required class="w-full px-3 py-2 border rounded-lg text-sm">
+                            @foreach($roles as $role)
+                                <option value="{{ $role->id }}" @selected($role->name === 'owner')>
+                                    {{ $role->display_name ?: $role->name }}
+                                    @if($role->name === 'owner') — พนักงานทั่วไป (ดู Workspace ตัวเอง)
+                                    @elseif($role->name === 'admin') — ผู้ดูแลระบบ (เข้าถึงได้ทุกหน้า)
+                                    @endif
+                                </option>
+                            @endforeach
+                        </select>
+                        <p class="text-[11px] text-gray-500 mt-1">ค่าเริ่มต้น: พนักงานทั่วไป (Owner) — เปลี่ยนเป็น Admin เฉพาะกรณี HR/ผู้ดูแลระบบ</p>
                     </div>
                 </div>
 

@@ -59,11 +59,6 @@
                     </td>
                     <td class="px-2 py-1 text-gray-600 font-medium">
                         <div>{{ \Carbon\Carbon::parse($log->log_date)->format('D, j M Y') }}</div>
-                        @if($log->is_swapped_day && $log->swapped_from_day_type)
-                            <div class="text-[10px] text-indigo-600 font-semibold">
-                                สลับจาก: {{ $dayTypeLabels[$log->swapped_from_day_type] ?? $log->swapped_from_day_type }}
-                            </div>
-                        @endif
                         @php
                             $dateKey = \Carbon\Carbon::parse($log->log_date)->format('Y-m-d');
                             $reqs = ($dayRequests ?? [])[$dateKey] ?? [];
@@ -74,6 +69,14 @@
                                 'teal'   => 'bg-teal-100 text-teal-700 border-teal-200',
                             ];
                         @endphp
+                        
+                        {{-- Show blue text ONLY if there are no request badges --}}
+                        @if($log->is_swapped_day && $log->swapped_from_day_type && count($reqs) === 0)
+                            <div class="text-[10px] text-indigo-600 font-semibold">
+                                สลับจาก: {{ $dayTypeLabels[$log->swapped_from_day_type] ?? $log->swapped_from_day_type }}
+                            </div>
+                        @endif
+
                         @foreach($reqs as $req)
                             <div class="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border {{ $colorMap[$req['color']] ?? 'bg-gray-100 text-gray-700 border-gray-200' }} mt-0.5 mr-0.5"
                                  @if(!empty($req['note'])) title="{{ $req['note'] }}" @endif>

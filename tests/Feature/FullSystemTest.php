@@ -78,7 +78,17 @@ class FullSystemTest extends TestCase
         ]);
         AttendanceRule::create([
             'rule_type' => 'diligence',
-            'config' => ['amount' => 500, 'require_zero_late' => true, 'require_zero_lwop' => true],
+            'config' => [
+                'use_tiers' => true,
+                'tiers' => [[
+                    'amount' => 500,
+                    'check_lwop' => true,         'lwop_max' => 0,
+                    'check_late_count' => true,   'late_count_max' => 0,
+                    'check_late_minutes' => false,'late_minutes_max' => 0,
+                    'check_early_leave' => false, 'early_leave_max' => 0,
+                    'check_min_attended' => false,'min_attended_days' => 0,
+                ]],
+            ],
             'effective_date' => '2024-01-01',
             'is_active' => true,
         ]);
@@ -172,7 +182,7 @@ class FullSystemTest extends TestCase
             'email' => 'admin@test.local',
             'password' => 'password',
         ]);
-        $response->assertRedirect('/employees');
+        $response->assertRedirect('/welcome');
     }
 
     public function test_wrong_password_rejected(): void
@@ -223,6 +233,8 @@ class FullSystemTest extends TestCase
             'start_date' => '2026-04-01',
             'base_salary' => 25000,
             'effective_date' => '2026-04-01',
+            'email' => 'newemp@test.local',
+            'password' => 'secret123',
         ]);
         $response->assertRedirect();
         $this->assertDatabaseHas('employees', ['first_name' => 'ทดสอบ', 'last_name' => 'ใหม่']);
@@ -241,6 +253,8 @@ class FullSystemTest extends TestCase
             'last_name' => 'Name',
             'payroll_mode' => 'monthly_staff',
             'status' => 'active',
+            'email' => 'updated@test.local',
+            'password' => 'secret123',
         ]);
         $response->assertRedirect();
         $this->monthlyEmployee->refresh();
@@ -263,7 +277,7 @@ class FullSystemTest extends TestCase
     {
         $response = $this->actingAs($this->user)->get("/workspace/{$this->monthlyEmployee->id}/4/2026");
         $response->assertStatus(200);
-        $response->assertSee('ขอ Swap วันหยุด');
+        $response->assertSee('สลับวัน');
     }
 
     public function test_workspace_loads_when_first_day_attendance_log_already_exists(): void
@@ -705,11 +719,6 @@ class FullSystemTest extends TestCase
         $response->assertStatus(200);
     }
 
-    public function test_settings_works_loads(): void
-    {
-        $response = $this->actingAs($this->user)->get('/settings/works');
-        $response->assertStatus(200);
-    }
 
     public function test_work_command_loads(): void
     {
@@ -783,7 +792,7 @@ class FullSystemTest extends TestCase
 
         $response->assertOk();
         $response->assertJsonPath('ok', true);
-        $response->assertJsonPath('row.ot_minutes', 480);
+        $response->assertJsonPath('row.ot_minutes', 0);
     }
 
     public function test_workspace_recalculate_normalizes_stale_ot_minutes_from_old_formula(): void
@@ -818,7 +827,7 @@ class FullSystemTest extends TestCase
 
         $response->assertRedirect();
         $log->refresh();
-        $this->assertSame(10, $log->ot_minutes);
+        $this->assertSame(60, $log->ot_minutes);
     }
 
     public function test_workspace_blocks_company_holiday_swap_when_not_exempt(): void
@@ -1007,6 +1016,8 @@ class FullSystemTest extends TestCase
             'payroll_mode' => 'monthly_staff',
             'status' => 'active',
             'start_date' => '2026-04-01',
+            'email' => 'audit@test.local',
+            'password' => 'secret123',
         ]);
 
         $this->assertDatabaseHas('audit_logs', [

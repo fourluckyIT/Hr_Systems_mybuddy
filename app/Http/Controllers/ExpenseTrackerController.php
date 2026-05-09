@@ -40,8 +40,8 @@ class ExpenseTrackerController extends Controller
                 'id'       => $r->id,
                 'type'     => 'income',
                 'date'     => $r->entry_date ?? now()->setDate($r->year, $r->month, 1)->toDateString(),
-                'category' => $r->categoryRef?->name ?? $r->source,
-                'category_color' => $r->categoryRef?->color ?? 'gray',
+                'category' => optional($r->categoryRef)->name ?? $r->source,
+                'category_color' => optional($r->categoryRef)->color ?? 'gray',
                 'description' => $r->description ?? $r->source,
                 'amount'   => (float) $r->amount,
                 'status'   => $r->status ?? 'received',
@@ -54,8 +54,8 @@ class ExpenseTrackerController extends Controller
                 'id'       => $e->id,
                 'type'     => 'expense',
                 'date'     => $e->entry_date ?? now()->setDate($e->year, $e->month, 1)->toDateString(),
-                'category' => $e->categoryRef?->name ?? $e->category,
-                'category_color' => $e->categoryRef?->color ?? 'gray',
+                'category' => optional($e->categoryRef)->name ?? $e->category,
+                'category_color' => optional($e->categoryRef)->color ?? 'gray',
                 'description' => $e->description ?? $e->category,
                 'amount'   => (float) $e->amount,
                 'status'   => $e->status ?? 'paid',
@@ -70,8 +70,8 @@ class ExpenseTrackerController extends Controller
         $totalExpense = $expenses->sum('amount');
 
         // Card view: group by category
-        $groupedIncome = $revenues->groupBy(fn ($r) => $r->categoryRef?->name ?? $r->source);
-        $groupedExpense = $expenses->groupBy(fn ($e) => $e->categoryRef?->name ?? $e->category);
+        $groupedIncome = $revenues->groupBy(fn ($r) => optional($r->categoryRef)->name ?? $r->source);
+        $groupedExpense = $expenses->groupBy(fn ($e) => optional($e->categoryRef)->name ?? $e->category);
 
         return view('expense-tracker.index', compact(
             'year', 'month', 'categories', 'entries',

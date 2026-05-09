@@ -69,11 +69,113 @@ class EmployeeController extends Controller
         $employees = $query->get();
         $departments = Department::where('is_active', true)->get();
         $positions = Position::where('is_active', true)->with('department')->get();
+        $roles = Role::orderBy('name')->get();
 
         return view('employees.index', compact(
-            'employees', 'departments', 'positions', 'showInactive', 
+            'employees', 'departments', 'positions', 'roles', 'showInactive',
             'sortBy', 'sortDir', 'groupBy'
         ));
+    }
+
+    /**
+     * Pass probation — set probation_end_date to a specified date (default = yesterday) and ensure status=active.
+     * Default = yesterday so the employee disappears from the watchlist immediately.
+     */
+    public function passProbation(Request $request, Employee $employee)
+    {
+        $validated = $request->validate([
+            'passed_date' => 'nullable|date|before_or_equal:today',
+            'reason' => 'nullable|string|max:1000',
+        ]);
+
+        if (!$employee->probation_end_date) {
+            return back()->withErrors(['probation' => 'พนักงานคนนี้ไม่มีกำหนดวันสิ้นสุดทดลองงาน']);
+        }
+
+        $oldEnd = $employee->probation_end_date?->toDateString();
+        $passedDate = $validated['passed_date'] ?? now()->subDay()->toDateString();
+
+        $employee->update([
+            'probation_end_date' => $passedDate,
+            'status' => 'active',
+            'is_active' => true,
+        ]);
+
+        AuditLogService::log(
+            $employee,
+            'probation_passed',
+            'probation_end_date',
+            $oldEnd,
+            $passedDate,
+            'พนักงานผ่านทดลองงาน' . (!empty($validated['reason']) ? ': ' . $validated['reason'] : '')
+        );
+
+        return back()->with('success', "✅ {$employee->full_name} ผ่านทดลองงาน (วันที่: {$passedDate})");
+    }
+
+    /**
+     * Fail probation — terminate the employee.
+     * อ้างอิง พรบ.คุ้มครองแรงงาน ม.17/1 + ม.118 — เลิกจ้างต้องบอกล่วงหน้า 1 งวดจ่ายค่าจ้าง
+     * (หรือจ่าย pay in lieu) และต้องดำเนินการก่อนครบ 120 วันเพื่อไม่ต้องจ่ายค่าชดเชย
+     */
+    public function failProbation(Request $request, Employee $employee)
+    {
+        $validated = $request->validate([
+            'end_date' => 'required|date',
+            'reason' => 'nullable|string|max:1000',
+        ]);
+
+        $employee->update([
+            'status' => 'terminated',
+            'is_active' => false,
+            'end_date' => $validated['end_date'],
+        ]);
+
+        AuditLogService::log(
+            $employee,
+            'probation_failed',
+            'status',
+            'probation',
+            'terminated',
+            'ไม่ผ่านทดลองงาน: ' . ($validated['reason'] ?? '-')
+        );
+
+        return back()->with('success', "❌ {$employee->full_name} ถูกบันทึกว่าไม่ผ่านทดลองงาน (วันสิ้นสุด: {$validated['end_date']})");
+    }
+
+    /**
+     * Extend probation — push probation_end_date forward.
+     * Capped at PROBATION_LEGAL_LIMIT_DAYS from start_date.
+     */
+    public function extendProbation(Request $request, Employee $employee)
+    {
+        $validated = $request->validate([
+            'new_end_date' => 'required|date|after_or_equal:today',
+            'reason' => 'nullable|string|max:1000',
+        ]);
+
+        if ($employee->start_date) {
+            $maxDate = $employee->start_date->copy()->addDays(Employee::PROBATION_LEGAL_LIMIT_DAYS);
+            if (\Carbon\Carbon::parse($validated['new_end_date'])->gt($maxDate)) {
+                return back()->withErrors([
+                    'new_end_date' => 'ไม่สามารถขยายเกิน 119 วันจากวันเริ่มงาน (เพื่อหลีกเลี่ยงข้อ 118 พรบ.คุ้มครองแรงงาน) — สูงสุด: ' . $maxDate->toDateString(),
+                ]);
+            }
+        }
+
+        $oldEnd = $employee->probation_end_date?->toDateString();
+        $employee->update(['probation_end_date' => $validated['new_end_date']]);
+
+        AuditLogService::log(
+            $employee,
+            'probation_extended',
+            'probation_end_date',
+            $oldEnd,
+            $validated['new_end_date'],
+            'ขยายทดลองงาน: ' . ($validated['reason'] ?? '-')
+        );
+
+        return back()->with('success', "ขยายระยะทดลองงานของ {$employee->full_name} ถึง {$validated['new_end_date']}");
     }
 
     public function toggleStatus(Employee $employee)
@@ -110,6 +212,7 @@ class EmployeeController extends Controller
             'payroll_mode' => 'required|in:monthly_staff,office_staff,freelance_layer,youtuber_salary,youtuber_settlement,custom_hybrid',
             'status' => 'nullable|string|in:active,inactive,probation,terminated',
             'start_date' => 'nullable|date',
+            'probation_end_date' => 'nullable|date',
             'effective_date' => 'nullable|date',
             'base_salary' => 'nullable|numeric|min:0',
             'bank_name' => 'nullable|string|max:255',
@@ -139,6 +242,10 @@ class EmployeeController extends Controller
             'status' => $validated['status'] ?? 'active',
             'is_active' => ($validated['status'] ?? 'active') === 'active',
             'start_date' => $validated['start_date'] ?? null,
+            'probation_end_date' => $validated['probation_end_date']
+                ?? (!empty($validated['start_date'])
+                    ? \Carbon\Carbon::parse($validated['start_date'])->addDays(Employee::PROBATION_DEFAULT_DAYS)->toDateString()
+                    : null),
         ]);
 
         // Profile
@@ -168,8 +275,9 @@ class EmployeeController extends Controller
             ]);
         }
 
-        if (!empty($validated['role_id'])) {
-            $user->roles()->sync([$validated['role_id']]);
+        $roleId = $validated['role_id'] ?? optional(Role::where('name', 'owner')->first())->id;
+        if ($roleId) {
+            $user->roles()->sync([$roleId]);
         }
 
         if (in_array($employee->payroll_mode, ['monthly_staff', 'office_staff', 'youtuber_salary'], true)) {
@@ -245,11 +353,15 @@ class EmployeeController extends Controller
 
     public function edit(Employee $employee)
     {
-        $employee->load(['profile', 'salaryProfile', 'bankAccount']);
+        $employee->load(['profile', 'salaryProfile', 'bankAccount', 'user.roles']);
         $departments = Department::where('is_active', true)->get();
         $positions = Position::where('is_active', true)->get();
+        $roles = Role::orderBy('name')->get();
+        $currentRoleId = $employee->user?->roles->first()?->id;
+        $leavePolicies = \App\Models\LeavePolicy::where('is_active', true)->orderByDesc('is_default')->orderBy('name')->get();
+        $effectivePolicy = $employee->effectivePolicy();
 
-        return view('employees.edit', compact('employee', 'departments', 'positions'));
+        return view('employees.edit', compact('employee', 'departments', 'positions', 'roles', 'currentRoleId', 'leavePolicies', 'effectivePolicy'));
     }
 
     public function update(Request $request, Employee $employee)
@@ -263,6 +375,7 @@ class EmployeeController extends Controller
             'position_id' => 'nullable|exists:positions,id',
             'payroll_mode' => 'required|in:monthly_staff,office_staff,freelance_layer,youtuber_salary,youtuber_settlement,custom_hybrid',
             'start_date' => 'nullable|date',
+            'probation_end_date' => 'nullable|date',
             'base_salary' => 'nullable|numeric|min:0',
             'bank_name' => 'nullable|string|max:255',
             'account_number' => 'nullable|string|max:50',
@@ -273,12 +386,17 @@ class EmployeeController extends Controller
             'tier_override_id' => 'nullable|exists:performance_tiers,id',
             'tier_override_note' => 'nullable|string|max:255',
             'fixed_rate_per_clip' => 'nullable|numeric|min:0',
+            'vacation_entitlement' => 'nullable|integer|min:0|max:365',
+            'sick_leave_entitlement' => 'nullable|integer|min:0|max:365',
+            'personal_leave_entitlement' => 'nullable|integer|min:0|max:365',
+            'leave_policy_id' => 'nullable|exists:leave_policies,id',
             'email' => [
                 $employee->user ? 'nullable' : 'required',
                 'email', 'max:255',
                 \Illuminate\Validation\Rule::unique('users', 'email')->ignore($employee->user?->id),
             ],
             'password' => [$employee->user ? 'nullable' : 'required', 'string', 'min:6', 'max:255'],
+            'role_id' => 'nullable|exists:roles,id',
         ]);
 
         $oldData = $employee->getAttributes();
@@ -301,6 +419,15 @@ class EmployeeController extends Controller
             ]);
             $employee->user_id = $newUser->id;
             $employee->save();
+            $employee->setRelation('user', $newUser);
+        }
+
+        $roleId = $validated['role_id'] ?? null;
+        if (!$roleId && $employee->user && $employee->user->roles()->count() === 0) {
+            $roleId = optional(Role::where('name', 'owner')->first())->id;
+        }
+        if ($roleId && $employee->user) {
+            $employee->user->roles()->sync([$roleId]);
         }
 
         $updates = [
@@ -312,9 +439,15 @@ class EmployeeController extends Controller
             'position_id' => $validated['position_id'] ?? null,
             'payroll_mode' => $validated['payroll_mode'],
             'start_date' => $validated['start_date'] ?? null,
+            'probation_end_date' => array_key_exists('probation_end_date', $validated) ? $validated['probation_end_date'] : $employee->probation_end_date,
             'tier_source' => $validated['tier_source'] ?? 'avg',
             'tier_override_id' => $validated['tier_override_id'] ?? null,
             'tier_override_note' => $validated['tier_override_note'] ?? null,
+            // override entitlements (NULL = ใช้จาก policy)
+            'vacation_entitlement' => $validated['vacation_entitlement'] ?? null,
+            'sick_leave_entitlement' => $validated['sick_leave_entitlement'] ?? null,
+            'personal_leave_entitlement' => $validated['personal_leave_entitlement'] ?? null,
+            'leave_policy_id' => $validated['leave_policy_id'] ?? null,
         ];
 
         if ($request->user()?->hasRole('admin') && array_key_exists('fixed_rate_per_clip', $validated)) {

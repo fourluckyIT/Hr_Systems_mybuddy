@@ -336,9 +336,17 @@
        class="text-sm text-gray-500 hover:text-indigo-600">&larr; กลับ Workspace</a>
     <div class="flex gap-2">
         @if($canManagePayslip && (!$payslip || $payslip->status !== 'finalized'))
-        <form method="POST" action="{{ route('payslip.finalize', ['employee' => $employee->id, 'month' => $month, 'year' => $year]) }}">
+        <form method="POST" action="{{ route('payslip.finalize', ['employee' => $employee->id, 'month' => $month, 'year' => $year]) }}" class="flex items-center gap-2">
             @csrf
-            <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-green-700">Finalize</button>
+            <div class="flex flex-col items-end">
+                <span class="text-[9px] text-gray-400 font-bold uppercase mr-1">วันจ่ายเงิน</span>
+                <input type="date" name="payment_date" value="{{ date('Y-m-d') }}" 
+                       class="border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none">
+            </div>
+            <button type="submit" class="bg-green-600 text-white px-4 py-2.5 rounded-lg text-sm font-bold hover:bg-green-700 shadow-sm transition-all flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                Finalize
+            </button>
         </form>
         @endif
         <a href="{{ route('payslip.pdf', ['employee' => $employee->id, 'month' => $month, 'year' => $year]) }}"
@@ -348,20 +356,36 @@
     </div>
 </div>
 
-@if($canManagePayslip && $payslip && $payslip->status === 'finalized')
+@if($payslip && $payslip->status === 'finalized')
 <div class="print-hide bg-white border border-green-200 text-green-700 px-4 py-3 rounded-xl text-sm mb-4 flex justify-between items-center shadow-sm">
     <div class="flex items-center gap-2">
         <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
         <span class="font-bold">Finalized เมื่อ: {{ $payslip->finalized_at?->format('d/m/Y H:i') }}</span>
     </div>
-    <form method="POST" action="{{ route('payslip.unfinalize', ['employee' => $employee->id, 'month' => $month, 'year' => $year]) }}" 
-          onsubmit="return confirm('คุณแน่ใจหรือว่าต้องการยกเลิก Finalize?\n\nสลิปนี้จะถูกเปลี่ยนสถานะเป็น Draft และข้อมูลจะกลับไปคำนวณสดเพื่อแก้ไขได้ครับ');">
-        @csrf
-        <button type="submit" class="px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg text-xs font-bold transition-all border border-red-100 flex items-center gap-1.5">
-            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-            ยกเลิก Finalize
-        </button>
-    </form>
+    @if($canManagePayslip)
+    <div class="flex items-center gap-3">
+        <!-- Update Payment Date Form -->
+        <form method="POST" action="{{ route('payslip.update-payment-date', ['employee' => $employee->id, 'month' => $month, 'year' => $year]) }}" 
+              class="flex items-center gap-2 pr-3 border-r border-green-100">
+            @csrf
+            <span class="text-[10px] text-green-600 font-bold whitespace-nowrap">แก้ตัววันจ่ายเงิน:</span>
+            <input type="date" name="payment_date" value="{{ $payslip->payment_date }}" 
+                   class="border border-green-200 rounded-lg px-2 py-1 text-xs text-green-700 focus:ring-2 focus:ring-green-500 outline-none">
+            <button type="submit" class="p-1.5 bg-green-100 text-green-700 hover:bg-green-200 rounded-lg transition-all" title="บันทึกวันจ่ายเงิน">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
+            </button>
+        </form>
+
+        <form method="POST" action="{{ route('payslip.unfinalize', ['employee' => $employee->id, 'month' => $month, 'year' => $year]) }}" 
+              onsubmit="return confirm('คุณแน่ใจหรือว่าต้องการยกเลิก Finalize?\n\nสลิปนี้จะถูกเปลี่ยนสถานะเป็น Draft และข้อมูลจะกลับไปคำนวณสดเพื่อแก้ไขได้ครับ');">
+            @csrf
+            <button type="submit" class="px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg text-xs font-bold transition-all border border-red-100 flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                ยกเลิก Finalize
+            </button>
+        </form>
+    </div>
+    @endif
 </div>
 @else
 <div class="print-hide bg-amber-50 border border-amber-200 text-amber-700 px-4 py-3 rounded-xl text-sm mb-4 flex items-center gap-2 font-medium">
@@ -402,7 +426,9 @@
             </div>
             <div class="item">
                 <label>วันจ่ายเงิน:</label>
-                <value>-</value>
+                <value>{{ $payslip && $payslip->payment_date
+                    ? \Carbon\Carbon::parse($payslip->payment_date)->format('d/m/') . (\Carbon\Carbon::parse($payslip->payment_date)->year + 543)
+                    : \Carbon\Carbon::create($year, $month)->endOfMonth()->format('d/m/') . ($year + 543) }}</value>
             </div>
         </div>
 
@@ -435,9 +461,19 @@
                 <div class="table-header" style="background-color: {{ $primaryColor }};">รายการได้</div>
                 <div class="table-body">
                     @forelse($incomeItems as $item)
+                        @php
+                            $itemLabel = is_array($item) ? $item['label'] : $item->label;
+                            $itemAmount = (float) (is_array($item) ? $item['amount'] : $item->amount);
+                        @endphp
+                        @if($itemLabel === 'ค่าทำงานวันหยุด' && $itemAmount == 0) @continue @endif
                     <div class="table-row">
-                        <span>{{ is_array($item) ? $item['label'] : $item->label }}</span>
-                        <span>{{ number_format(is_array($item) ? $item['amount'] : $item->amount, 2) }}</span>
+                        <span>
+                            {{ $itemLabel }}
+                            @if($itemLabel === 'ค่าทำงานวันหยุด')
+                                <span style="color:#9ca3af; font-size:9px;" title="พรบ.คุ้มครองแรงงาน 2541 ม.62 — พนักงานรายเดือนทำงานในวันหยุดชั่วโมงปกติ ได้รับเพิ่ม 1× ของอัตรา/ชม.">(ม.62)</span>
+                            @endif
+                        </span>
+                        <span>{{ number_format($itemAmount, 2) }}</span>
                     </div>
                     @empty
                     <div class="table-row" style="color: #999;">
@@ -529,9 +565,7 @@
                 <div class="signature-line" style="width: 60%; margin: 0 auto; border-top: 1px solid #aaa;"></div>
                 <div class="signature-label" style="margin-top: 4px;">
                     ลายเซ็นผู้รับ
-                    @if($company?->signature_receiver_name)
-                    <br /><span style="font-size: 10px; color: #555;">({{ $company->signature_receiver_name }})</span>
-                    @endif
+                    <br /><span style="font-size: 10px; color: #555;">({{ $employee->full_name }})</span>
                 </div>
             </div>
         </div>

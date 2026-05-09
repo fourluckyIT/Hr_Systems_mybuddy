@@ -8,6 +8,7 @@ use App\Models\Employee;
 use App\Models\LeaveRequest;
 use App\Models\AttendanceRule;
 use App\Models\CompanyHoliday;
+use App\Services\NotificationService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -84,6 +85,46 @@ class LeaveRequestController extends Controller
             abort(403, 'คุณสามารถขอลาเฉพาะสำหรับตัวเองเท่านั้น');
         }
 
+        // Probation gate (skip for admin who logs on behalf)
+        // Per Thai labor law: sick (ม.32) and personal (ม.34) ALLOWED during probation,
+        // vacation (ม.30) NOT allowed (requires ≥ 1 year of service)
+        if (!$isAdmin) {
+            $emp = Employee::find($validated['employee_id']);
+            $policy = $emp?->effectivePolicy();
+            $leaveType = $validated['leave_type'];
+            if ($emp && $policy && !$policy->allowsDuringProbation($leaveType)) {
+                $probationEnd = $emp->probation_end_date;
+                $leaveDate = \Carbon\Carbon::parse($validated['leave_date']);
+                if ($probationEnd && $leaveDate->lessThanOrEqualTo($probationEnd)) {
+                    return back()->withErrors([
+                        'leave_date' => 'ไม่สามารถลาประเภทนี้ระหว่างทดลองงานได้ (ถึง ' . $probationEnd->format('d/m/Y') . ')',
+                    ])->withInput();
+                }
+            }
+
+            // Vacation eligibility — must have served ≥ vacation_eligibility_months from start_date (default 12, ม.30)
+            if ($emp && $policy && $leaveType === 'vacation_leave' && $emp->start_date) {
+                $eligibleFrom = $emp->start_date->copy()->addMonths((int) ($policy->vacation_eligibility_months ?? 12));
+                $leaveDate = \Carbon\Carbon::parse($validated['leave_date']);
+                if ($leaveDate->lt($eligibleFrom)) {
+                    return back()->withErrors([
+                        'leave_date' => 'ลาพักร้อนได้เมื่อทำงานครบ ' . ($policy->vacation_eligibility_months ?? 12) . ' เดือน (เริ่มลาพักร้อนได้ตั้งแต่ ' . $eligibleFrom->format('d/m/Y') . ' — ม.30 พรบ.คุ้มครองแรงงาน)',
+                    ])->withInput();
+                }
+            }
+
+            // Quota check — กันส่งคำขอลาที่เกินสิทธิ
+            if ($emp && in_array($validated['leave_type'], array_keys(Employee::LEAVE_TYPES_TRACKED), true)) {
+                $year = (int) \Carbon\Carbon::parse($validated['leave_date'])->format('Y');
+                $balance = $emp->getLeaveBalance($validated['leave_type'], $year);
+                if ($balance['remaining'] <= 0) {
+                    return back()->withErrors([
+                        'leave_type' => "สิทธิ {$balance['label']} ปี {$year} หมดแล้ว (ใช้ไป {$balance['used']}/{" . rtrim(rtrim(number_format($balance['total_available'], 1), '0'), '.') . "})",
+                    ])->withInput();
+                }
+            }
+        }
+
         $exists = LeaveRequest::where('employee_id', $validated['employee_id'])
             ->where('leave_date', $validated['leave_date'])
             ->exists();
@@ -92,7 +133,7 @@ class LeaveRequestController extends Controller
             return back()->withErrors(['leave_date' => 'มีคำขอลาสำหรับวันนี้แล้ว'])->withInput();
         }
 
-        LeaveRequest::create([
+        $leaveRequest = LeaveRequest::create([
             'employee_id'  => $validated['employee_id'],
             'leave_date'   => $validated['leave_date'],
             'leave_type'   => $validated['leave_type'],
@@ -102,6 +143,22 @@ class LeaveRequestController extends Controller
             'reviewed_by'  => $isAdmin ? $user->id : null,
             'reviewed_at'  => $isAdmin ? now() : null,
         ]);
+
+        if ($isAdmin) {
+            $this->applyLeaveToAttendance($leaveRequest);
+        } else {
+            // แจ้งเตือน Admin เมื่อพนักงานยื่นคำขอ (ไม่ต้องแจ้งถ้า Admin บันทึกให้เอง)
+            $employee = $user->employee;
+            NotificationService::notifyAdmins(
+                'leave.requested',
+                'คำขอลา: ' . ($employee?->display_name ?? $user->name)
+                    . ' · ' . Carbon::parse($validated['leave_date'])->format('d/m'),
+                ($this->leaveTypes[$validated['leave_type']] ?? $validated['leave_type'])
+                    . ($validated['reason'] ? ' — ' . $validated['reason'] : ''),
+                route('leave.index', [], false),
+                ['leave_request_id' => $leaveRequest->id]
+            );
+        }
 
         return back()->with('success', $isAdmin ? 'บันทึกคำขอลาและอนุมัติแล้ว' : 'ส่งคำขอลาสำเร็จ รอแอดมินตรวจสอบ');
     }
@@ -120,7 +177,7 @@ class LeaveRequestController extends Controller
                 'status'      => $validated['action'],
                 'reviewed_by' => Auth::id(),
                 'reviewed_at' => now(),
-                'review_note' => $validated['review_note'],
+                'review_note' => $validated['review_note'] ?? null,
             ]);
 
             // If approved → apply to attendance log
@@ -128,6 +185,22 @@ class LeaveRequestController extends Controller
                 $this->applyLeaveToAttendance($leaveRequest);
             }
         });
+
+        // Notify the requester
+        $leaveRequest->loadMissing('employee');
+        if ($leaveRequest->employee && $leaveRequest->employee->user_id) {
+            $approved = $validated['action'] === 'approved';
+            NotificationService::notify(
+                $leaveRequest->employee->user_id,
+                $approved ? 'leave.approved' : 'leave.rejected',
+                $approved ? 'คำขอลาได้รับการอนุมัติ' : 'คำขอลาไม่ได้รับการอนุมัติ',
+                'วันที่ ' . Carbon::parse($leaveRequest->leave_date)->format('d/m/Y')
+                    . ' · ' . ($this->leaveTypes[$leaveRequest->leave_type] ?? $leaveRequest->leave_type)
+                    . ($validated['review_note'] ?? null ? ' — ' . $validated['review_note'] : ''),
+                route('leave.index', [], false),
+                ['leave_request_id' => $leaveRequest->id]
+            );
+        }
 
         return back()->with('success', $validated['action'] === 'approved' ? 'อนุมัติคำขอลาแล้ว' : 'ปฏิเสธคำขอลาแล้ว');
     }
@@ -141,8 +214,12 @@ class LeaveRequestController extends Controller
             abort(403);
         }
 
-        if (!$leaveRequest->isPending()) {
+        if (!$isAdmin && $leaveRequest->status !== 'pending') {
             return back()->withErrors(['error' => 'สามารถยกเลิกได้เฉพาะคำขอที่รอตรวจสอบ']);
+        }
+
+        if ($leaveRequest->status === 'approved') {
+            $this->reverseLeaveFromAttendance($leaveRequest);
         }
 
         $leaveRequest->update(['status' => 'cancelled']);
@@ -181,6 +258,17 @@ class LeaveRequestController extends Controller
 
         if ($isAdmin) {
             $this->applySwapToAttendance($swap);
+        } else {
+            $employee = $user->employee;
+            NotificationService::notifyAdmins(
+                'swap.requested',
+                'คำขอสลับวัน: ' . ($employee?->display_name ?? $user->name),
+                'มาทำงาน ' . Carbon::parse($validated['work_date'])->format('d/m/Y')
+                    . ' ↔ หยุด ' . Carbon::parse($validated['off_date'])->format('d/m/Y')
+                    . ($validated['reason'] ? ' — ' . $validated['reason'] : ''),
+                route('leave.index', [], false),
+                ['day_swap_request_id' => $swap->id]
+            );
         }
 
         if ($request->wantsJson()) {
@@ -223,6 +311,21 @@ class LeaveRequestController extends Controller
             return back()->withErrors($e->errors());
         }
 
+        $daySwapRequest->loadMissing('employee');
+        if ($daySwapRequest->employee && $daySwapRequest->employee->user_id) {
+            $approved = $validated['action'] === 'approved';
+            NotificationService::notify(
+                $daySwapRequest->employee->user_id,
+                $approved ? 'swap.approved' : 'swap.rejected',
+                $approved ? 'คำขอสลับวันได้รับการอนุมัติ' : 'คำขอสลับวันไม่ได้รับการอนุมัติ',
+                'มาทำงาน ' . Carbon::parse($daySwapRequest->work_date)->format('d/m/Y')
+                    . ' ↔ หยุด ' . Carbon::parse($daySwapRequest->off_date)->format('d/m/Y')
+                    . ($validated['review_note'] ?? null ? ' — ' . $validated['review_note'] : ''),
+                route('leave.index', [], false),
+                ['day_swap_request_id' => $daySwapRequest->id]
+            );
+        }
+
         return back()->with('success', $validated['action'] === 'approved' ? 'อนุมัติการสลับวันแล้ว' : 'ปฏิเสธการสลับวันแล้ว');
     }
 
@@ -235,8 +338,12 @@ class LeaveRequestController extends Controller
             abort(403);
         }
 
-        if (!$daySwapRequest->isPending()) {
+        if (!$isAdmin && $daySwapRequest->status !== 'pending') {
             return back()->withErrors(['error' => 'สามารถยกเลิกได้เฉพาะคำขอที่รอตรวจสอบ']);
+        }
+
+        if ($daySwapRequest->status === 'approved') {
+            $this->reverseSwapFromAttendance($daySwapRequest);
         }
 
         $daySwapRequest->update(['status' => 'cancelled']);
@@ -290,6 +397,52 @@ class LeaveRequestController extends Controller
                     'log_date'              => $dateStr,
                     'day_type'              => $entry['type'],
                     'is_swapped_day'        => true,
+                ]);
+            }
+        }
+    }
+
+    protected function reverseLeaveFromAttendance(LeaveRequest $leaveRequest): void
+    {
+        $dateStr = Carbon::parse($leaveRequest->leave_date)->toDateString();
+        $log = AttendanceLog::where('employee_id', $leaveRequest->employee_id)
+            ->whereDate('log_date', $dateStr)
+            ->first();
+
+        if ($log && $log->day_type === $leaveRequest->leave_type) {
+            $isCompanyHoliday = CompanyHoliday::where('is_active', true)
+                ->whereDate('holiday_date', $dateStr)
+                ->exists();
+            $restoredType = $isCompanyHoliday ? 'company_holiday' : (Carbon::parse($dateStr)->isWeekend() ? 'holiday' : 'workday');
+            
+            $log->update(['day_type' => $restoredType]);
+        }
+    }
+
+    protected function reverseSwapFromAttendance(DaySwapRequest $swap): void
+    {
+        foreach ([
+            ['date' => $swap->work_date, 'original_type' => 'holiday'],
+            ['date' => $swap->off_date,  'original_type' => 'workday'],
+        ] as $entry) {
+            $dateStr = Carbon::parse($entry['date'])->toDateString();
+            $log = AttendanceLog::where('employee_id', $swap->employee_id)
+                ->whereDate('log_date', $dateStr)
+                ->first();
+
+            if ($log && $log->is_swapped_day) {
+                $restoredType = $log->swapped_from_day_type;
+                if (!$restoredType) {
+                    $isCompanyHoliday = CompanyHoliday::where('is_active', true)
+                        ->whereDate('holiday_date', $dateStr)
+                        ->exists();
+                    $restoredType = $isCompanyHoliday ? 'company_holiday' : (Carbon::parse($dateStr)->isWeekend() ? 'holiday' : 'workday');
+                }
+                
+                $log->update([
+                    'day_type'              => $restoredType,
+                    'is_swapped_day'        => false,
+                    'swapped_from_day_type' => null,
                 ]);
             }
         }

@@ -116,7 +116,7 @@ class PayslipController extends Controller
         }
     }
 
-    public function finalize(Employee $employee, int $month, int $year)
+    public function finalize(Request $request, Employee $employee, int $month, int $year)
     {
         try {
             // Validate month and year
@@ -124,13 +124,15 @@ class PayslipController extends Controller
                 return back()->withErrors(['error' => 'เดือนหรือปีไม่ถูกต้อง']);
             }
 
+            $paymentDate = $request->input('payment_date');
+
             // Always guarantee PayrollItems are up-to-date before snapshot
             $result = $this->payrollService->calculateForEmployee($employee, $month, $year);
             $this->payrollService->savePayrollItems($employee, $month, $year, $result);
 
-            $payslip = $this->payrollService->finalizePayslip($employee, $month, $year);
+            $payslip = $this->payrollService->finalizePayslip($employee, $month, $year, $paymentDate);
 
-            AuditLogService::log($payslip, 'finalized', 'status', 'draft', 'finalized', 'Payslip finalized');
+            AuditLogService::log($payslip, 'finalized', 'status', 'draft', 'finalized', 'Payslip finalized with payment date: ' . ($paymentDate ?? 'now'));
 
             return redirect()
                 ->route('payslip.preview', ['employee' => $employee->id, 'month' => $month, 'year' => $year])
@@ -144,6 +146,25 @@ class PayslipController extends Controller
             ]);
             return back()->withErrors(['error' => 'เกิดข้อผิดพลาดในการ Finalize: ' . $e->getMessage()]);
         }
+    }
+
+    public function updatePaymentDate(Request $request, Employee $employee, int $month, int $year)
+    {
+        $request->validate([
+            'payment_date' => 'required|date',
+        ]);
+
+        $payslip = Payslip::where('employee_id', $employee->id)
+            ->where('month', $month)
+            ->where('year', $year)
+            ->firstOrFail();
+
+        $oldDate = $payslip->payment_date;
+        $payslip->update(['payment_date' => $request->payment_date]);
+
+        AuditLogService::log($payslip, 'payment_date_updated', 'payment_date', $oldDate, $request->payment_date, 'Payment date updated manually');
+
+        return back()->with('success', 'อัปเดตวันจ่ายเงินสำเร็จ');
     }
 
     public function downloadPdf(Employee $employee, int $month, int $year)
@@ -178,7 +199,8 @@ class PayslipController extends Controller
 
             $monthNames = ['', 'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
 
-            $pdf = Pdf::loadView('payslip.pdf', [
+            $pdf = app('dompdf.wrapper');
+            $pdf->loadView('payslip.pdf', [
                 'employee' => $employee,
                 'payslip' => $payslip,
                 'month' => $month,
@@ -187,12 +209,7 @@ class PayslipController extends Controller
                 'yearToDate' => $yearToDate,
                 'monthlyStats' => $monthlyStats,
                 'company' => $company,
-            ])->setOption([
-                'defaultFont' => 'NotoSansThai',
-                'isFontSubsettingEnabled' => true,
-                'isRemoteEnabled' => false,
             ]);
-
             $pdf->setPaper('a4');
 
             $filename = "payslip_{$employee->employee_code}_{$year}_{$month}.pdf";

@@ -103,6 +103,11 @@ class WorkspaceController extends Controller
                 'claim_date' => 'required|date',
             ]);
 
+            // Non-admin (Owner) ยื่นได้เฉพาะ "เบิกล่วงหน้า (advance)" เท่านั้น
+            if ($validated['type'] === 'reimbursement' && !auth()->user()?->hasRole('admin')) {
+                return back()->withErrors(['type' => 'พนักงานยื่นได้เฉพาะรายการเบิกล่วงหน้า — รายการเบิกคืน (รายรับ) ต้องบันทึกโดย HR/Admin']);
+            }
+
             // Validate Ceiling for Advance
             if ($validated['type'] === 'advance' && $employee->advance_ceiling_percent > 0) {
                 $baseSalary = $employee->salaryProfile?->base_salary ?? 0;
@@ -235,6 +240,17 @@ class WorkspaceController extends Controller
             ]);
             return back()->withErrors(['error' => 'เกิดข้อผิดพลาดในการลบรายการเบิก: ' . $e->getMessage()]);
         }
+    }
+
+    public function printClaim(ExpenseClaim $claim)
+    {
+        $claim->load('employee.position', 'employee.department');
+        $company = \App\Models\CompanyProfile::first();
+        
+        $pdf = app('dompdf.wrapper');
+        $pdf->loadView('workspace.claims.print', compact('claim', 'company'));
+        $pdf->setPaper('a4', 'portrait');
+        return $pdf->stream('claim_form_' . $claim->id . '.pdf');
     }
 
     public function uploadProof(Request $request, Employee $employee, int $month, int $year)
@@ -406,6 +422,7 @@ class WorkspaceController extends Controller
     {
         try {
             return DB::transaction(function () use ($employee, $month, $year) {
+                $this->ensureAttendanceLogs($employee, $month, $year);
                 $this->syncAttendanceDerivedMetrics($employee, $month, $year);
                 $result = $this->payrollService->calculateForEmployee($employee, $month, $year);
                 $this->payrollService->savePayrollItems($employee, $month, $year, $result);
@@ -808,9 +825,11 @@ class WorkspaceController extends Controller
         $startDateString = $startDate->toDateString();
         $endDateString = $endDate->toDateString();
 
-        $existingDates = AttendanceLog::where('employee_id', $employee->id)
+        $existingLogs = AttendanceLog::where('employee_id', $employee->id)
             ->whereBetween('log_date', [$startDateString, $endDateString])
-            ->pluck('log_date')
+            ->get();
+
+        $existingDates = $existingLogs->pluck('log_date')
             ->map(fn($d) => Carbon::parse($d)->format('Y-m-d'))
             ->toArray();
 
@@ -821,11 +840,32 @@ class WorkspaceController extends Controller
             ->toArray();
 
         $workingHoursRule = AttendanceRule::getActiveRule('working_hours');
+        $standardHolidays = $workingHoursRule?->config['standard_holidays'] ?? [0, 6];
+
+        // 1. Sync existing logs with CompanyHoliday and Weekends (only if not swapped)
+        foreach ($existingLogs as $log) {
+            if ($log->is_swapped_day) continue;
+
+            $dateStr = $log->log_date->format('Y-m-d');
+            $isWeekend = in_array($log->log_date->dayOfWeek, $standardHolidays);
+            $isCompanyHoliday = in_array($dateStr, $holidays);
+
+            $targetDayType = 'workday';
+            if ($isCompanyHoliday) $targetDayType = 'company_holiday';
+            elseif ($isWeekend) $targetDayType = 'holiday';
+
+            // Only overwrite basic types to avoid accidentally clearing leaves/LWOP
+            $basicTypes = ['workday', 'holiday', 'company_holiday', 'not_started'];
+            if ($log->day_type !== $targetDayType && in_array($log->day_type, $basicTypes)) {
+                $log->update(['day_type' => $targetDayType]);
+            }
+        }
+
+        // 2. Create missing logs
         $newLogs = [];
         for ($date = $startDate->copy(); $date <= $endDate; $date->addDay()) {
             $dateStr = $date->format('Y-m-d');
             if (!in_array($dateStr, $existingDates)) {
-                $standardHolidays = $workingHoursRule?->config['standard_holidays'] ?? [0, 6];
                 $isWeekend = in_array($date->dayOfWeek, $standardHolidays);
                 $isHoliday = in_array($dateStr, $holidays);
 
@@ -845,6 +885,51 @@ class WorkspaceController extends Controller
 
         if (!empty($newLogs)) {
             AttendanceLog::query()->insertOrIgnore($newLogs);
+        }
+
+        // 3. Force Sync Approved Leave Requests
+        $approvedLeaves = \App\Models\LeaveRequest::where('employee_id', $employee->id)
+            ->whereBetween('leave_date', [$startDateString, $endDateString])
+            ->where('status', 'approved')
+            ->get();
+
+        foreach ($approvedLeaves as $leave) {
+            $dateStr = $leave->leave_date->format('Y-m-d');
+            $log = AttendanceLog::where('employee_id', $employee->id)
+                ->whereDate('log_date', $dateStr)
+                ->first();
+            if ($log && $log->day_type !== $leave->leave_type) {
+                $log->update(['day_type' => $leave->leave_type]);
+            }
+        }
+
+        // 4. Force Sync Approved Day Swaps
+        $approvedSwaps = \App\Models\DaySwapRequest::where('employee_id', $employee->id)
+            ->where(function($q) use ($startDateString, $endDateString) {
+                $q->whereBetween('work_date', [$startDateString, $endDateString])
+                  ->orWhereBetween('off_date', [$startDateString, $endDateString]);
+            })
+            ->where('status', 'approved')
+            ->get();
+
+        foreach ($approvedSwaps as $swap) {
+            foreach ([
+                ['date' => $swap->work_date, 'type' => 'workday'],
+                ['date' => $swap->off_date,  'type' => 'holiday'],
+            ] as $entry) {
+                $dateStr = Carbon::parse($entry['date'])->format('Y-m-d');
+                if ($dateStr >= $startDateString && $dateStr <= $endDateString) {
+                    $log = AttendanceLog::where('employee_id', $employee->id)
+                        ->whereDate('log_date', $dateStr)
+                        ->first();
+                    if ($log) {
+                        $updates = ['day_type' => $entry['type'], 'is_swapped_day' => true];
+                        if (!$log->is_swapped_day || $log->day_type !== $entry['type']) {
+                            $log->update($updates);
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -887,15 +972,23 @@ class WorkspaceController extends Controller
             ];
         }
 
-        $inAt = Carbon::parse("{$log->log_date->format('Y-m-d')} {$checkIn}:00");
-        $outAt = Carbon::parse("{$log->log_date->format('Y-m-d')} {$checkOut}:00");
+        // Normalise "HH:MM" → "HH:MM:00" to avoid double-appending seconds
+        // when the stored value already has the seconds component.
+        $normalise = fn(string $t): string =>
+            preg_match('/^\d{2}:\d{2}$/', $t) ? "{$t}:00" : $t;
+
+        $inAt  = Carbon::parse("{$log->log_date->format('Y-m-d')} " . $normalise($checkIn));
+        $outAt = Carbon::parse("{$log->log_date->format('Y-m-d')} " . $normalise($checkOut));
 
         if ($outAt->lessThanOrEqualTo($inAt)) {
             $outAt->addDay();
         }
 
-        $targetInAt = Carbon::parse("{$log->log_date->format('Y-m-d')} {$meta['target_check_in']}:00");
-        $targetOutAt = Carbon::parse("{$log->log_date->format('Y-m-d')} {$meta['target_check_out']}:00");
+        $normTgtIn  = preg_match('/^\d{2}:\d{2}$/', $meta['target_check_in'])  ? $meta['target_check_in']  . ':00' : $meta['target_check_in'];
+        $normTgtOut = preg_match('/^\d{2}:\d{2}$/', $meta['target_check_out']) ? $meta['target_check_out'] . ':00' : $meta['target_check_out'];
+
+        $targetInAt  = Carbon::parse("{$log->log_date->format('Y-m-d')} {$normTgtIn}");
+        $targetOutAt = Carbon::parse("{$log->log_date->format('Y-m-d')} {$normTgtOut}");
 
         if ($isWorkday) {
             // Late: Based on Target Start
@@ -1116,6 +1209,14 @@ class WorkspaceController extends Controller
             }
             
             $assignedEditJobs = $hasEditAssignments ? EditingJob::with('game')->where('assigned_to', $employee->id)->active()
+                ->where(function($q) use ($month, $year) {
+                    $q->where('status', '!=', 'final')
+                      ->orWhere(function($sq) use ($month, $year) {
+                          $sq->where('status', 'final')
+                             ->whereMonth('finalized_at', $month)
+                             ->whereYear('finalized_at', $year);
+                      });
+                })
                 ->orderByRaw("CASE status WHEN 'assigned' THEN 1 WHEN 'in_progress' THEN 2 WHEN 'review_ready' THEN 3 WHEN 'final' THEN 4 ELSE 99 END")
                 ->orderBy('deadline_date')->get() : collect();
 
@@ -1160,6 +1261,19 @@ class WorkspaceController extends Controller
 
         $workspaceEditEnabled = $this->isWorkspaceEditingEnabled($employee);
         $vacationBalance = $employee->getVacationBalance($year);
+        $allLeaveBalances = $employee->getAllLeaveBalances($year);
+        // Carryovers: show records that AFFECT this year — either inbound (year=$year) or outbound (source_year=$year).
+        // Filter out rejected so the history reflects what actually counts.
+        $leaveCarryovers = $employee->leaveCarryovers()
+            ->where(function ($q) use ($year) {
+                $q->where('year', $year)->orWhere('source_year', $year);
+            })
+            ->whereIn('status', ['approved', 'pending'])
+            ->orderByDesc('id')->get();
+        $leaveEncashments = $employee->leaveEncashments()
+            ->where('year', $year)
+            ->whereIn('status', ['approved', 'pending'])
+            ->orderByDesc('id')->get();
 
         // Recent OT & Leave requests for Quick Actions panel
         $recentOtRequests = OtRequest::where('employee_id', $employee->id)
@@ -1193,7 +1307,8 @@ class WorkspaceController extends Controller
             $calEnd   = $calDate->copy()->endOfMonth()->endOfWeek(Carbon::SATURDAY);
 
             // Company holidays for this month
-            $calHolidays = CompanyHoliday::where('is_active', true)
+            $calHolidays = CompanyHoliday::with('holidayType')
+                ->where('is_active', true)
                 ->whereBetween('holiday_date', [$calStart, $calEnd])
                 ->get()->groupBy(fn($h) => Carbon::parse($h->holiday_date)->format('Y-m-d'));
 
@@ -1212,6 +1327,7 @@ class WorkspaceController extends Controller
             // Employee's assigned editing jobs (deadlines this month)
             $calEditJobs = EditingJob::where('assigned_to', $employee->id)
                 ->active()
+                ->whereNotIn('status', ['final', 'review_ready'])
                 ->whereBetween('deadline_date', [$calStart, $calEnd])
                 ->get()->groupBy(fn($j) => Carbon::parse($j->deadline_date)->format('Y-m-d'));
 
@@ -1299,15 +1415,23 @@ class WorkspaceController extends Controller
             $upcoming = collect();
 
             // Upcoming holidays
-            $upHolidays = CompanyHoliday::where('is_active', true)
+            $upHolidays = CompanyHoliday::with('holidayType')
+                ->where('is_active', true)
                 ->whereBetween('holiday_date', [$upcomingStart, $upcomingEnd])
                 ->orderBy('holiday_date')->get();
             foreach ($upHolidays as $h) {
-                $upcoming->push(['date' => Carbon::parse($h->holiday_date), 'label' => $h->name, 'icon' => '🏢', 'color' => 'purple', 'sub' => 'วันหยุดบริษัท']);
+                $upcoming->push([
+                    'date' => Carbon::parse($h->holiday_date),
+                    'label' => $h->name,
+                    'icon' => $h->effective_icon,
+                    'color' => $h->effective_color,
+                    'sub' => $h->holidayType?->name ?? 'วันหยุดบริษัท',
+                ]);
             }
 
             // Upcoming editing deadlines
             $upEdits = EditingJob::where('assigned_to', $employee->id)->active()
+                ->whereNotIn('status', ['final', 'review_ready'])
                 ->whereBetween('deadline_date', [$upcomingStart, $upcomingEnd])
                 ->orderBy('deadline_date')->get();
             foreach ($upEdits as $ej) {
@@ -1330,10 +1454,76 @@ class WorkspaceController extends Controller
 
             $upcoming = $upcoming->sortBy(fn($e) => $e['date']->timestamp)->values();
 
+            // ── Personal Stats Sidebar ──
+            $today = Carbon::today();
+            $monthStartCarbon = $calDate->copy()->startOfMonth();
+            $monthEndCarbon   = $calDate->copy()->endOfMonth();
+
+            // OT hours this month (approved)
+            $otMinutesThisMonth = (int) OtRequest::where('employee_id', $employee->id)
+                ->where('status', 'approved')
+                ->whereBetween('log_date', [$monthStartCarbon, $monthEndCarbon])
+                ->sum('requested_minutes');
+            $otHoursThisMonth = round($otMinutesThisMonth / 60, 1);
+            $otCountThisMonth = (int) OtRequest::where('employee_id', $employee->id)
+                ->where('status', 'approved')
+                ->whereBetween('log_date', [$monthStartCarbon, $monthEndCarbon])
+                ->count();
+
+            // Days worked this month (attendance logs with check-in)
+            $daysWorked = (int) AttendanceLog::where('employee_id', $employee->id)
+                ->whereBetween('log_date', [$monthStartCarbon, $monthEndCarbon])
+                ->whereNotNull('check_in')
+                ->count();
+            $workingHoursRule = AttendanceRule::getActiveRule('working_hours')?->config ?? [];
+            $daysTarget = (int) ($workingHoursRule['working_days_per_month'] ?? 22);
+
+            // Payday countdown — assume last day of month
+            $paydayDate = $calDate->copy()->endOfMonth()->startOfDay();
+            $paydayCountdown = (int) $today->diffInDays($paydayDate, false);
+            if ($paydayCountdown < 0) {
+                $paydayDate = $calDate->copy()->addMonth()->endOfMonth()->startOfDay();
+                $paydayCountdown = (int) $today->diffInDays($paydayDate, false);
+            }
+
+            // Pending requests
+            $pendingLeave = LeaveRequest::where('employee_id', $employee->id)->where('status', 'pending')->count();
+            $pendingOt    = OtRequest::where('employee_id', $employee->id)->where('status', 'pending')->count();
+            $pendingSwap  = \App\Models\DaySwapRequest::where('employee_id', $employee->id)->where('status', 'pending')->count();
+            $pendingTotal = $pendingLeave + $pendingOt + $pendingSwap;
+
+            $personalStats = [
+                'vacation' => [
+                    'limit'     => $vacationBalance['limit'] ?? 0,
+                    'used'      => $vacationBalance['used'] ?? 0,
+                    'remaining' => $vacationBalance['remaining'] ?? 0,
+                ],
+                'ot' => [
+                    'hours' => $otHoursThisMonth,
+                    'minutes' => $otMinutesThisMonth,
+                    'count' => $otCountThisMonth,
+                ],
+                'days_worked' => [
+                    'count'  => $daysWorked,
+                    'target' => $daysTarget,
+                ],
+                'payday' => [
+                    'days'  => max(0, $paydayCountdown),
+                    'date'  => $paydayDate->format('Y-m-d'),
+                ],
+                'pending' => [
+                    'total' => $pendingTotal,
+                    'leave' => $pendingLeave,
+                    'ot'    => $pendingOt,
+                    'swap'  => $pendingSwap,
+                ],
+            ];
+
             $ownerCalendar = [
                 'miniCalendarDays' => $miniCalendarDays,
                 'upcomingEvents'   => $upcoming,
                 'calendarDate'     => $calDate,
+                'personalStats'    => $personalStats,
             ];
         }
 
@@ -1345,6 +1535,11 @@ class WorkspaceController extends Controller
 
         $pushReq = function (string $date, array $req) use (&$dayRequests) {
             $key = Carbon::parse($date)->toDateString();
+            // Prevent duplicates for the same date and same label
+            $existing = collect($dayRequests[$key] ?? []);
+            if ($existing->contains('label', $req['label'])) {
+                return;
+            }
             $dayRequests[$key][] = $req;
         };
 
@@ -1410,6 +1605,9 @@ class WorkspaceController extends Controller
             'recordingSessions' => $recordingSessions,
             'panel' => $panel, 'workspaceEditEnabled' => $workspaceEditEnabled, 'performanceSummary' => $performanceSummary,
             'vacationBalance' => $vacationBalance,
+            'allLeaveBalances' => $allLeaveBalances,
+            'leaveCarryovers' => $leaveCarryovers,
+            'leaveEncashments' => $leaveEncashments,
             'recentOtRequests' => $recentOtRequests,
             'recentLeaveRequests' => $recentLeaveRequests,
             'recentSwapRequests' => $recentSwapRequests,

@@ -59,16 +59,23 @@ class CompanyFinanceController extends Controller
         $expenses = collect();
         $revenues = collect();
         $subscriptions = collect();
+        $payslips = collect();
 
         if ($month) {
             $expenses = CompanyExpense::where('year', $year)->where('month', $month)->orderByDesc('id')->get();
             $revenues = CompanyRevenue::where('year', $year)->where('month', $month)->orderByDesc('id')->get();
             $subscriptions = SubscriptionCost::where('year', $year)->where('month', $month)->orderByDesc('id')->get();
+            $payslips = \App\Models\Payslip::with('employee')
+                ->where('year', $year)
+                ->where('month', $month)
+                ->where('status', 'finalized')
+                ->orderByDesc('total_income')
+                ->get();
         }
 
         return view('company.finance', compact(
             'year', 'month', 'months', 'monthNames', 'monthlyData', 'yearTotals',
-            'expenses', 'revenues', 'subscriptions'
+            'expenses', 'revenues', 'subscriptions', 'payslips'
         ));
     }
 

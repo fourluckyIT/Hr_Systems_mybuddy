@@ -301,11 +301,11 @@
                                                 </div>
                                             @endif
                                             <div class="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded px-1 py-0.5">
-                                                <input type="number" name="video_duration_hours" class="w-8 border-0 bg-transparent p-0 text-center text-[10px] focus:ring-0" placeholder="ชม.">
+                                                <input type="number" name="video_duration_hours" step="1" min="0" class="w-8 border-0 bg-transparent p-0 text-center text-[10px] focus:ring-0" placeholder="ชม.">
                                                 <span class="text-[9px] text-gray-400">:</span>
-                                                <input type="number" name="video_duration_minutes" class="w-8 border-0 bg-transparent p-0 text-center text-[10px] focus:ring-0" placeholder="น.">
+                                                <input type="number" name="video_duration_minutes" step="1" min="0" max="59" class="w-8 border-0 bg-transparent p-0 text-center text-[10px] focus:ring-0" placeholder="น.">
                                                 <span class="text-[9px] text-gray-400">:</span>
-                                                <input type="number" name="video_duration_seconds" class="w-8 border-0 bg-transparent p-0 text-center text-[10px] focus:ring-0" placeholder="ว." min="0" max="59">
+                                                <input type="number" name="video_duration_seconds" step="1" min="0" max="59" class="w-8 border-0 bg-transparent p-0 text-center text-[10px] focus:ring-0" placeholder="ว.">
                                             </div>
                                             <input type="date" name="finalized_at" value="{{ date('Y-m-d') }}" class="w-24 border border-gray-300 rounded px-1 py-1 text-[10px]" required>
                                             <button class="bg-emerald-600 text-white hover:bg-emerald-700 px-2 py-1 rounded font-bold whitespace-nowrap text-[10px] shadow-sm">

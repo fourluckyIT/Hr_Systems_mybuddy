@@ -18,7 +18,7 @@ class PerformanceTierController extends Controller
         $validated = $request->validate([
             'tier_code' => 'required|string|max:20|unique:performance_tiers,tier_code',
             'tier_name' => 'required|string|max:50',
-            'multiplier' => 'required|numeric|min:0|max:10',
+            'multiplier' => 'required|numeric|min:-1|max:10',
             'min_clip_minutes_per_month' => 'nullable|integer|min:0',
             'max_clip_minutes_per_month' => 'nullable|integer|min:0',
             'min_qualified_months' => 'nullable|integer|min:0',
@@ -41,7 +41,7 @@ class PerformanceTierController extends Controller
     {
         $validated = $request->validate([
             'tier_name' => 'required|string|max:50',
-            'multiplier' => 'required|numeric|min:0|max:10',
+            'multiplier' => 'required|numeric|min:-1|max:10',
             'min_clip_minutes_per_month' => 'nullable|integer|min:0',
             'max_clip_minutes_per_month' => 'nullable|integer|min:0',
             'min_qualified_months' => 'nullable|integer|min:0',

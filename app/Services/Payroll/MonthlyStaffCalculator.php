@@ -43,14 +43,28 @@ class MonthlyStaffCalculator
 
         $enableOvertime = (bool) ($moduleDefaults['enable_overtime'] ?? true);
         $enableDiligence = (bool) ($moduleDefaults['enable_diligence'] ?? true);
-        $otMultiplierWorkday = (float) ($otRule?->config['rate_multiplier_workday'] ?? $otRule?->config['rate_multiplier'] ?? 1.5);
-        $otMultiplierHoliday = (float) ($otRule?->config['rate_multiplier_holiday'] ?? 3.0);
-        $holidayRegularMultiplierMonthly = (float) ($otRule?->config['holiday_regular_multiplier_monthly'] ?? 1.0);
-        $holidayLegalSplitEnabled = (bool) ($otRule?->config['enable_holiday_legal_split'] ?? true);
-        $maxOtHours = (float) ($otRule?->config['max_ot_hours'] ?? 40);
-        $weeklyOtLimitHours = (float) ($otRule?->config['weekly_ot_limit_hours'] ?? 36);
+        $otCfg = $otRule?->config ?? [];
+
+        $otMultiplierWorkday = (float) ($otCfg['rate_multiplier_workday'] ?? $otCfg['rate_multiplier'] ?? 1.5);
+        $otMultiplierHolidayLegacy = (float) ($otCfg['rate_multiplier_holiday'] ?? 3.0);
+        // Per-day-type multipliers — fall back to legacy holiday multiplier so old configs keep working.
+        $otMultiplierWeeklyOff = (float) ($otCfg['rate_multiplier_weekly_off'] ?? $otMultiplierHolidayLegacy);
+        $otMultiplierCompanyHoliday = (float) ($otCfg['rate_multiplier_company_holiday'] ?? $otMultiplierHolidayLegacy);
+
+        $holidayRegularMultiplierLegacy = (float) ($otCfg['holiday_regular_multiplier_monthly'] ?? 1.0);
+        $regularMultiplierWeeklyOff = (float) ($otCfg['regular_multiplier_weekly_off'] ?? $holidayRegularMultiplierLegacy);
+        $regularMultiplierCompanyHoliday = (float) ($otCfg['regular_multiplier_company_holiday'] ?? $holidayRegularMultiplierLegacy);
+
+        $allowOtWeeklyOff = (bool) ($otCfg['allow_ot_weekly_off'] ?? true);
+        $allowOtCompanyHoliday = (bool) ($otCfg['allow_ot_company_holiday'] ?? true);
+
+        $holidayLegalSplitEnabled = (bool) ($otCfg['enable_holiday_legal_split'] ?? true);
+        $maxOtHours = (float) ($otCfg['max_ot_hours'] ?? 40);
+        $weeklyOtLimitHours = (float) ($otCfg['weekly_ot_limit_hours'] ?? 36);
+        $dailyOtLimitHours = (float) ($otCfg['daily_ot_limit_hours'] ?? 0); // 0 = no daily cap
         $weeklyOtLimitMinutes = max(0, (int) round($weeklyOtLimitHours * 60));
         $monthlyOtLimitMinutes = max(0, (int) round($maxOtHours * 60));
+        $dailyOtLimitMinutes = max(0, (int) round($dailyOtLimitHours * 60));
         $targetMinutesPerDay = (int) ($workingHoursRule?->config['target_minutes_per_day'] ?? 540);
 
         // New Global Method: Calculate Mon-Fri count for the rate divisor
@@ -60,14 +74,19 @@ class MonthlyStaffCalculator
         $totalWorkMinutes = 0;
         $totalOtMinutes = 0;
         $workdayOtMinutes = 0;
-        $holidayOtMinutes = 0;
-        $holidayRegularMinutes = 0;
+        // Per-type buckets so weekly-off and company-holiday can use different multipliers
+        // and survive the monthly cap correctly.
+        $weeklyOffOtMinutes = 0;
+        $companyHolidayOtMinutes = 0;
+        $weeklyOffRegularMinutes = 0;
+        $companyHolidayRegularMinutes = 0;
         $weeklyOtMinutes = [];
         $totalLateMinutes = 0;
         $lateCount = 0;
         $totalEarlyLeaveMinutes = 0;
         $earlyLeaveCount = 0;
         $lwopDays = 0;
+        $attendedDays = 0;
 
         $otDates = [];
         $holidayRegularDates = [];
@@ -87,27 +106,38 @@ class MonthlyStaffCalculator
                 $totalWorkMinutes += max(0, $workedMinutes - $lunchBreakMinutes);
             }
 
+            // Distinguish weekly off (Sat/Sun) vs company/public holiday — different rates allowed.
+            $isWeeklyOff = (string) $log->day_type === 'holiday';
+            $isCompanyHoliday = (string) $log->day_type === 'company_holiday';
+            $isHolidayLike = $isWeeklyOff || $isCompanyHoliday;
+
+            $regularMultiplier = $isCompanyHoliday ? $regularMultiplierCompanyHoliday : $regularMultiplierWeeklyOff;
+            $otMultiplierForHoliday = $isCompanyHoliday ? $otMultiplierCompanyHoliday : $otMultiplierWeeklyOff;
+            $allowOtForThisDay = $isCompanyHoliday ? $allowOtCompanyHoliday : ($isWeeklyOff ? $allowOtWeeklyOff : true);
+
             // Holiday regular + OT split (§62/§63 Thai labour law).
-            // ot_minutes on a holiday = net worked minutes (gross − lunch).
-            // First targetMinutesPerDay net minutes → regular rate × multiplier.
-            // Excess beyond targetMinutesPerDay → OT rate × otMultiplierHoliday.
-            // Presence is inferred from check_in/out OR ot_minutes > 0.
-            $isHolidayLike = in_array((string) $log->day_type, ['holiday', 'company_holiday'], true);
             if ($isHolidayLike && $holidayLegalSplitEnabled) {
                 $showedUp = (!empty($log->check_in) && !empty($log->check_out))
                     || (int) $log->ot_minutes > 0;
                 if ($showedUp) {
-                    $holidayRegularMinutes += $targetMinutesPerDay;
-                    $dayAmount = round($targetMinutesPerDay * $minuteRate * $holidayRegularMultiplierMonthly, 2);
-                    $holidayRegularDates[] = $formatLogDate($log) . " (วันหยุด) " . number_format($dayAmount, 2);
+                    if ($isCompanyHoliday) {
+                        $companyHolidayRegularMinutes += $targetMinutesPerDay;
+                    } else {
+                        $weeklyOffRegularMinutes += $targetMinutesPerDay;
+                    }
+                    $dayAmount = round($targetMinutesPerDay * $minuteRate * $regularMultiplier, 2);
+                    $label = $isCompanyHoliday ? 'วันหยุดบริษัท' : 'วันหยุดสัปดาห์';
+                    $holidayRegularDates[] = $formatLogDate($log) . " ($label) " . number_format($dayAmount, 2);
                 }
             }
 
-            if ($log->ot_enabled && $log->ot_minutes > 0) {
-                $isHolidayOt = $isHolidayLike;
-                // ot_minutes now stores clock-based OT (minutes past standard checkout)
-                // for both workday and holiday, so no further conversion needed.
+            if ($log->ot_enabled && $log->ot_minutes > 0 && (!$isHolidayLike || $allowOtForThisDay)) {
                 $candidateOtMinutes = (int) $log->ot_minutes;
+
+                // Per-day cap (0 = disabled).
+                if ($dailyOtLimitMinutes > 0) {
+                    $candidateOtMinutes = min($candidateOtMinutes, $dailyOtLimitMinutes);
+                }
 
                 if ($candidateOtMinutes > 0) {
                     $weekStart = Carbon::parse($log->log_date)->startOfWeek(Carbon::MONDAY)->toDateString();
@@ -118,10 +148,15 @@ class MonthlyStaffCalculator
                     if ($allowedOtMinutes > 0) {
                         $weeklyOtMinutes[$weekStart] = $weekUsedMinutes + $allowedOtMinutes;
 
-                        if ($isHolidayOt) {
-                            $holidayOtMinutes += $allowedOtMinutes;
-                            $dayAmount = round($allowedOtMinutes * $minuteRate * $otMultiplierHoliday, 2);
-                            $holidayOtDates[] = $formatLogDate($log) . " (OT วันหยุด) " . number_format($dayAmount, 2);
+                        if ($isHolidayLike) {
+                            if ($isCompanyHoliday) {
+                                $companyHolidayOtMinutes += $allowedOtMinutes;
+                            } else {
+                                $weeklyOffOtMinutes += $allowedOtMinutes;
+                            }
+                            $dayAmount = round($allowedOtMinutes * $minuteRate * $otMultiplierForHoliday, 2);
+                            $tag = $isCompanyHoliday ? 'OT วันหยุดบริษัท' : 'OT วันหยุดสัปดาห์';
+                            $holidayOtDates[] = $formatLogDate($log) . " ($tag) " . number_format($dayAmount, 2);
                         } else {
                             $workdayOtMinutes += $allowedOtMinutes;
                             $dayAmount = round($allowedOtMinutes * $minuteRate * $otMultiplierWorkday, 2);
@@ -133,17 +168,18 @@ class MonthlyStaffCalculator
 
             // Track lates and early leaves for workdays
             if ($isWorkday) {
+                if (!empty($log->check_in)) {
+                    $attendedDays++;
+                }
                 if ($log->late_minutes > 0) {
                     $totalLateMinutes += (int) $log->late_minutes;
                     $lateCount++;
-                    $dayAmount = round((int)$log->late_minutes * $minuteRate, 2);
-                    $lateDates[] = $formatLogDate($log) . " (สาย) " . number_format($dayAmount, 2);
+                    $lateDates[] = $formatLogDate($log) . ' (สาย ' . (int)$log->late_minutes . ' นาที)';
                 }
                 if ($log->early_leave_minutes > 0) {
                     $totalEarlyLeaveMinutes += (int) $log->early_leave_minutes;
                     $earlyLeaveCount++;
-                    $dayAmount = round((int)$log->early_leave_minutes * $minuteRate, 2);
-                    $earlyLeaveDates[] = $formatLogDate($log) . " (ออกเร็ว) " . number_format($dayAmount, 2);
+                    $earlyLeaveDates[] = $formatLogDate($log) . ' (ออกก่อนเวลา ' . (int)$log->early_leave_minutes . ' นาที)';
                 }
             }
 
@@ -154,23 +190,26 @@ class MonthlyStaffCalculator
             }
         }
 
+        $holidayOtMinutes = $weeklyOffOtMinutes + $companyHolidayOtMinutes;
+        $holidayRegularMinutes = $weeklyOffRegularMinutes + $companyHolidayRegularMinutes;
         $totalOtMinutes = $workdayOtMinutes + $holidayOtMinutes;
 
-        // Additional internal cap for month policy (kept for compatibility).
+        // Additional internal cap for month policy. Trim holiday OT first because it pays more,
+        // then weekly-off vs company-holiday in that order, then workday OT.
         if ($totalOtMinutes > $monthlyOtLimitMinutes) {
             $excessMinutes = $totalOtMinutes - $monthlyOtLimitMinutes;
 
-            // Trim holiday OT first because it has higher payout multiplier.
-            if ($holidayOtMinutes > 0) {
-                $trimHoliday = min($holidayOtMinutes, $excessMinutes);
-                $holidayOtMinutes -= $trimHoliday;
-                $excessMinutes -= $trimHoliday;
-            }
+            $trim = min($companyHolidayOtMinutes, $excessMinutes);
+            $companyHolidayOtMinutes -= $trim; $excessMinutes -= $trim;
+
+            $trim = min($weeklyOffOtMinutes, $excessMinutes);
+            $weeklyOffOtMinutes -= $trim; $excessMinutes -= $trim;
 
             if ($excessMinutes > 0 && $workdayOtMinutes > 0) {
                 $workdayOtMinutes = max(0, $workdayOtMinutes - $excessMinutes);
             }
 
+            $holidayOtMinutes = $weeklyOffOtMinutes + $companyHolidayOtMinutes;
             $totalOtMinutes = $workdayOtMinutes + $holidayOtMinutes;
         }
 
@@ -179,14 +218,23 @@ class MonthlyStaffCalculator
         // Total working hours (excluding break, in hours)
         $totalWorkHours = round($totalWorkMinutes / 60, 2);
 
-        // Holiday regular pay (phase-1 legal split)
+        // Holiday regular pay (phase-1 legal split) — per-type minute buckets × per-type multiplier.
         $holidayWorkPay = ($enableOvertime && $holidayLegalSplitEnabled)
-            ? round($holidayRegularMinutes * $minuteRate * $holidayRegularMultiplierMonthly, 2)
+            ? round(
+                ($weeklyOffRegularMinutes      * $minuteRate * $regularMultiplierWeeklyOff) +
+                ($companyHolidayRegularMinutes * $minuteRate * $regularMultiplierCompanyHoliday),
+                2
+            )
             : 0;
 
-        // OT pay = overtime-only minutes * minuteRate * multiplier
+        // OT pay — workday + (weekly-off OT × its multiplier) + (company-holiday OT × its multiplier).
         $overtimePay = $enableOvertime
-            ? round(($workdayOtMinutes * $minuteRate * $otMultiplierWorkday) + ($holidayOtMinutes * $minuteRate * $otMultiplierHoliday), 2)
+            ? round(
+                ($workdayOtMinutes        * $minuteRate * $otMultiplierWorkday) +
+                ($weeklyOffOtMinutes      * $minuteRate * $otMultiplierWeeklyOff) +
+                ($companyHolidayOtMinutes * $minuteRate * $otMultiplierCompanyHoliday),
+                2
+            )
             : 0;
 
         // Diligence allowance logic (Tiered - Global via RuleService)
@@ -195,7 +243,13 @@ class MonthlyStaffCalculator
         $isYoutuberSalary = $employee->payroll_mode === 'youtuber_salary';
         $hasAttendanceData = $attendanceLogs->isNotEmpty() || $isYoutuberSalary;
         $diligenceAmount = ($enableDiligence && $hasAttendanceData)
-            ? $this->ruleService->calculateDiligence($lateCount, $lwopDays)
+            ? $this->ruleService->calculateDiligence([
+                'lwopDays' => $lwopDays,
+                'lateCount' => $lateCount,
+                'lateMinutes' => $totalLateMinutes,
+                'earlyLeaveCount' => $earlyLeaveCount,
+                'attendedDays' => $isYoutuberSalary ? PHP_INT_MAX : $attendedDays,
+            ])
             : 0;
 
         // LWOP deduction (Salary / Mon-Fri Days * LwopDays)
@@ -233,10 +287,9 @@ class MonthlyStaffCalculator
         $items[] = $this->resolveItem('base_salary', 'income', 'ฐานเงินเดือน', $baseSalary, 'master', ++$sortOrder, $existingItems);
         $items[] = $this->resolveItem('holiday_work_pay', 'income', 'ค่าทำงานวันหยุด', $holidayWorkPay, 'auto', ++$sortOrder, $existingItems, !empty($holidayRegularDates) ? implode(', ', array_unique($holidayRegularDates)) : null);
         
-        $otNoteParts = [];
-        if (!empty($otDates)) $otNoteParts[] = 'ปกติ: ' . implode(', ', array_unique($otDates));
-        if (!empty($holidayOtDates)) $otNoteParts[] = 'วันหยุด: ' . implode(', ', array_unique($holidayOtDates));
-        $otNote = !empty($otNoteParts) ? implode('; ', $otNoteParts) : null;
+        // Flat one-entry-per-bullet — each line already carries its own tag like "(OT)" or "(OT วันหยุดบริษัท)"
+        $otAllEntries = array_unique(array_merge($otDates, $holidayOtDates));
+        $otNote = !empty($otAllEntries) ? implode('; ', $otAllEntries) : null;
         $items[] = $this->resolveItem('overtime', 'income', 'ค่าล่วงเวลา', $overtimePay, 'auto', ++$sortOrder, $existingItems, $otNote);
         
         $items[] = $this->resolveItem('diligence', 'income', 'เบี้ยขยัน', $diligenceAmount, 'auto', ++$sortOrder, $existingItems);
@@ -244,8 +297,20 @@ class MonthlyStaffCalculator
         $sortOrder = 0;
         $items[] = $this->resolveItem('cash_advance', 'deduction', 'เงินหักล่วงหน้า', 0, 'manual', ++$sortOrder, $existingItems);
         $items[] = $this->resolveItem('lwop', 'deduction', 'ขาดงาน', $lwopDeduction, 'auto', ++$sortOrder, $existingItems, !empty($lwopDates) ? implode(', ', array_unique($lwopDates)) : null);
-        $items[] = $this->resolveItem('late_deduction', 'deduction', 'มาสาย', $lateDeduction, 'auto', ++$sortOrder, $existingItems, !empty($lateDates) ? implode(', ', array_unique($lateDates)) : null);
-        $items[] = $this->resolveItem('early_leave_deduction', 'deduction', 'ออกเร็ว', $earlyLeaveDeduction, 'auto', ++$sortOrder, $existingItems, !empty($earlyLeaveDates) ? implode(', ', array_unique($earlyLeaveDates)) : null);
+        // If late minutes accumulated but deduction is 0 (rule disabled or grace ate it), prepend an explanation
+        $lateNote = !empty($lateDates) ? implode(', ', array_unique($lateDates)) : null;
+        if ($lateNote && $lateDeduction == 0 && $totalLateMinutes > 0) {
+            $reason = (!$lateRule || ($lateRule->config['type'] ?? 'none') === 'none')
+                ? 'กฎหักมาสายปิดอยู่ — ไม่หักเงิน'
+                : ('ภายในช่วงผ่อนผัน ' . ((int)($lateRule->config['grace_period_minutes'] ?? 0)) . ' นาที — ไม่หักเงิน');
+            $lateNote = $reason . '; ' . $lateNote;
+        }
+        $earlyNote = !empty($earlyLeaveDates) ? implode(', ', array_unique($earlyLeaveDates)) : null;
+        if ($earlyNote && $earlyLeaveDeduction == 0 && $totalEarlyLeaveMinutes > 0) {
+            $earlyNote = 'กฎหักออกก่อนเวลาปิดอยู่ — ไม่หักเงิน; ' . $earlyNote;
+        }
+        $items[] = $this->resolveItem('late_deduction', 'deduction', 'มาสาย', $lateDeduction, 'auto', ++$sortOrder, $existingItems, $lateNote);
+        $items[] = $this->resolveItem('early_leave_deduction', 'deduction', 'ออกก่อนเวลา', $earlyLeaveDeduction, 'auto', ++$sortOrder, $existingItems, $earlyNote);
         $items[] = $this->resolveItem('sso_employee', 'deduction', 'ประกันสังคม', $ssoEmployee, 'auto', ++$sortOrder, $existingItems);
 
         $totalIncome = collect($items)->where('category', 'income')->sum('amount');

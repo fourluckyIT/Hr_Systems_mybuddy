@@ -5,6 +5,12 @@
 @source '../**/*.blade.php';
 @source '../**/*.js';
 
+/* Holiday type / job stage / leave UI use dynamic Tailwind color classes
+   resolved at runtime (e.g. bg-{red|purple|amber|...}-100). Safelist them
+   so JIT keeps them in the bundle. */
+@source inline("{bg,text,border,ring}-{red,orange,amber,yellow,lime,green,emerald,teal,cyan,sky,blue,indigo,violet,purple,fuchsia,pink,rose,slate,gray}-{100,200,300,400,500,600,700,800}");
+@source inline("hover:{bg,border,text}-{red,orange,amber,yellow,lime,green,emerald,teal,cyan,sky,blue,indigo,violet,purple,fuchsia,pink,rose,slate,gray}-{200,400,600,700}");
+
 @theme {
     --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';

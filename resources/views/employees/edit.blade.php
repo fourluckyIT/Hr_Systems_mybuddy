@@ -80,6 +80,33 @@
                     <input type="date" name="start_date" value="{{ old('start_date', $employee->start_date?->format('Y-m-d')) }}" class="w-full px-3 py-2 border rounded-lg text-sm">
                 </div>
                 <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">
+                        วันสิ้นสุดทดลองงาน
+                        @php $remaining = $employee->probationDaysRemaining(); @endphp
+                        @if($employee->probation_end_date)
+                            @if($remaining < 0)
+                                <span class="ml-1 px-1.5 py-0.5 text-[10px] font-bold bg-emerald-100 text-emerald-700 rounded">✓ ผ่านแล้ว</span>
+                            @elseif($remaining <= 14)
+                                <span class="ml-1 px-1.5 py-0.5 text-[10px] font-bold bg-amber-100 text-amber-700 rounded">⚠ เหลือ {{ $remaining }} วัน</span>
+                            @else
+                                <span class="ml-1 px-1.5 py-0.5 text-[10px] font-bold bg-blue-100 text-blue-700 rounded">เหลือ {{ $remaining }} วัน</span>
+                            @endif
+                        @else
+                            <span class="ml-1 px-1.5 py-0.5 text-[10px] font-bold bg-gray-100 text-gray-600 rounded">ยังไม่กำหนด</span>
+                        @endif
+                    </label>
+                    <input type="date" name="probation_end_date"
+                           value="{{ old('probation_end_date', $employee->probation_end_date?->format('Y-m-d')) }}"
+                           max="{{ $employee->start_date?->copy()->addDays(\App\Models\Employee::PROBATION_LEGAL_LIMIT_DAYS)->format('Y-m-d') }}"
+                           class="w-full px-3 py-2 border rounded-lg text-sm">
+                    <p class="text-[10px] text-gray-400 mt-0.5">
+                        ⚖️ ไม่ควรเกิน 119 วันจากวันเริ่มงาน (ม.118 พรบ.คุ้มครองแรงงาน)
+                        @if($employee->start_date)
+                            — สูงสุด: <strong>{{ $employee->start_date->copy()->addDays(\App\Models\Employee::PROBATION_LEGAL_LIMIT_DAYS)->format('d M Y') }}</strong>
+                        @endif
+                    </p>
+                </div>
+                <div>
                     <label class="block text-xs font-medium text-gray-600 mb-1">เบอร์โทร</label>
                     <input type="text" name="phone" value="{{ old('phone', $employee->profile?->phone) }}" class="w-full px-3 py-2 border rounded-lg text-sm">
                 </div>
@@ -124,7 +151,90 @@
                                class="w-full px-3 py-2 border rounded-lg text-sm"
                                placeholder="{{ $employee->user ? 'เว้นว่างเพื่อคงรหัสเดิม' : 'อย่างน้อย 6 ตัวอักษร' }}">
                     </div>
+                    <div class="md:col-span-2">
+                        <label class="block text-xs font-medium text-gray-600 mb-1">
+                            สิทธิ์การใช้งาน (Role) <span class="text-red-500">*</span>
+                        </label>
+                        <select name="role_id" required class="w-full px-3 py-2 border rounded-lg text-sm">
+                            @foreach($roles as $role)
+                                @php
+                                    $defaultRoleId = old('role_id', $currentRoleId ?? optional($roles->firstWhere('name', 'owner'))->id);
+                                @endphp
+                                <option value="{{ $role->id }}" @selected((int) $defaultRoleId === (int) $role->id)>
+                                    {{ $role->display_name ?: $role->name }}
+                                    @if($role->name === 'owner') — พนักงานทั่วไป (ดู Workspace ตัวเอง)
+                                    @elseif($role->name === 'admin') — ผู้ดูแลระบบ (เข้าถึงได้ทุกหน้า)
+                                    @endif
+                                </option>
+                            @endforeach
+                        </select>
+                        @if($employee->user)
+                            <p class="text-[11px] text-gray-500 mt-1">
+                                สิทธิ์ปัจจุบัน:
+                                <span class="font-semibold text-gray-700">
+                                    {{ $employee->user->roles->pluck('display_name')->filter()->implode(', ') ?: $employee->user->roles->pluck('name')->implode(', ') ?: '— ยังไม่มี —' }}
+                                </span>
+                            </p>
+                        @endif
+                    </div>
                 </div>
+            </div>
+
+            {{-- สิทธิวันลา --}}
+            <div class="border-t border-gray-200 pt-4 mt-4">
+                <div class="flex items-center gap-2 mb-3">
+                    <span class="text-sm font-bold text-gray-700">🏖️ สิทธิวันลาประจำปี</span>
+                    <a href="{{ route('settings.master-data') }}#leave_policies" class="text-[10px] text-indigo-600 hover:underline">ตั้งค่านโยบายใน Master Data ↗</a>
+                </div>
+
+                {{-- Policy selector --}}
+                <div class="mb-4 p-3 bg-indigo-50/50 border border-indigo-100 rounded-lg">
+                    <label class="block text-xs font-bold text-indigo-700 mb-1.5">นโยบายวันลา (Leave Policy)</label>
+                    <select name="leave_policy_id" class="w-full px-3 py-2 border rounded-lg text-sm bg-white">
+                        @foreach($leavePolicies as $lp)
+                            <option value="{{ $lp->id }}" @selected((int) old('leave_policy_id', $employee->leave_policy_id) === $lp->id)>
+                                @if($lp->is_default)⭐ @endif{{ $lp->name }}
+                                — 🏖️ {{ $lp->vacation_days }} / 🤒 {{ $lp->sick_days }} / 👤 {{ $lp->personal_days }}
+                            </option>
+                        @endforeach
+                    </select>
+                    @if($effectivePolicy)
+                    <p class="text-[10px] text-indigo-600 mt-1">
+                        ใช้นโยบาย <b>{{ $effectivePolicy->name }}</b> —
+                        ยกยอด: {{ $effectivePolicy->allow_carryover ? 'ได้' : 'ไม่ได้' }} •
+                        แลกเงิน: {{ $effectivePolicy->allow_encashment ? 'ได้' : 'ไม่ได้' }}
+                    </p>
+                    @endif
+                </div>
+
+                {{-- Override fields --}}
+                <p class="text-[11px] font-semibold text-gray-600 mb-2">📝 Override เฉพาะคนนี้ (เว้นว่าง = ใช้จากนโยบาย)</p>
+                <div class="grid md:grid-cols-3 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">ลาพักร้อน (Vacation)</label>
+                        <input type="number" name="vacation_entitlement" min="0" max="365"
+                               value="{{ old('vacation_entitlement', $employee->vacation_entitlement) }}"
+                               placeholder="จากนโยบาย: {{ $effectivePolicy->vacation_days ?? 6 }}"
+                               class="w-full px-3 py-2 border rounded-lg text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">ลาป่วย (Sick)</label>
+                        <input type="number" name="sick_leave_entitlement" min="0" max="365"
+                               value="{{ old('sick_leave_entitlement', $employee->sick_leave_entitlement) }}"
+                               placeholder="จากนโยบาย: {{ $effectivePolicy->sick_days ?? 30 }}"
+                               class="w-full px-3 py-2 border rounded-lg text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">ลากิจ (Personal)</label>
+                        <input type="number" name="personal_leave_entitlement" min="0" max="365"
+                               value="{{ old('personal_leave_entitlement', $employee->personal_leave_entitlement) }}"
+                               placeholder="จากนโยบาย: {{ $effectivePolicy->personal_days ?? 3 }}"
+                               class="w-full px-3 py-2 border rounded-lg text-sm">
+                    </div>
+                </div>
+                <p class="text-[11px] text-gray-500 mt-2">
+                    💡 ปกติเลือกนโยบายอย่างเดียวพอ — กรอก override เฉพาะคนที่ได้สิทธิพิเศษกว่านโยบาย
+                </p>
             </div>
 
             @php

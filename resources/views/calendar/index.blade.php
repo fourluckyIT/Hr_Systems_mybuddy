@@ -25,6 +25,8 @@
         showRecForm: {{ $errors->any() && old('_form') === 'recording' ? 'true' : 'false' }},
         showEditForm: {{ $errors->any() && old('_form') === 'edit_job' ? 'true' : 'false' }},
         showLeaveForm: {{ $errors->any() && old('_form') === 'holiday' ? 'true' : 'false' }},
+        leaveModal: false,
+        swapModal: false,
         dayEvents: [],
         allEvents: {{ Js::from($eventsJson) }},
 
@@ -429,27 +431,51 @@
             <button @click="showActionPicker = false" class="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
         </div>
         <div class="p-4 space-y-2">
-            <button @click="showActionPicker = false; showRecForm = true" class="w-full flex items-center gap-3 p-3 text-left rounded-xl hover:bg-amber-50 border border-transparent hover:border-amber-200 transition-colors group">
-                <div class="w-10 h-10 rounded-full bg-amber-100 group-hover:bg-amber-200 flex items-center justify-center text-amber-700 text-lg">🎥</div>
-                <div>
-                    <div class="font-bold text-gray-900 group-hover:text-amber-900 text-sm">นัดหมายคิวถ่ายทำ</div>
-                    <div class="text-[10px] text-gray-500">สร้างงานใน Work Center ทันที</div>
-                </div>
-            </button>
-            <button @click="showActionPicker = false; showEditForm = true" class="w-full flex items-center gap-3 p-3 text-left rounded-xl hover:bg-sky-50 border border-transparent hover:border-sky-200 transition-colors group">
-                <div class="w-10 h-10 rounded-full bg-sky-100 group-hover:bg-sky-200 flex items-center justify-center text-sky-700 text-lg">✂️</div>
-                <div>
-                    <div class="font-bold text-gray-900 group-hover:text-sky-900 text-sm">กำหนดงานตัดต่อ</div>
-                    <div class="text-[10px] text-gray-500">มอบหมายงานตัดต่อให้ทีมงาน</div>
-                </div>
-            </button>
-            <button @click="showActionPicker = false; showLeaveForm = true" class="w-full flex items-center gap-3 p-3 text-left rounded-xl hover:bg-purple-50 border border-transparent hover:border-purple-200 transition-colors group">
-                <div class="w-10 h-10 rounded-full bg-purple-100 group-hover:bg-purple-200 flex items-center justify-center text-purple-700 text-lg">🏢</div>
-                <div>
-                    <div class="font-bold text-gray-900 group-hover:text-purple-900 text-sm">เพิ่มวันหยุดบริษัท</div>
-                    <div class="text-[10px] text-gray-500">เพิ่มวันหยุดเข้าระบบของทุกคน</div>
-                </div>
-            </button>
+            @if($isAdmin)
+                <button @click="showActionPicker = false; showRecForm = true" class="w-full flex items-center gap-3 p-3 text-left rounded-xl hover:bg-amber-50 border border-transparent hover:border-amber-200 transition-colors group">
+                    <div class="w-10 h-10 rounded-full bg-amber-100 group-hover:bg-amber-200 flex items-center justify-center text-amber-700 text-lg">🎥</div>
+                    <div>
+                        <div class="font-bold text-gray-900 group-hover:text-amber-900 text-sm">นัดหมายคิวถ่ายทำ</div>
+                        <div class="text-[10px] text-gray-500">สร้างงานใน Work Center ทันที</div>
+                    </div>
+                </button>
+                <button @click="showActionPicker = false; showEditForm = true" class="w-full flex items-center gap-3 p-3 text-left rounded-xl hover:bg-sky-50 border border-transparent hover:border-sky-200 transition-colors group">
+                    <div class="w-10 h-10 rounded-full bg-sky-100 group-hover:bg-sky-200 flex items-center justify-center text-sky-700 text-lg">✂️</div>
+                    <div>
+                        <div class="font-bold text-gray-900 group-hover:text-sky-900 text-sm">กำหนดงานตัดต่อ</div>
+                        <div class="text-[10px] text-gray-500">มอบหมายงานตัดต่อให้ทีมงาน</div>
+                    </div>
+                </button>
+                <button @click="showActionPicker = false; showLeaveForm = true" class="w-full flex items-center gap-3 p-3 text-left rounded-xl hover:bg-purple-50 border border-transparent hover:border-purple-200 transition-colors group">
+                    <div class="w-10 h-10 rounded-full bg-purple-100 group-hover:bg-purple-200 flex items-center justify-center text-purple-700 text-lg">🏢</div>
+                    <div>
+                        <div class="font-bold text-gray-900 group-hover:text-purple-900 text-sm">เพิ่มวันหยุดบริษัท</div>
+                        <div class="text-[10px] text-gray-500">เพิ่มวันหยุดเข้าระบบของทุกคน</div>
+                    </div>
+                </button>
+            @else
+                <button @click="showActionPicker = false; leaveModal = true" class="w-full flex items-center gap-3 p-3 text-left rounded-xl hover:bg-rose-50 border border-transparent hover:border-rose-200 transition-colors group">
+                    <div class="w-10 h-10 rounded-full bg-rose-100 group-hover:bg-rose-200 flex items-center justify-center text-rose-700 text-lg">🏖</div>
+                    <div>
+                        <div class="font-bold text-gray-900 group-hover:text-rose-900 text-sm">ขอลา</div>
+                        <div class="text-[10px] text-gray-500">ลาป่วย / ลากิจ / ลาพักร้อน</div>
+                    </div>
+                </button>
+                <a :href="'{{ route('ot.request') }}?date=' + selectedDate" class="w-full flex items-center gap-3 p-3 text-left rounded-xl hover:bg-amber-50 border border-transparent hover:border-amber-200 transition-colors group">
+                    <div class="w-10 h-10 rounded-full bg-amber-100 group-hover:bg-amber-200 flex items-center justify-center text-amber-700 text-lg">⏰</div>
+                    <div>
+                        <div class="font-bold text-gray-900 group-hover:text-amber-900 text-sm">ขอ OT</div>
+                        <div class="text-[10px] text-gray-500">ส่งคำขอ OT พร้อมแนบเหตุผล</div>
+                    </div>
+                </a>
+                <button @click="showActionPicker = false; swapModal = true" class="w-full flex items-center gap-3 p-3 text-left rounded-xl hover:bg-blue-50 border border-transparent hover:border-blue-200 transition-colors group">
+                    <div class="w-10 h-10 rounded-full bg-blue-100 group-hover:bg-blue-200 flex items-center justify-center text-blue-700 text-lg">🔄</div>
+                    <div>
+                        <div class="font-bold text-gray-900 group-hover:text-blue-900 text-sm">สลับวันหยุด</div>
+                        <div class="text-[10px] text-gray-500">มาทำงานวันหยุด หยุดแทนวันอื่น</div>
+                    </div>
+                </button>
+            @endif
         </div>
     </div>
 </div>
@@ -457,6 +483,12 @@
 {{-- ============================================================ --}}
 {{-- FORM MODALS                                                    --}}
 {{-- ============================================================ --}}
+
+{{-- Employee leave/swap modals (reusing portal partials) --}}
+@if(!$isAdmin)
+    @include('leave.partials.modal-leave')
+    @include('leave.partials.modal-swap')
+@endif
 
 {{-- Add Company Holiday --}}
 <div x-show="showLeaveForm" x-cloak

@@ -115,8 +115,9 @@ class RoleAccessFlowTest extends TestCase
         $this->post('/login', [
             'email' => self::ADMIN_EMAIL,
             'password' => self::PASSWORD,
-        ])->assertRedirect('/employees');
+        ])->assertRedirect('/welcome');
 
+        $this->actingAs($this->adminUser)->get('/welcome')->assertOk();
         $this->actingAs($this->adminUser)->get('/employees')->assertOk();
         $this->actingAs($this->adminUser)->get('/calendar')->assertOk();
         $this->actingAs($this->adminUser)->get('/leave')->assertOk();
@@ -133,8 +134,9 @@ class RoleAccessFlowTest extends TestCase
         $this->post('/login', [
             'email' => self::OWNER_EMAIL,
             'password' => self::PASSWORD,
-        ])->assertRedirect('/my/workspace');
+        ])->assertRedirect('/welcome');
 
+        $this->actingAs($this->ownerUser)->get('/welcome')->assertOk();
         $this->actingAs($this->ownerUser)->get('/my/workspace')->assertRedirect('/workspace/' . $this->ownerEmployee->id . '/' . now()->month . '/' . now()->year);
         $this->actingAs($this->ownerUser)->get('/workspace/' . $this->ownerEmployee->id . '/4/2026')->assertOk();
         $this->actingAs($this->ownerUser)->get('/calendar')->assertOk();
@@ -155,8 +157,8 @@ class RoleAccessFlowTest extends TestCase
 
         $response->assertOk();
         $response->assertSeeText('พนักงาน');
-        $response->assertSeeText('ปฏิทินหลัก');
-        $response->assertSeeText('การเงินบริษัท');
+        $response->assertSeeText('ปฏิทินบริษัท');
+        $response->assertSeeText('การเงิน');
         $response->assertSeeText('สรุปรายปี');
         $response->assertSeeText('WORK Center');
         $response->assertSeeText('Audit Log');
@@ -179,10 +181,10 @@ class RoleAccessFlowTest extends TestCase
 
         $response->assertOk();
         $response->assertSeeText('My Workspace');
-        $response->assertSeeText('ปฏิทินหลัก');
+        $response->assertSeeText('ปฏิทินบริษัท');
 
         $response->assertDontSee('>พนักงาน<', false);
-        $response->assertDontSee('>การเงินบริษัท<', false);
+        $response->assertDontSee('>การเงิน<', false);
         $response->assertDontSee('>สรุปรายปี<', false);
         $response->assertDontSee('>WORK Center<', false);
         $response->assertDontSee('>Audit Log<', false);
@@ -201,23 +203,23 @@ class RoleAccessFlowTest extends TestCase
         $layer = $this->actingAs($this->adminUser)
             ->get('/workspace/' . $this->freelanceLayerEmployee->id . '/4/2026');
         $layer->assertOk();
-        $layer->assertSeeText('freelance_layer');
+        $layer->assertSeeText('สรุปค่าจ้าง');
 
         $custom = $this->actingAs($this->adminUser)
             ->get('/workspace/' . $this->freelanceCustomEmployee->id . '/4/2026');
         $custom->assertOk();
-        $custom->assertSeeText('freelance_layer');
+        $custom->assertSeeText('สรุปค่าจ้าง');
 
         $youtuberSettlement = $this->actingAs($this->adminUser)
             ->get('/workspace/' . $this->youtuberSettlementEmployee->id . '/4/2026');
         $youtuberSettlement->assertOk();
-        $youtuberSettlement->assertSeeText('YouTuber Settlement — รายรับ-รายจ่าย');
+        $youtuberSettlement->assertSeeText('สรุปรายรับ-รายจ่าย');
         $youtuberSettlement->assertDontSeeText('Assigned Edit Jobs');
 
         $youtuberSalary = $this->actingAs($this->adminUser)
             ->get('/workspace/' . $this->ownerEmployee->id . '/4/2026');
         $youtuberSalary->assertOk();
-        $youtuberSalary->assertSeeText('YouTuber เงินเดือน — ยอดคงที่รายเดือน');
+        $youtuberSalary->assertSeeText('สรุปเงินเดือน');
         $youtuberSalary->assertDontSeeText('Assigned Edit Jobs');
     }
 

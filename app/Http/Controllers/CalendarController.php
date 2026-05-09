@@ -37,8 +37,9 @@ class CalendarController extends Controller
         $startDate = $currentDate->copy()->startOfWeek(Carbon::SUNDAY);
         $endDate = $currentDate->copy()->endOfWeek(Carbon::SATURDAY);
 
-        // Fetch Company Holidays
-        $holidays = CompanyHoliday::where('is_active', true)
+        // Fetch Company Holidays (eager-load type so views can resolve color/icon without N+1)
+        $holidays = CompanyHoliday::with('holidayType')
+            ->where('is_active', true)
             ->whereBetween('holiday_date', [$startDate, $endDate])
             ->get();
 
@@ -87,8 +88,8 @@ class CalendarController extends Controller
             $events[$dateStr][] = [
                 'type' => 'company_holiday',
                 'id' => $h->id,
-                'label' => '🏢 วันหยุด: ' . $h->name,
-                'color' => 'bg-purple-100 text-purple-800 border-purple-200',
+                'label' => $h->effective_icon . ' ' . ($h->holidayType?->name ?? 'วันหยุด') . ': ' . $h->name,
+                'color' => $h->effective_color_classes,
                 'is_all_day' => true,
                 'model' => $h,
             ];
@@ -246,7 +247,8 @@ class CalendarController extends Controller
         $upcomingStart = Carbon::today();
         $upcomingEnd   = Carbon::today()->addDays(14);
 
-        $upcomingHolidays = CompanyHoliday::where('is_active', true)
+        $upcomingHolidays = CompanyHoliday::with('holidayType')
+            ->where('is_active', true)
             ->whereBetween('holiday_date', [$upcomingStart, $upcomingEnd])
             ->orderBy('holiday_date')->get();
 
@@ -262,14 +264,15 @@ class CalendarController extends Controller
 
         $upcomingEvents = collect();
         foreach ($upcomingHolidays as $h) {
+            $c = $h->effective_color;
             $upcomingEvents->push([
                 'date'  => Carbon::parse($h->holiday_date),
                 'label' => $h->name,
                 'type'  => 'company_holiday',
-                'color' => 'bg-purple-100 text-purple-700',
-                'dot'   => 'bg-purple-400',
-                'icon'  => '🏢',
-                'sub'   => 'วันหยุดบริษัท',
+                'color' => "bg-{$c}-100 text-{$c}-700",
+                'dot'   => "bg-{$c}-400",
+                'icon'  => $h->effective_icon,
+                'sub'   => $h->holidayType?->name ?? 'วันหยุดบริษัท',
             ]);
         }
         foreach ($upcomingRecording as $rj) {
@@ -298,10 +301,17 @@ class CalendarController extends Controller
 
         $games = \App\Models\Game::where('is_active', true)->orderBy('game_name')->get();
 
+        $leaveTypes = [
+            'sick_leave'     => 'ลาป่วย',
+            'personal_leave' => 'ลากิจ',
+            'vacation_leave' => 'ลาพักร้อน',
+            'lwop'           => 'ลาไม่รับค่าจ้าง (LWOP)',
+        ];
+
         return view('calendar.index', compact(
             'weekDays', 'events', 'startDate', 'endDate', 'currentDate',
             'employees', 'youtubers', 'activeJobStages', 'jobStages', 'mediaResources',
-            'miniCalendarDays', 'upcomingEvents', 'games', 'isAdmin'
+            'miniCalendarDays', 'upcomingEvents', 'games', 'isAdmin', 'leaveTypes'
         ));
     }
 

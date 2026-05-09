@@ -11,13 +11,7 @@ class AuthController extends Controller
     public function showLogin()
     {
         if (Auth::check()) {
-            $user = Auth::user();
-
-            if ($user && $user->hasRole('owner') && !$user->hasRole('admin')) {
-                return redirect()->route('workspace.my');
-            }
-
-            return redirect()->route('employees.index');
+            return redirect()->route('welcome');
         }
 
         return view('auth.login');
@@ -33,13 +27,7 @@ class AuthController extends Controller
         if (Auth::attempt($credentials, $request->boolean('remember'))) {
             $request->session()->regenerate();
 
-            $user = Auth::user();
-
-            if ($user && $user->hasRole('owner') && !$user->hasRole('admin')) {
-                return redirect()->intended(route('workspace.my'));
-            }
-
-            return redirect()->intended(route('employees.index'));
+            return redirect()->intended(route('welcome'));
         }
 
         return back()->withErrors([

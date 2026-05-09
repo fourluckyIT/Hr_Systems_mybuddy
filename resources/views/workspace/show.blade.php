@@ -30,7 +30,11 @@
     $currentMonthReal = (int) $currentDate->format('n');
     $currentYearReal = (int) $currentDate->format('Y');
 
-    $nextIsFuture = ($nextYear > $currentYearReal) || ($nextYear === $currentYearReal && $nextMonth > $currentMonthReal);
+    // Owner (non-admin) สามารถเลื่อนไปอนาคตได้ (ไว้วางแผน leave/OT) ภายในขอบเขต 12 เดือน
+    $maxFutureMonthsAhead = $canManageWorkspace ? 0 : 12;
+    $futureLimitDate = $currentDate->copy()->startOfMonth()->addMonths($maxFutureMonthsAhead);
+    $nextDateForCheck = \Carbon\Carbon::create($nextYear, $nextMonth, 1);
+    $nextIsFuture = $nextDateForCheck->greaterThan($futureLimitDate);
 @endphp
 
 <div x-data="{
@@ -42,6 +46,7 @@
     startYear: {{ $startYear }},
     currentMonthReal: {{ $currentMonthReal }},
     currentYearReal: {{ $currentYearReal }},
+    maxFutureMonths: {{ $maxFutureMonthsAhead }},
     vacationBalance: {
         limit: {{ $vacationBalance['limit'] ?? 6 }},
         used: {{ $vacationBalance['used'] ?? 0 }},
@@ -56,7 +61,9 @@
         return (y < this.startYear) || (y === this.startYear && m < this.startMonth);
     },
     isFuture(m, y) {
-        return (y > this.currentYearReal) || (y === this.currentYearReal && m > this.currentMonthReal);
+        const target = y * 12 + m;
+        const limit = this.currentYearReal * 12 + this.currentMonthReal + this.maxFutureMonths;
+        return target > limit;
     },
     goTo(m, y) {
         if (this.isBeforeStart(m, y) || this.isFuture(m, y)) return;
@@ -145,7 +152,7 @@
                             @csrf
                             <input type="hidden" name="module_name" value="deduct_early">
                             <button type="submit" class="px-2 py-0.5 rounded-md text-[9px] font-bold border transition-all
-                                {{ $employee->isModuleEnabled('deduct_early') ? 'bg-amber-50 border-amber-200 text-amber-700' : 'bg-gray-50 border-gray-200 text-gray-400' }}" title="หักออกเร็ว">
+                                {{ $employee->isModuleEnabled('deduct_early') ? 'bg-amber-50 border-amber-200 text-amber-700' : 'bg-gray-50 border-gray-200 text-gray-400' }}" title="หักออกก่อนเวลา">
                                 EARLY
                             </button>
                         </form>
@@ -201,8 +208,11 @@
                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
                     </button>
                     <span class="text-sm font-bold text-gray-800" x-text="'พ.ศ. ' + (pickerYear + 543)"></span>
-                    <button @click="if(pickerYear < currentYearReal) pickerYear++" type="button"
-                            :class="pickerYear >= currentYearReal ? 'text-gray-200 cursor-not-allowed' : 'hover:bg-gray-100 text-gray-500'"
+                    @php
+                        $maxPickerYear = (int) (\Carbon\Carbon::now()->copy()->addMonths($maxFutureMonthsAhead)->format('Y'));
+                    @endphp
+                    <button @click="if(pickerYear < {{ $maxPickerYear }}) pickerYear++" type="button"
+                            :class="pickerYear >= {{ $maxPickerYear }} ? 'text-gray-200 cursor-not-allowed' : 'hover:bg-gray-100 text-gray-500'"
                             class="p-1.5 rounded-lg transition-colors border border-transparent">
                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
                     </button>
@@ -312,27 +322,40 @@
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
     <!-- Main Grid (2/3) -->
     <div class="lg:col-span-2 space-y-6">
-        @if($attendanceReadOnly ?? false)
+        {{-- Leave Balance summary (admin sees full panel + actions; owner sees read-only cards) --}}
+        @if(in_array($employee->payroll_mode, ['monthly_staff', 'office_staff', 'youtuber_salary']) && !empty($allLeaveBalances))
+            @include('workspace.partials.leave-balance')
+        @endif
+
+        @php
+            $isFutureMonth = ($year > $currentYearReal) || ($year === $currentYearReal && $month > $currentMonthReal);
+        @endphp
+        @if($isFutureMonth && !$canManageWorkspace)
+        <div class="mb-3 flex items-center gap-2 px-4 py-2.5 bg-sky-50 border border-sky-200 rounded-xl text-sky-700 text-sm">
+            <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+            <span>คุณกำลังดูเดือนล่วงหน้า — ใช้คลิกวันบนปฏิทินเพื่อ <b>วางแผนลา / ขอ OT / สลับวัน</b> ล่วงหน้าได้</span>
+        </div>
+        @elseif($attendanceReadOnly ?? false)
         <div class="mb-3 flex items-center gap-2 px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-700 text-sm">
             <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             <span>ประวัติเข้างานเดือนปัจจุบันจะแสดงหลังปิดเดือน — ดูข้อมูลเดือนก่อนหน้าได้จากเมนูเลือกเดือน</span>
         </div>
         @endif
+        {{-- Owner-only personal calendar — render OUTSIDE the disable wrapper so it remains interactive.
+             แสดงปฏิทินสำหรับ Owner ทุกเดือน (ปัจจุบัน + ล่วงหน้า) ใช้วางแผนได้ --}}
+        @if(in_array($employee->payroll_mode, ['monthly_staff', 'office_staff']) && !$canManageWorkspace)
+            @if(!empty($ownerCalendar))
+                @include('workspace.partials.owner-calendar')
+            @else
+                <div class="bg-white rounded-xl shadow-sm border p-6 text-center text-gray-400 text-sm">
+                    <svg class="w-10 h-10 mx-auto mb-2 text-amber-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                    ตารางเข้างานสำหรับเดือนนี้จะแสดงหลังสิ้นเดือน
+                </div>
+            @endif
+        @else
         <div class="{{ (!($workspaceEditEnabled ?? true) || !$canManageWorkspace) ? 'opacity-60 pointer-events-none select-none' : '' }}">
         @if(in_array($employee->payroll_mode, ['monthly_staff', 'office_staff']))
-            @if($attendanceReadOnly ?? false)
-                {{-- Owner sees personal calendar for current month --}}
-                @if(!empty($ownerCalendar))
-                    @include('workspace.partials.owner-calendar')
-                @else
-                    <div class="bg-white rounded-xl shadow-sm border p-6 text-center text-gray-400 text-sm">
-                        <svg class="w-10 h-10 mx-auto mb-2 text-amber-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-                        ตารางเข้างานสำหรับเดือนนี้จะแสดงหลังสิ้นเดือน
-                    </div>
-                @endif
-            @else
-                @include('workspace.partials.attendance-grid')
-            @endif
+            @include('workspace.partials.attendance-grid')
         @elseif($employee->payroll_mode === 'youtuber_salary')
             @include('workspace.partials.youtuber-recording-sessions')
         @elseif($employee->payroll_mode === 'freelance_layer')
@@ -348,6 +371,7 @@
             </div>
         @endif
         </div>
+        @endif
 
         {{-- Current Jobs: Always show for owner (non-admin) when they have assigned jobs --}}
         @if(!$canManageWorkspace && ($assignedEditJobs ?? collect())->isNotEmpty())
@@ -550,16 +574,7 @@
                 @php
                     $isManual = in_array($item['source_flag'], ['manual', 'override']);
                 @endphp
-                <div class="flex justify-between text-sm py-1 group">
-                    <span class="text-gray-600 flex items-center gap-1 {{ ($item['notes'] ?? $item['note'] ?? '') ? 'cursor-help border-b border-dashed border-gray-300' : '' }}" 
-                          title="{{ $item['notes'] ?? $item['note'] ?? '' }}">
-                        {{ $item['label'] }}
-                        @if($isManual && $canManageWorkspace)
-                            <span class="text-[8px] bg-amber-100 text-amber-700 px-1 rounded font-bold uppercase">Manual</span>
-                        @endif
-                    </span>
-                    <span class="font-medium {{ $item['amount'] > 0 ? '' : 'text-gray-400' }}">{{ number_format($item['amount'], 2) }}</span>
-                </div>
+                @include('workspace.partials.line-item', ['item' => $item, 'isManual' => $isManual, 'canManageWorkspace' => $canManageWorkspace])
                 @endif
             @endforeach
             </div>
@@ -575,16 +590,7 @@
                 @php
                     $isManual = in_array($item['source_flag'], ['manual', 'override']);
                 @endphp
-                <div class="flex justify-between text-sm py-1 group">
-                    <span class="text-gray-600 flex items-center gap-1 {{ ($item['notes'] ?? $item['note'] ?? '') ? 'cursor-help border-b border-dashed border-gray-300' : '' }}" 
-                          title="{{ $item['notes'] ?? $item['note'] ?? '' }}">
-                        {{ $item['label'] }}
-                        @if($isManual && $canManageWorkspace)
-                            <span class="text-[8px] bg-amber-100 text-amber-700 px-1 rounded font-bold uppercase">Manual</span>
-                        @endif
-                    </span>
-                    <span class="font-medium {{ $item['amount'] > 0 ? '' : 'text-gray-400' }}">{{ number_format($item['amount'], 2) }}</span>
-                </div>
+                @include('workspace.partials.line-item', ['item' => $item, 'isManual' => $isManual, 'canManageWorkspace' => $canManageWorkspace])
                 @endif
             @endforeach
             </div>

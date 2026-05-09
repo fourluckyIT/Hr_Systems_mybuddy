@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasAttachments;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class DaySwapRequest extends Model
 {
+    use HasAttachments;
+
     protected $fillable = [
         'employee_id',
         'work_date',
@@ -46,5 +49,11 @@ class DaySwapRequest extends Model
     public function isPending(): bool
     {
         return $this->status === 'pending';
+    }
+
+    public function getDocumentNumberAttribute(): string
+    {
+        $ym = optional($this->work_date)->format('ym') ?: now()->format('ym');
+        return 'SW-' . $ym . '-' . str_pad((string) $this->id, 4, '0', STR_PAD_LEFT);
     }
 }

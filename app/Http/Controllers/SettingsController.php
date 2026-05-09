@@ -2,10 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AttendanceLog;
 use App\Models\AttendanceRule;
 use App\Models\CompanyHoliday;
+use App\Models\HolidayType;
+use App\Models\Employee;
 use App\Models\SocialSecurityConfig;
 use App\Services\HolidayService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use App\Models\CompanyProfile;
 use App\Services\AuditLogService;
@@ -19,7 +23,7 @@ class SettingsController extends Controller
     public function rules()
     {
         $ssoConfig = SocialSecurityConfig::getCurrentConfig();
-        
+
         $rules = [
             'working_hours' => AttendanceRule::getActiveRule('working_hours'),
             'diligence' => AttendanceRule::getActiveRule('diligence'),
@@ -29,9 +33,71 @@ class SettingsController extends Controller
             'social_security_config' => $ssoConfig,
         ];
 
-        $holidays = CompanyHoliday::orderBy('holiday_date', 'asc')->get();
+        $diligenceTiers = $this->normalizeDiligenceTiers($rules['diligence']?->config ?? []);
 
-        return view('settings.rules', compact('rules', 'holidays'));
+        $holidays = CompanyHoliday::with('holidayType')->orderBy('holiday_date', 'asc')->get();
+        $holidayTypes = HolidayType::where('is_active', true)->orderBy('sort_order')->get();
+        $colorPresets = HolidayType::COLOR_PRESETS;
+
+        // Stats — current year breakdown so the user can see "how many used / how many left"
+        $today = \Carbon\Carbon::today();
+        $thisYear = $today->year;
+        $yearHolidays = $holidays->filter(fn($h) => $h->holiday_date->year === $thisYear);
+        $holidayStats = [
+            'year' => $thisYear,
+            'total' => $yearHolidays->count(),
+            'passed' => $yearHolidays->filter(fn($h) => $h->holiday_date->lt($today))->count(),
+            'today' => $yearHolidays->filter(fn($h) => $h->holiday_date->isSameDay($today))->count(),
+            'upcoming' => $yearHolidays->filter(fn($h) => $h->holiday_date->gt($today))->count(),
+            'by_type' => $yearHolidays->groupBy('holiday_type_id')->map->count(),
+        ];
+
+        return view('settings.rules', compact('rules', 'holidays', 'diligenceTiers', 'holidayTypes', 'colorPresets', 'holidayStats'));
+    }
+
+    /**
+     * Convert legacy diligence config (single-mode or old tier keys) to the new
+     * toggleable-condition tier shape used by the editor and PayrollRuleService.
+     */
+    protected function normalizeDiligenceTiers(array $config): array
+    {
+        $rawTiers = $config['tiers'] ?? [];
+
+        // Legacy single-mode → synthesise one tier from amount + require_zero flags.
+        if (empty($rawTiers) && isset($config['amount'])) {
+            $rawTiers = [[
+                'amount' => $config['amount'],
+                'check_lwop' => $config['require_zero_lwop'] ?? true,
+                'lwop_max' => 0,
+                'check_late_count' => $config['require_zero_late'] ?? true,
+                'late_count_max' => 0,
+            ]];
+        }
+
+        $normalized = [];
+        foreach ($rawTiers as $t) {
+            // Legacy tier had only late_count_max + lwop_days_max + amount.
+            $hasFlags = isset($t['check_lwop']) || isset($t['check_late_count'])
+                || isset($t['check_late_minutes']) || isset($t['check_early_leave'])
+                || isset($t['check_min_attended']);
+
+            $normalized[] = [
+                'amount' => (float) ($t['amount'] ?? 0),
+                'check_lwop' => $hasFlags ? !empty($t['check_lwop']) : isset($t['lwop_days_max']),
+                'lwop_max' => (float) ($t['lwop_max'] ?? $t['lwop_days_max'] ?? 0),
+                'check_late_count' => $hasFlags ? !empty($t['check_late_count']) : isset($t['late_count_max']),
+                'late_count_max' => (float) ($t['late_count_max'] ?? 0),
+                'check_late_minutes' => !empty($t['check_late_minutes']),
+                'late_minutes_max' => (float) ($t['late_minutes_max'] ?? 0),
+                'check_early_leave' => !empty($t['check_early_leave']),
+                'early_leave_max' => (float) ($t['early_leave_max'] ?? 0),
+                'check_min_attended' => !empty($t['check_min_attended']),
+                'min_attended_days' => (float) ($t['min_attended_days'] ?? 0),
+            ];
+        }
+
+        usort($normalized, fn($a, $b) => $b['amount'] <=> $a['amount']);
+        return $normalized;
     }
 
     public function updateRule(Request $request, string $type)
@@ -96,20 +162,31 @@ class SettingsController extends Controller
             $inputs['type'] = 'per_minute';
         }
 
-        // Special handling for Tiered Diligence
+        // Diligence: tier-only structure with per-tier toggleable conditions.
         if ($type === 'diligence') {
-            // If the request has 'tiers', it's the new multi-tier format
-            if ($request->has('tiers')) {
-                $inputs['tiers'] = $request->input('tiers');
-                // Auto-cleanup: remove empty tiers
-                $inputs['tiers'] = array_filter($inputs['tiers'], fn($t) => is_numeric($t['amount']));
-                $inputs['tiers'] = array_values($inputs['tiers']);
-                $inputs['use_tiers'] = true;
-            } else {
-                $inputs['require_zero_late'] = $request->has('require_zero_late');
-                $inputs['require_zero_lwop'] = $request->has('require_zero_lwop');
-                $inputs['use_tiers'] = false;
+            $rawTiers = $request->input('tiers', []);
+            $checkFlags = ['check_lwop', 'check_late_count', 'check_late_minutes', 'check_early_leave', 'check_min_attended'];
+            $thresholdKeys = ['lwop_max', 'late_count_max', 'late_minutes_max', 'early_leave_max', 'min_attended_days'];
+
+            $tiers = [];
+            foreach ($rawTiers as $t) {
+                if (!is_array($t) || !is_numeric($t['amount'] ?? null)) continue;
+                $tier = ['amount' => (float) $t['amount']];
+                foreach ($checkFlags as $flag) {
+                    $tier[$flag] = !empty($t[$flag]);
+                }
+                foreach ($thresholdKeys as $key) {
+                    $tier[$key] = is_numeric($t[$key] ?? null) ? (float) $t[$key] : 0;
+                }
+                $tiers[] = $tier;
             }
+
+            // Sort tiers descending by amount so the editor stays consistent with eval order.
+            usort($tiers, fn($a, $b) => $b['amount'] <=> $a['amount']);
+
+            $inputs = ['tiers' => $tiers, 'use_tiers' => true];
+            // Drop legacy single-mode keys.
+            unset($config['require_zero_late'], $config['require_zero_lwop'], $config['amount']);
         }
 
         $oldConfig = $rule->config;
@@ -122,28 +199,125 @@ class SettingsController extends Controller
 
         AuditLogService::log($rule, 'updated', 'config', $oldConfig, $config, "Rule '{$type}' updated");
 
+        // When working_hours rule changes (check-in/out times or work duration),
+        // re-derive late_minutes, early_leave_minutes, ot_minutes for all employees
+        // in the current month so figures stay consistent without manual re-save.
+        if ($type === 'working_hours') {
+            $this->resyncCurrentMonthAttendance($config);
+        }
+
         return back()->with('success', 'อัปเดตกฎการทำงานสำเร็จ');
+    }
+
+    /**
+     * After saving a working_hours rule, recalculate derived attendance fields
+     * (late_minutes, early_leave_minutes, ot_minutes) for all employees whose
+     * attendance logs exist in the current month.
+     */
+    protected function resyncCurrentMonthAttendance(array $newConfig): void
+    {
+        $month = (int) now()->month;
+        $year  = (int) now()->year;
+
+        $targetIn  = $newConfig['target_check_in']  ?? '09:30';
+        $targetOut = $newConfig['target_check_out'] ?? '18:30';
+
+        $logs = AttendanceLog::whereMonth('log_date', $month)
+            ->whereYear('log_date', $year)
+            ->where('is_disabled', false)
+            ->whereNotNull('check_in')
+            ->whereNotNull('check_out')
+            ->get();
+
+        foreach ($logs as $log) {
+            $dayType = (string) $log->day_type;
+            $isWorkday = in_array($dayType, ['workday', 'ot_full_day'], true);
+            $isHoliday = in_array($dayType, ['holiday', 'company_holiday'], true);
+
+            if (!$isWorkday && !$isHoliday) {
+                continue;
+            }
+
+            $dateStr   = Carbon::parse($log->log_date)->format('Y-m-d');
+            $rawIn     = $log->check_in;
+            $rawOut    = $log->check_out;
+
+            // Normalise "HH:MM" → "HH:MM:00" to avoid double-appending seconds.
+            $normalise = fn(string $t): string =>
+                preg_match('/^\d{2}:\d{2}$/', $t) ? "{$t}:00" : $t;
+
+            $inAt  = Carbon::parse("{$dateStr} " . $normalise($rawIn));
+            $outAt = Carbon::parse("{$dateStr} " . $normalise($rawOut));
+            if ($outAt->lessThanOrEqualTo($inAt)) {
+                $outAt->addDay();
+            }
+
+            $targetInAt  = Carbon::parse("{$dateStr} {$targetIn}:00");
+            $targetOutAt = Carbon::parse("{$dateStr} {$targetOut}:00");
+
+            $lateMinutes       = 0;
+            $earlyLeaveMinutes = 0;
+            $otMinutes         = 0;
+
+            if ($isWorkday) {
+                if ($inAt->greaterThan($targetInAt)) {
+                    $lateMinutes = (int) $targetInAt->diffInMinutes($inAt);
+                }
+                if ($outAt->lessThan($targetOutAt)) {
+                    $earlyLeaveMinutes = (int) $outAt->diffInMinutes($targetOutAt);
+                }
+            }
+
+            if ($log->ot_enabled && $outAt->greaterThan($targetOutAt)) {
+                $otMinutes = (int) $targetOutAt->diffInMinutes($outAt);
+            }
+
+            $updates = [];
+            if ((int) $log->late_minutes        !== $lateMinutes)       $updates['late_minutes']        = $lateMinutes;
+            if ((int) $log->early_leave_minutes !== $earlyLeaveMinutes) $updates['early_leave_minutes'] = $earlyLeaveMinutes;
+            if ((int) $log->ot_minutes          !== $otMinutes)         $updates['ot_minutes']          = $otMinutes;
+
+            if (!empty($updates)) {
+                $log->update($updates);
+            }
+        }
     }
 
     public function loadLegalHolidays(Request $request)
     {
         $year = $request->input('year', 2026);
         $holidays = $this->holidayService->getThaiPublicHolidays($year);
-        $count = 0;
+        $publicTypeId = HolidayType::where('code', 'public')->value('id');
 
+        // Pre-load existing dates so we don't hit the DB once per holiday.
+        $existingDates = CompanyHoliday::whereYear('holiday_date', $year)
+            ->pluck('holiday_date')
+            ->map(fn($d) => \Carbon\Carbon::parse($d)->format('Y-m-d'))
+            ->all();
+        $existingDates = array_flip($existingDates);
+
+        $added = 0;
+        $skipped = 0;
         foreach ($holidays as $h) {
-            $exists = CompanyHoliday::where('holiday_date', $h['date'])->exists();
-            if (!$exists) {
-                CompanyHoliday::create([
-                    'holiday_date' => $h['date'],
-                    'name' => $h['name'],
-                    'is_active' => true
-                ]);
-                $count++;
+            if (isset($existingDates[$h['date']])) {
+                $skipped++;
+                continue;
             }
+            CompanyHoliday::create([
+                'holiday_date' => $h['date'],
+                'name' => $h['name'],
+                'holiday_type_id' => $publicTypeId,
+                'is_active' => true,
+            ]);
+            $existingDates[$h['date']] = true;
+            $added++;
         }
 
-        return back()->with('success', "ดึงข้อมูลวันหยุดราชการประจำปี $year เรียบร้อยแล้ว เข้ามาทั้งหมด $count วันครับ");
+        $msg = "ดึงวันหยุดราชการปี $year — เพิ่มใหม่ {$added} วัน";
+        if ($skipped > 0) {
+            $msg .= " (ข้าม {$skipped} วันที่มีอยู่แล้ว)";
+        }
+        return back()->with('success', $msg);
     }
 
     public function addHoliday(Request $request)
@@ -151,14 +325,21 @@ class SettingsController extends Controller
         $validated = $request->validate([
             'holiday_date' => 'required|date|unique:company_holidays,holiday_date',
             'name' => 'required|string|max:255',
+            'holiday_type_id' => 'nullable|exists:holiday_types,id',
+            'color' => ['nullable', 'string', 'max:30', \Illuminate\Validation\Rule::in(array_keys(HolidayType::COLOR_PRESETS))],
         ]);
 
-        CompanyHoliday::create($validated + ['is_active' => true]);
+        // Default to "company" type when not specified
+        if (empty($validated['holiday_type_id'])) {
+            $validated['holiday_type_id'] = HolidayType::where('code', 'company')->value('id');
+        }
 
-        AuditLogService::logCreated(CompanyHoliday::latest()->first(), 'Holiday added');
+        $holiday = CompanyHoliday::create($validated + ['is_active' => true]);
+
+        AuditLogService::logCreated($holiday, 'Holiday added');
 
         $redirect = $request->input('_redirect');
-        return ($redirect ? redirect($redirect) : back())->with('success', 'เพิ่มวันหยุดบริษัทสำเร็จ');
+        return ($redirect ? redirect($redirect) : back())->with('success', 'เพิ่มวันหยุดสำเร็จ');
     }
 
     public function deleteHoliday(CompanyHoliday $holiday)

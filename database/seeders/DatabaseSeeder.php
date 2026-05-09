@@ -91,7 +91,19 @@ class DatabaseSeeder extends Seeder
         // 5. Attendance Rules
         AttendanceRule::create([
             'rule_type' => 'diligence',
-            'config' => ['amount' => 500, 'require_zero_late' => true, 'require_zero_lwop' => true],
+            'config' => [
+                'use_tiers' => true,
+                'tiers' => [
+                    [
+                        'amount' => 500,
+                        'check_lwop' => true,         'lwop_max' => 0,
+                        'check_late_count' => true,   'late_count_max' => 0,
+                        'check_late_minutes' => false,'late_minutes_max' => 0,
+                        'check_early_leave' => false, 'early_leave_max' => 0,
+                        'check_min_attended' => true, 'min_attended_days' => 18,
+                    ],
+                ],
+            ],
             'effective_date' => '2024-01-01',
             'is_active' => true,
         ]);
@@ -100,9 +112,16 @@ class DatabaseSeeder extends Seeder
                 'config' => [
                     'max_ot_hours' => 40,
                     'weekly_ot_limit_hours' => 36,
+                    'daily_ot_limit_hours' => 0,
                     'rate_multiplier' => 1.5,
                     'rate_multiplier_workday' => 1.5,
                     'rate_multiplier_holiday' => 3.0,
+                    'rate_multiplier_weekly_off' => 3.0,
+                    'rate_multiplier_company_holiday' => 3.0,
+                    'regular_multiplier_weekly_off' => 1.0,
+                    'regular_multiplier_company_holiday' => 1.0,
+                    'allow_ot_weekly_off' => true,
+                    'allow_ot_company_holiday' => true,
                     'enable_holiday_legal_split' => true,
                     'holiday_regular_multiplier_monthly' => 1.0,
                     'requires_employee_consent' => true,

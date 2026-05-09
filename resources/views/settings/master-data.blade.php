@@ -65,6 +65,14 @@
             FL Layer Rate
             <span class="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-emerald-100 text-emerald-700">admin</span>
         </button>
+        <button @click="activeTab = 'leave_policies'" :class="activeTab === 'leave_policies' ? 'border-indigo-500 text-indigo-600 bg-indigo-50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'" class="px-4 py-2.5 text-sm font-semibold border-b-2 rounded-t-lg transition-all">
+            🏖️ นโยบายวันลา
+            <span class="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-teal-100 text-teal-700">admin</span>
+        </button>
+        <button @click="activeTab = 'holiday_types'" :class="activeTab === 'holiday_types' ? 'border-indigo-500 text-indigo-600 bg-indigo-50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'" class="px-4 py-2.5 text-sm font-semibold border-b-2 rounded-t-lg transition-all">
+            📅 ประเภทวันหยุด
+            <span class="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-purple-100 text-purple-700">{{ $holidayTypes->count() }}</span>
+        </button>
         @endif
     </div>
 
@@ -951,5 +959,388 @@
             </div>
         </div>
     </div>
+
+    <!-- ===================== TAB: Leave Policies ===================== -->
+    @if($isAdmin)
+    <div x-show="activeTab === 'leave_policies'" x-cloak>
+        <div x-data="{ showAdd: false, editing: null }">
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <h3 class="font-bold text-gray-800">นโยบายวันลา</h3>
+                    <p class="text-xs text-gray-500 mt-0.5">ตั้งค่ามาตรฐานสำหรับโควต้าลาพักร้อน/ป่วย/กิจ + กฎการยกยอด/แลกเงิน</p>
+                </div>
+                <button @click="showAdd = true; editing = null" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 transition-colors shadow-sm">
+                    + เพิ่มนโยบาย
+                </button>
+            </div>
+
+            {{-- Policy List --}}
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                @foreach($leavePolicies as $p)
+                <div class="bg-white rounded-xl border border-gray-200 p-4 {{ $p->is_default ? 'ring-2 ring-amber-300 ring-offset-1' : '' }}">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="flex items-center gap-2">
+                            @if($p->is_default)<span class="text-amber-500" title="Default">⭐</span>@endif
+                            <h4 class="font-bold text-gray-800">{{ $p->name }}</h4>
+                            @unless($p->is_active)<span class="px-1.5 py-0.5 bg-gray-100 text-gray-500 text-[10px] rounded">ปิดใช้งาน</span>@endunless
+                        </div>
+                        <span class="text-[11px] text-gray-400">👥 {{ $p->employees_count }} คน</span>
+                    </div>
+                    <div class="grid grid-cols-3 gap-2 text-center mb-3">
+                        <div class="p-2 bg-teal-50 rounded">
+                            <div class="text-[9px] font-bold text-teal-700 uppercase">🏖️ พักร้อน</div>
+                            <div class="text-lg font-extrabold text-teal-700">{{ $p->vacation_days }}</div>
+                        </div>
+                        <div class="p-2 bg-blue-50 rounded">
+                            <div class="text-[9px] font-bold text-blue-700 uppercase">🤒 ป่วย</div>
+                            <div class="text-lg font-extrabold text-blue-700">{{ $p->sick_days }}</div>
+                        </div>
+                        <div class="p-2 bg-amber-50 rounded">
+                            <div class="text-[9px] font-bold text-amber-700 uppercase">👤 กิจ</div>
+                            <div class="text-lg font-extrabold text-amber-700">{{ $p->personal_days }}</div>
+                        </div>
+                    </div>
+                    <div class="space-y-1 text-[11px] text-gray-600">
+                        <div>📥 ยกยอด:
+                            @if($p->allow_carryover)
+                                <span class="text-emerald-600 font-bold">✓</span>
+                                @if($p->max_carryover_days !== null)<span class="text-gray-500">สูงสุด {{ $p->max_carryover_days }} วัน</span>@endif
+                                @if($p->carryover_expires_months !== null)<span class="text-gray-400">/ หมดใน {{ $p->carryover_expires_months }} เดือน</span>@endif
+                            @else
+                                <span class="text-rose-500">ห้าม</span>
+                            @endif
+                        </div>
+                        <div>💵 แลกเงิน:
+                            @if($p->allow_encashment)
+                                <span class="text-emerald-600 font-bold">✓</span>
+                                <span class="text-gray-500">{{ \App\Models\LeavePolicy::ENCASH_FORMULAS[$p->encash_rate_formula] ?? $p->encash_rate_formula }}</span>
+                                @if($p->max_encash_days_per_year !== null)<span class="text-gray-400">/ สูงสุด {{ $p->max_encash_days_per_year }} วัน/ปี</span>@endif
+                            @else
+                                <span class="text-rose-500">ห้าม</span>
+                            @endif
+                        </div>
+                        <div>🚫 ระหว่างทดลอง:
+                            <span class="{{ $p->sick_during_probation ? 'text-emerald-600' : 'text-rose-500' }}">ป่วย {{ $p->sick_during_probation ? '✓' : '✗' }}</span>
+                            <span class="{{ $p->personal_during_probation ? 'text-emerald-600' : 'text-rose-500' }}">· กิจ {{ $p->personal_during_probation ? '✓' : '✗' }}</span>
+                            <span class="{{ $p->vacation_during_probation ? 'text-emerald-600' : 'text-rose-500' }}">· พักร้อน {{ $p->vacation_during_probation ? '✓' : '✗' }}</span>
+                        </div>
+                        <div>📅 พักร้อนใช้ได้เมื่อทำงานครบ:
+                            <span class="text-gray-700 font-bold">{{ $p->vacation_eligibility_months ?? 12 }} เดือน</span>
+                            <span class="text-gray-400 text-[10px]">(ม.30 พรบ.คุ้มครองแรงงาน)</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-end gap-1 mt-3 pt-3 border-t border-gray-100">
+                        <button @click="editing = {{ Js::from($p->toArray()) }}; showAdd = true" class="px-2.5 py-1 text-[11px] font-bold text-indigo-600 bg-indigo-50 rounded border border-indigo-200 hover:bg-indigo-100">แก้ไข</button>
+                        @unless($p->is_default)
+                        <form action="{{ route('settings.master-data.leave-policies.delete', $p->id) }}" method="POST" onsubmit="return confirm('ลบ {{ $p->name }}? พนักงานที่ผูกอยู่จะย้ายไป Default')" class="inline">
+                            @csrf @method('DELETE')
+                            <button type="submit" class="px-2.5 py-1 text-[11px] font-bold text-rose-600 bg-rose-50 rounded border border-rose-200 hover:bg-rose-100">ลบ</button>
+                        </form>
+                        @endunless
+                    </div>
+                </div>
+                @endforeach
+
+                @if($leavePolicies->isEmpty())
+                <div class="col-span-full p-8 text-center bg-gray-50 rounded-xl text-gray-400 text-sm">
+                    ยังไม่มีนโยบาย — กด "+ เพิ่มนโยบาย" เพื่อเริ่มต้น
+                </div>
+                @endif
+            </div>
+
+            {{-- Add/Edit Modal --}}
+            <div x-show="showAdd" x-cloak class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto" @click.self="showAdd = false">
+                <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl my-6">
+                    <form :action="editing ? '{{ url('settings/master-data/leave-policies') }}/' + editing.id : '{{ route('settings.master-data.leave-policies.store') }}'" method="POST" class="p-6">
+                        @csrf
+                        <template x-if="editing">
+                            <input type="hidden" name="_method" value="PATCH">
+                        </template>
+                        <h3 class="text-lg font-bold mb-4" x-text="editing ? 'แก้ไขนโยบายวันลา' : 'เพิ่มนโยบายวันลา'"></h3>
+
+                        <div class="space-y-4">
+                            <div class="grid grid-cols-3 gap-3">
+                                <div class="col-span-2">
+                                    <label class="block text-xs font-medium text-gray-600 mb-1">ชื่อนโยบาย *</label>
+                                    <input type="text" name="name" required maxlength="100"
+                                           :value="editing?.name ?? ''"
+                                           placeholder="เช่น Default / Manager / Senior 3-5 ปี"
+                                           class="w-full px-3 py-2 border rounded-lg text-sm">
+                                </div>
+                                <div class="flex items-end gap-3">
+                                    <label class="flex items-center gap-1.5 cursor-pointer">
+                                        <input type="checkbox" name="is_default" value="1" :checked="editing?.is_default ?? false">
+                                        <span class="text-xs">⭐ Default</span>
+                                    </label>
+                                    <label class="flex items-center gap-1.5 cursor-pointer">
+                                        <input type="checkbox" name="is_active" value="1" :checked="editing ? editing.is_active : true">
+                                        <span class="text-xs">เปิดใช้</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <fieldset class="border border-gray-200 rounded-lg p-3">
+                                <legend class="px-2 text-xs font-bold text-gray-600">โควต้าวันลา/ปี</legend>
+                                <div class="grid grid-cols-3 gap-3">
+                                    <div>
+                                        <label class="block text-xs text-gray-600 mb-1">🏖️ พักร้อน</label>
+                                        <input type="number" name="vacation_days" min="0" max="365" required
+                                               :value="editing?.vacation_days ?? 6"
+                                               class="w-full px-3 py-2 border rounded-lg text-sm">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs text-gray-600 mb-1">🤒 ป่วย</label>
+                                        <input type="number" name="sick_days" min="0" max="365" required
+                                               :value="editing?.sick_days ?? 30"
+                                               class="w-full px-3 py-2 border rounded-lg text-sm">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs text-gray-600 mb-1">👤 กิจ</label>
+                                        <input type="number" name="personal_days" min="0" max="365" required
+                                               :value="editing?.personal_days ?? 3"
+                                               class="w-full px-3 py-2 border rounded-lg text-sm">
+                                    </div>
+                                </div>
+                            </fieldset>
+
+                            <fieldset class="border border-gray-200 rounded-lg p-3">
+                                <legend class="px-2 text-xs font-bold text-gray-600">📥 ยกยอด (เฉพาะลาพักร้อน)</legend>
+                                <div class="space-y-3">
+                                    <label class="flex items-center gap-2">
+                                        <input type="checkbox" name="allow_carryover" value="1" :checked="editing ? editing.allow_carryover : true">
+                                        <span class="text-sm">อนุญาตยกยอดข้ามปี</span>
+                                    </label>
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label class="block text-xs text-gray-600 mb-1">เพดานสูงสุด (วัน) — เว้นว่าง = ไม่จำกัด</label>
+                                            <input type="number" name="max_carryover_days" min="0" max="365"
+                                                   :value="editing?.max_carryover_days ?? 5"
+                                                   class="w-full px-3 py-2 border rounded-lg text-sm">
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs text-gray-600 mb-1">หมดอายุภายใน (เดือน) — เว้นว่าง = ไม่หมด</label>
+                                            <input type="number" name="carryover_expires_months" min="1" max="24"
+                                                   :value="editing?.carryover_expires_months ?? 6"
+                                                   class="w-full px-3 py-2 border rounded-lg text-sm">
+                                        </div>
+                                    </div>
+                                </div>
+                            </fieldset>
+
+                            <fieldset class="border border-gray-200 rounded-lg p-3">
+                                <legend class="px-2 text-xs font-bold text-gray-600">💵 แลกเป็นเงิน (เฉพาะลาพักร้อน)</legend>
+                                <div class="space-y-3">
+                                    <label class="flex items-center gap-2">
+                                        <input type="checkbox" name="allow_encashment" value="1" :checked="editing ? editing.allow_encashment : true">
+                                        <span class="text-sm">อนุญาตแลกวันลาเป็นเงิน</span>
+                                    </label>
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label class="block text-xs text-gray-600 mb-1">สูตรอัตรา/วัน *</label>
+                                            <select name="encash_rate_formula" required class="w-full px-3 py-2 border rounded-lg text-sm">
+                                                @foreach(\App\Models\LeavePolicy::ENCASH_FORMULAS as $key => $label)
+                                                    <option value="{{ $key }}" :selected="(editing?.encash_rate_formula ?? 'salary_div_30') === '{{ $key }}'">{{ $label }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs text-gray-600 mb-1">สูงสุด/ปี (วัน) — เว้นว่าง = ไม่จำกัด</label>
+                                            <input type="number" name="max_encash_days_per_year" min="0" max="365"
+                                                   :value="editing?.max_encash_days_per_year ?? ''"
+                                                   class="w-full px-3 py-2 border rounded-lg text-sm">
+                                        </div>
+                                    </div>
+                                </div>
+                            </fieldset>
+
+                            <fieldset class="border border-gray-200 rounded-lg p-3">
+                                <legend class="px-2 text-xs font-bold text-gray-600">🚫 สิทธิระหว่างทดลองงาน</legend>
+                                <p class="text-[10px] text-gray-500 mb-2">⚖️ กฎหมายไทย: ป่วย (ม.32) + กิจ (ม.34) ลาได้ตั้งแต่วันแรก · พักร้อน (ม.30) เมื่อทำงานครบ 1 ปี</p>
+                                <div class="grid grid-cols-3 gap-2 text-sm">
+                                    <label class="flex items-center gap-1.5 p-2 border rounded-lg cursor-pointer hover:bg-gray-50">
+                                        <input type="hidden" name="sick_during_probation" value="0">
+                                        <input type="checkbox" name="sick_during_probation" value="1" :checked="editing?.sick_during_probation ?? true">
+                                        <span>🤒 ลาป่วย</span>
+                                    </label>
+                                    <label class="flex items-center gap-1.5 p-2 border rounded-lg cursor-pointer hover:bg-gray-50">
+                                        <input type="hidden" name="personal_during_probation" value="0">
+                                        <input type="checkbox" name="personal_during_probation" value="1" :checked="editing?.personal_during_probation ?? true">
+                                        <span>👤 ลากิจ</span>
+                                    </label>
+                                    <label class="flex items-center gap-1.5 p-2 border rounded-lg cursor-pointer hover:bg-gray-50">
+                                        <input type="hidden" name="vacation_during_probation" value="0">
+                                        <input type="checkbox" name="vacation_during_probation" value="1" :checked="editing?.vacation_during_probation ?? false">
+                                        <span>🏖️ พักร้อน</span>
+                                    </label>
+                                </div>
+                            </fieldset>
+
+                            <fieldset class="border border-gray-200 rounded-lg p-3">
+                                <legend class="px-2 text-xs font-bold text-gray-600">📅 สิทธิพักร้อน — เริ่มใช้ได้</legend>
+                                <label class="block text-xs text-gray-600 mb-1">ทำงานครบกี่เดือน จึงจะลาพักร้อนได้</label>
+                                <div class="flex items-center gap-2">
+                                    <input type="number" name="vacation_eligibility_months" min="0" max="60"
+                                           :value="editing?.vacation_eligibility_months ?? 12"
+                                           class="w-24 px-3 py-2 border rounded-lg text-sm">
+                                    <span class="text-sm text-gray-500">เดือน (default 12 ตาม ม.30)</span>
+                                </div>
+                            </fieldset>
+
+                            <fieldset class="border border-gray-200 rounded-lg p-3">
+                                <legend class="px-2 text-xs font-bold text-gray-600">⚙️ เพิ่มเติม</legend>
+                                <label class="block text-xs text-gray-600 mb-1">หมายเหตุ</label>
+                                <textarea name="note" maxlength="500" rows="2" :value="editing?.note ?? ''"
+                                          class="w-full px-3 py-2 border rounded-lg text-sm"
+                                          placeholder="คำอธิบายนโยบายนี้..."></textarea>
+                            </fieldset>
+                        </div>
+
+                        <div class="flex justify-end gap-2 pt-4 mt-4 border-t border-gray-100">
+                            <button type="button" @click="showAdd = false; editing = null" class="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">ยกเลิก</button>
+                            <button type="submit" class="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700" x-text="editing ? 'บันทึกการแก้ไข' : 'เพิ่มนโยบาย'"></button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {{-- ===================== TAB: Holiday Types ===================== --}}
+    <div x-show="activeTab === 'holiday_types'" x-cloak>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {{-- Add Form --}}
+            <div class="bg-white rounded-2xl shadow-sm border p-5"
+                 x-data="{ color: 'purple' }">
+                <h3 class="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
+                    <span class="w-6 h-6 rounded-lg bg-purple-100 text-purple-600 flex items-center justify-center text-xs">+</span>
+                    เพิ่มประเภทวันหยุด
+                </h3>
+                <form action="{{ route('settings.master-data.holiday-types.store') }}" method="POST" class="space-y-3">
+                    @csrf
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Code (ไม่ซ้ำ, a-z, _, -)</label>
+                        <input type="text" name="code" required pattern="[A-Za-z0-9_\-]+" placeholder="เช่น religious" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-purple-500">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">ชื่อแสดงผล</label>
+                        <input type="text" name="name" required placeholder="เช่น วันหยุดศาสนา" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-purple-500">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">ไอคอน (emoji)</label>
+                        <input type="text" name="icon" maxlength="10" placeholder="🎉" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-purple-500">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-2">สี Default</label>
+                        <input type="hidden" name="default_color" :value="color">
+                        <div class="flex flex-wrap gap-1.5">
+                            @foreach($colorPresets as $key => $label)
+                                <button type="button"
+                                        @click="color = '{{ $key }}'"
+                                        :class="color === '{{ $key }}' ? 'ring-2 ring-offset-2 ring-gray-700' : 'hover:scale-110'"
+                                        class="w-6 h-6 rounded-full bg-{{ $key }}-400 transition-transform"
+                                        title="{{ $label }}"></button>
+                            @endforeach
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">ลำดับ</label>
+                        <input type="number" name="sort_order" min="0" value="99" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-purple-500">
+                    </div>
+                    <button type="submit" class="w-full bg-purple-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-purple-700 transition">+ เพิ่มประเภท</button>
+                </form>
+            </div>
+
+            {{-- List --}}
+            <div class="lg:col-span-2 bg-white rounded-2xl shadow-sm border p-5">
+                <h3 class="text-sm font-bold text-gray-700 mb-4">ประเภทวันหยุดทั้งหมด ({{ $holidayTypes->count() }})</h3>
+                <div class="space-y-2">
+                    @forelse($holidayTypes as $type)
+                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100"
+                         x-data="{
+                             editing: false,
+                             form: {
+                                 name: @js($type->name),
+                                 icon: @js($type->icon),
+                                 default_color: @js($type->default_color),
+                                 sort_order: @js($type->sort_order),
+                                 is_active: {{ $type->is_active ? 'true' : 'false' }},
+                             }
+                         }">
+                        <div x-show="!editing" class="flex items-center gap-3 flex-grow">
+                            <div class="w-10 h-10 rounded-xl bg-{{ $type->default_color }}-100 text-{{ $type->default_color }}-700 flex items-center justify-center text-lg">
+                                {{ $type->icon ?: '📅' }}
+                            </div>
+                            <div class="flex-grow">
+                                <p class="text-sm font-bold text-gray-800">
+                                    {{ $type->name }}
+                                    @if($type->is_system)
+                                        <span class="ml-1 px-1.5 py-0.5 rounded text-[9px] bg-gray-200 text-gray-600 font-bold">SYSTEM</span>
+                                    @endif
+                                    @if(!$type->is_active)
+                                        <span class="ml-1 px-1.5 py-0.5 rounded text-[9px] bg-red-100 text-red-700 font-bold">ปิด</span>
+                                    @endif
+                                </p>
+                                <p class="text-[10px] text-gray-400">
+                                    <code class="font-mono">{{ $type->code }}</code> · สี: {{ $colorPresets[$type->default_color] ?? $type->default_color }} · ใช้งาน {{ $type->company_holidays_count }} รายการ
+                                </p>
+                            </div>
+                            <button type="button" @click="editing = true" class="px-3 py-1 text-xs text-purple-600 hover:bg-purple-50 rounded-lg">แก้ไข</button>
+                            @if(!$type->is_system)
+                                <form action="{{ route('settings.master-data.holiday-types.delete', $type->id) }}" method="POST" onsubmit="return confirm('ลบประเภท \'{{ $type->name }}\'?')" class="inline">
+                                    @csrf @method('DELETE')
+                                    <button type="submit" class="px-3 py-1 text-xs text-red-600 hover:bg-red-50 rounded-lg">ลบ</button>
+                                </form>
+                            @endif
+                        </div>
+
+                        {{-- Edit form --}}
+                        <form x-show="editing" action="{{ route('settings.master-data.holiday-types.update', $type->id) }}" method="POST" class="w-full space-y-2">
+                            @csrf @method('PATCH')
+                            <input type="hidden" name="default_color" x-model="form.default_color">
+                            <div class="grid grid-cols-1 md:grid-cols-12 gap-2 items-end">
+                                <div class="md:col-span-4">
+                                    <label class="block text-[9px] font-bold text-gray-400 uppercase">ชื่อ</label>
+                                    <input type="text" name="name" x-model="form.name" required class="w-full px-2 py-1.5 border rounded text-sm">
+                                </div>
+                                <div class="md:col-span-2">
+                                    <label class="block text-[9px] font-bold text-gray-400 uppercase">ไอคอน</label>
+                                    <input type="text" name="icon" x-model="form.icon" maxlength="10" class="w-full px-2 py-1.5 border rounded text-sm">
+                                </div>
+                                <div class="md:col-span-2">
+                                    <label class="block text-[9px] font-bold text-gray-400 uppercase">ลำดับ</label>
+                                    <input type="number" name="sort_order" x-model="form.sort_order" min="0" class="w-full px-2 py-1.5 border rounded text-sm">
+                                </div>
+                                <div class="md:col-span-2 flex items-center gap-2">
+                                    <input type="hidden" name="is_active" value="0">
+                                    <input type="checkbox" name="is_active" value="1" x-model="form.is_active" class="rounded border-gray-300 text-purple-600">
+                                    <span class="text-xs text-gray-600">เปิดใช้</span>
+                                </div>
+                                <div class="md:col-span-2 flex gap-1">
+                                    <button type="submit" class="flex-1 px-2 py-1.5 bg-purple-600 text-white rounded text-xs font-bold">บันทึก</button>
+                                    <button type="button" @click="editing = false" class="px-2 py-1.5 bg-gray-100 text-gray-600 rounded text-xs">ยกเลิก</button>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-[9px] font-bold text-gray-400 uppercase mb-1">สี Default</label>
+                                <div class="flex flex-wrap gap-1">
+                                    @foreach($colorPresets as $key => $label)
+                                        <button type="button"
+                                                @click="form.default_color = '{{ $key }}'"
+                                                :class="form.default_color === '{{ $key }}' ? 'ring-2 ring-offset-1 ring-gray-700' : 'hover:scale-110'"
+                                                class="w-5 h-5 rounded-full bg-{{ $key }}-400 transition-transform"
+                                                title="{{ $label }}"></button>
+                                    @endforeach
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                    @empty
+                    <div class="py-8 text-center text-sm text-gray-400">ยังไม่มีประเภทวันหยุด</div>
+                    @endforelse
+                </div>
+            </div>
+        </div>
+    </div>
+    @endif
 </div>
 @endsection

@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasAttachments;
 use Illuminate\Database\Eloquent\Model;
 
 class OtRequest extends Model
 {
+    use HasAttachments;
+
     protected $fillable = [
         'employee_id', 'log_date', 'requested_minutes', 'reason', 'job_reference',
         'status', 'reviewed_by', 'reviewed_at', 'review_note',
@@ -38,5 +41,11 @@ class OtRequest extends Model
     public function scopeForMonth($q, int $month, int $year)
     {
         return $q->whereMonth('log_date', $month)->whereYear('log_date', $year);
+    }
+
+    public function getDocumentNumberAttribute(): string
+    {
+        $ym = optional($this->log_date)->format('ym') ?: now()->format('ym');
+        return 'OT-' . $ym . '-' . str_pad((string) $this->id, 4, '0', STR_PAD_LEFT);
     }
 }

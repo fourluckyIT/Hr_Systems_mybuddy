@@ -127,8 +127,8 @@
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Multiplier (ตัวคูณ)</label>
-                        <input type="number" step="0.001" min="0" max="10" name="multiplier" :value="editTier ? editTier.multiplier : '0.000'" required class="w-full px-3 py-2 border rounded-lg text-sm" placeholder="เช่น 0.20 สำหรับ 20%">
-                        <p class="text-[9px] text-gray-400 mt-1">เช่น 0.10 = 10%, 0.20 = 20%</p>
+                        <input type="number" step="any" min="-1" max="10" name="multiplier" :value="editTier ? editTier.multiplier : '0.000'" required class="w-full px-3 py-2 border rounded-lg text-sm" placeholder="เช่น 0.20 สำหรับ 20% (ติดลบได้)">
+                        <p class="text-[9px] text-gray-400 mt-1">เช่น 0.10 = +10%, -0.10 = -10%</p>
                     </div>
                     <div>
                         <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">ลำดับการแสดงผล</label>

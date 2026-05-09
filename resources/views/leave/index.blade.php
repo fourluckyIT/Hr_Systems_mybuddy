@@ -151,9 +151,9 @@
                                         <button class="px-2 py-0.5 bg-red-600 text-white rounded text-[10px] font-bold">ยืนยัน</button>
                                     </form>
                                 </div>
-                                @elseif($lr->status === 'pending')
+                                @elseif($lr->status === 'pending' || ($isAdmin && in_array($lr->status, ['approved', 'rejected'])))
                                 <form method="POST" action="{{ route('leave.cancel', $lr) }}">@csrf
-                                    <button class="px-2.5 py-1 bg-gray-100 text-gray-600 rounded-lg text-[11px] font-medium hover:bg-gray-200 transition-colors">ยกเลิก</button>
+                                    <button class="px-2.5 py-1 bg-gray-100 text-gray-600 rounded-lg text-[11px] font-medium hover:bg-gray-200 transition-colors" onclick="return confirm('คุณต้องการยกเลิกคำขอนี้ใช่หรือไม่?')">ยกเลิก</button>
                                 </form>
                                 @else
                                 <span class="text-[10px] text-gray-300">—</span>
@@ -221,9 +221,9 @@
                                         <button class="px-2.5 py-1 bg-red-100 text-red-700 rounded-lg text-[11px] font-semibold hover:bg-red-200 transition-colors">✗ ปฏิเสธ</button>
                                     </form>
                                 </div>
-                                @elseif($sr->status === 'pending')
+                                @elseif($sr->status === 'pending' || ($isAdmin && in_array($sr->status, ['approved', 'rejected'])))
                                 <form method="POST" action="{{ route('leave.swap.cancel', $sr) }}">@csrf
-                                    <button class="px-2.5 py-1 bg-gray-100 text-gray-600 rounded-lg text-[11px] font-medium hover:bg-gray-200 transition-colors">ยกเลิก</button>
+                                    <button class="px-2.5 py-1 bg-gray-100 text-gray-600 rounded-lg text-[11px] font-medium hover:bg-gray-200 transition-colors" onclick="return confirm('คุณต้องการยกเลิกคำขอนี้ใช่หรือไม่?')">ยกเลิก</button>
                                 </form>
                                 @else
                                 <span class="text-[10px] text-gray-300">—</span>

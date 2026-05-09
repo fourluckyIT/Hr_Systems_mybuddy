@@ -28,7 +28,7 @@ return new class extends Migration
             
             // Payslip Customization
             $table->text('payslip_header_note')->nullable(); // หมายเหตุเพิ่มเติมใต้ header
-            $table->text('payslip_footer_text')->nullable()->default('เอกสารฉบับนี้เป็นของผู้มีรายชื่อข้างบนเท่านั้น ไม่สามารถเผยแพร่ให้กับผู้อื่นได้'); // คำเตือนท้าย
+            $table->text('payslip_footer_text')->nullable(); // คำเตือนท้าย
             
             $table->boolean('is_active')->default(true);
             $table->timestamps();

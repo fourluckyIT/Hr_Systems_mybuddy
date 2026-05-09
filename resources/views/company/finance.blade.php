@@ -78,7 +78,7 @@
                             <span class="text-[10px] text-gray-400 block">สะสม: ฿{{ number_format($cumulative, 2) }}</span>
                         </td>
                         <td class="px-3 py-2 text-center">
-                            <a href="{{ route('company.finance', ['year' => $year, 'month' => $m]) }}"
+                            <a href="{{ route('company.finance', ['year' => $year, 'month' => $m]) }}#detail"
                                class="text-indigo-600 hover:underline text-xs">ดูรายละเอียด</a>
                         </td>
                     </tr>
@@ -102,6 +102,34 @@
 
     {{-- Monthly Detail (when month selected) --}}
     @if($month)
+    <div id="detail" class="space-y-4 scroll-mt-24">
+        <div class="flex items-center justify-between">
+            <h2 class="text-lg font-semibold text-gray-800">รายละเอียด {{ $monthNames[$month] }} {{ $year }}</h2>
+            <a href="{{ route('company.finance', ['year' => $year]) }}" class="text-xs text-gray-500 hover:text-indigo-600">× ปิดรายละเอียด</a>
+        </div>
+
+        {{-- Payroll Breakdown --}}
+        <div class="bg-white rounded-xl shadow-sm border overflow-hidden">
+            <div class="px-4 py-3 bg-blue-600 text-white font-semibold text-sm flex justify-between">
+                <span>เงินเดือน/ค่าจ้าง — {{ $monthNames[$month] }} {{ $year }}</span>
+                <span class="text-xs opacity-90">รวม ฿{{ number_format($payslips->sum('total_income'), 2) }}</span>
+            </div>
+            <div class="divide-y">
+                @forelse($payslips as $ps)
+                <div class="px-3 py-2 flex justify-between items-center text-xs">
+                    <div>
+                        <p class="font-medium">{{ $ps->employee?->full_name ?? '-' }}</p>
+                        <p class="text-gray-400">[{{ $ps->employee?->employee_code ?? '-' }}] · รับสุทธิ ฿{{ number_format($ps->net_pay, 2) }}</p>
+                    </div>
+                    <a href="{{ route('payslip.preview', ['employee' => $ps->employee_id, 'month' => $ps->month, 'year' => $ps->year]) }}"
+                       class="font-bold text-blue-700 hover:underline">฿{{ number_format($ps->total_income, 2) }}</a>
+                </div>
+                @empty
+                <div class="px-3 py-4 text-center text-gray-400 text-xs">ไม่มี Payslip ที่ Finalize</div>
+                @endforelse
+            </div>
+        </div>
+
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
         {{-- Revenues --}}
@@ -218,6 +246,7 @@
             </div>
         </div>
 
+    </div>
     </div>
     @endif
 </div>

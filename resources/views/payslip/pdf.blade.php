@@ -3,30 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <style>
-        @font-face {
-            font-family: 'NotoSansThai';
-            font-style: normal;
-            font-weight: 400;
-            src: url('{{ storage_path("fonts/NotoSansThai-Regular.ttf") }}') format('truetype');
-        }
-        @font-face {
-            font-family: 'NotoSansThai';
-            font-style: normal;
-            font-weight: 700;
-            src: url('{{ storage_path("fonts/NotoSansThai-Bold.ttf") }}') format('truetype');
-        }
-        body { font-family: 'NotoSansThai', sans-serif; font-size: 14px; margin: 30px; }
-        .header { text-align: center; margin-bottom: 20px; }
+        @page { margin: 24px 45px; }
+        body { font-family: 'thsarabun', sans-serif; font-size: 16px; color: #111; line-height: 1.1; }
+        .header { text-align: center; margin-bottom: 10px; }
         .header h2 { margin: 0; font-size: 18px; }
         .header p { margin: 2px 0; font-size: 12px; color: #666; }
         table { width: 100%; border-collapse: collapse; }
         .info-table td { padding: 2px 8px; font-size: 13px; }
         .info-label { color: #666; width: 100px; }
-        .payslip-table { margin-top: 15px; }
-        .payslip-table th { background: #f3f4f6; padding: 6px 8px; text-align: left; font-size: 12px; border: 1px solid #e5e7eb; }
-        .payslip-table td { padding: 4px 8px; font-size: 13px; border: 1px solid #e5e7eb; }
-        .metrics-table { margin-top: 8px; margin-bottom: 10px; }
-        .metrics-table td { border: 1px solid #e5e7eb; padding: 4px 6px; }
+        .payslip-table { margin-top: 10px; }
+        .payslip-table th { background: #f3f4f6; padding: 4px 8px; text-align: left; font-size: 12px; border: 1px solid #e5e7eb; }
+        .payslip-table td { padding: 4px 10px; font-size: 13px; border: 1px solid #e5e7eb; }
+        .payslip-table td:first-child { width: 65%; }
+        .payslip-table td.text-right { width: 35%; }
+        .metrics-table { margin-top: 5px; margin-bottom: 5px; }
+        .metrics-table td { border: 1px solid #e5e7eb; padding: 2px 6px; }
         .metric-label { font-size: 11px; color: #6b7280; }
         .metric-value { font-size: 12px; font-weight: bold; }
         .text-right { text-align: right; }
@@ -34,10 +25,10 @@
         .total-row { font-weight: bold; background: #f0fdf4; }
         .deduction-total { font-weight: bold; background: #fef2f2; }
         .net-row { font-weight: bold; background: #eef2ff; font-size: 16px; }
-        .signatures { margin-top: 40px; }
-        .signatures td { text-align: center; padding-top: 40px; font-size: 12px; }
-        .disclaimer { text-align: center; font-size: 10px; color: #999; margin-top: 30px; }
-        hr { border: none; border-top: 1px solid #e5e7eb; margin: 10px 0; }
+        .signatures { margin-top: 25px; }
+        .signatures td { text-align: center; padding-top: 25px; font-size: 12px; }
+        .disclaimer { text-align: center; font-size: 10px; color: #999; margin-top: 15px; }
+        hr { border: none; border-top: 1px solid #e5e7eb; margin: 8px 0; }
     </style>
 </head>
 <body>
@@ -50,7 +41,7 @@
         };
     @endphp
     <div class="header">
-        <h2>LowGrade โดย นิติบุคคล นายสรรวิน สาสาสันต์</h2>
+        <h2>{{ !empty($company) && !empty($company->name) ? $company->name : 'บริษัท' }}</h2>
         <p>สลิปเงินเดือน / Payslip</p>
         <p>ประจำเดือน {{ $monthName }} {{ $year + 543 }}</p>
     </div>
@@ -60,7 +51,9 @@
             <td class="info-label">ชื่อพนักงาน:</td>
             <td>{{ $employee->full_name }}</td>
             <td class="info-label">วันจ่ายเงิน:</td>
-            <td>{{ $payslip->payment_date ? \Carbon\Carbon::parse($payslip->payment_date)->format('d/m/Y') : '-' }}</td>
+            <td>{{ $payslip->payment_date
+                ? \Carbon\Carbon::parse($payslip->payment_date)->format('d/m/') . (\Carbon\Carbon::parse($payslip->payment_date)->year + 543)
+                : \Carbon\Carbon::create($year, $month)->endOfMonth()->format('d/m/') . ($year + 543) }}</td>
         </tr>
         <tr>
             <td class="info-label">ตำแหน่ง:</td>
@@ -74,30 +67,7 @@
         </tr>
     </table>
 
-    <hr>
 
-    <table class="metrics-table" style="width:100%">
-        <tr>
-                @if(in_array($employee->payroll_mode, ['monthly_staff', 'office_staff', 'youtuber_salary']))
-                <td style="width:25%">
-                    <div class="metric-label">ชั่วโมงรวม</div>
-                    <div class="metric-value">{{ $formatHoursAsClock($monthlyStats['total_work_hours'] ?? 0) }} ชม.</div>
-                </td>
-                <td style="width:25%">
-                    <div class="metric-label">OT</div>
-                    <div class="metric-value">{{ $formatHoursAsClock($monthlyStats['total_ot_hours'] ?? 0) }} ชม.</div>
-                </td>
-                <td style="width:25%">
-                    <div class="metric-label">มาสาย</div>
-                    <div class="metric-value">{{ $monthlyStats['late_count'] ?? 0 }} ครั้ง ({{ $monthlyStats['late_minutes'] ?? 0 }} นาที)</div>
-                </td>
-                <td style="width:25%">
-                    <div class="metric-label">ขาดงาน</div>
-                    <div class="metric-value">{{ $monthlyStats['lwop_days'] ?? 0 }} วัน</div>
-                </td>
-                @endif
-        </tr>
-    </table>
 
     <table style="width:100%">
         <tr>
@@ -106,7 +76,17 @@
                     <thead><tr><th>เงินได้</th><th class="text-right">จำนวน</th></tr></thead>
                     <tbody>
                         @foreach($payslip->incomeItems as $item)
-                        <tr><td>{{ $item->label }}</td><td class="text-right">{{ number_format($item->amount, 2) }}</td></tr>
+                            {{-- Hide ค่าทำงานวันหยุด when zero (auto-fallback line; see ม.62) --}}
+                            @if($item->label === 'ค่าทำงานวันหยุด' && (float) $item->amount == 0) @continue @endif
+                        <tr>
+                            <td>
+                                {{ $item->label }}
+                                @if($item->label === 'ค่าทำงานวันหยุด')
+                                    <span style="color:#888; font-size:10px;">(ตาม ม.62)</span>
+                                @endif
+                            </td>
+                            <td class="text-right">{{ number_format($item->amount, 2) }}</td>
+                        </tr>
                         @endforeach
                         <tr class="total-row"><td>รวมเงินได้</td><td class="text-right">{{ number_format($payslip->total_income, 2) }}</td></tr>
                     </tbody>
@@ -126,11 +106,11 @@
         </tr>
     </table>
 
-    <table class="payslip-table" style="margin-top:20px">
+    <table class="payslip-table" style="margin-top:10px">
         <tr class="net-row"><td>รายได้สุทธิ</td><td class="text-right">{{ number_format($payslip->net_pay, 2) }}</td></tr>
     </table>
 
-    <table class="payslip-table" style="margin-top:12px">
+    <table class="payslip-table" style="margin-top:10px">
         <thead>
             <tr>
                 <th colspan="2">ยอดสะสมทั้งปี (ม.ค. - {{ $monthName }} {{ $year + 543 }})</th>
@@ -221,7 +201,7 @@
                     ___________________________<br>
                 @endif
                 ลายเซ็นผู้รับ<br>
-                {{ !empty($company) && !empty($company->signature_receiver_name) ? "({$company->signature_receiver_name})" : '' }}
+                ({{ $employee->full_name }})
             </td>
         </tr>
     </table>

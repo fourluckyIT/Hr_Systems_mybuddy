@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('payslips', function (Blueprint $table) {
-            $table->string('position_override')->nullable()->after('position_name');
+            $table->string('position_override')->nullable();
         });
 
         Schema::create('payment_proofs', function (Blueprint $table) {
