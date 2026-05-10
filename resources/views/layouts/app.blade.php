@@ -43,7 +43,7 @@
                     @elseif($isAdmin)
                         {{-- Primary (daily use) --}}
                         <a href="{{ route('employees.index') }}" class="{{ $navLink }} {{ request()->routeIs('employees.*') ? $navActive : '' }}">พนักงาน</a>
-                        <a href="{{ route('work.index') }}" class="{{ $navLink }} {{ request()->routeIs('work.*') || request()->routeIs('settings.works.*') ? $navActive : '' }}">WORK Center</a>
+                        <a href="{{ route('work.index') }}" class="{{ $navLink }} {{ request()->routeIs('work.*') ? $navActive : '' }}">WORK Center</a>
                         <a href="{{ route('leave-management.index') }}" class="{{ $navLink }} {{ request()->routeIs('leave-management.*') ? $navActive : '' }}">สิทธิวันลา (Batch)</a>
                         <a href="{{ route('payroll-batches.index') }}" class="{{ $navLink }} {{ request()->routeIs('payroll-batches.*') ? $navActive : '' }}">รอบบิลเงินเดือน</a>
                         <a href="{{ route('portal.index') }}" class="{{ $navLink }} {{ request()->routeIs('portal.*') || request()->routeIs('leave.*') ? $navActive : '' }}">📄 ศูนย์เอกสาร</a>
@@ -75,20 +75,7 @@
                             <div x-show="open" x-cloak x-transition:enter="transition ease-out duration-100" x-transition:enter-start="transform opacity-0 scale-95" x-transition:enter-end="transform opacity-100 scale-100" x-transition:leave="transition ease-in duration-75" x-transition:leave-start="transform opacity-100 scale-100" x-transition:leave-end="transform opacity-0 scale-95" 
                                  class="absolute left-0 mt-2 w-80 bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden divide-y divide-gray-100">
                                 
-                                <!-- Core Setup -->
-                                <a href="{{ route('settings.company') }}" class="block p-4 hover:bg-slate-50 transition-colors group">
-                                    <div class="flex items-start gap-3">
-                                        <div class="p-2 bg-indigo-50 text-indigo-600 rounded-lg group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-                                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
-                                        </div>
-                                        <div>
-                                            <div class="text-sm font-bold text-gray-800 group-hover:text-indigo-700">ตั้งค่าบริษัท (Company)</div>
-                                            <div class="text-[11px] text-gray-500 mt-0.5">โลโก้บริษัท, ลายเซ็นต์, วันหยุดประจำปี</div>
-                                        </div>
-                                    </div>
-                                </a>
-
-                                <!-- HR Data -->
+                                <!-- Master Data (รวมข้อมูลบริษัท, แผนก, ตำแหน่ง, วันลา/วันหยุด ฯลฯ) -->
                                 <a href="{{ route('settings.master-data') }}" class="block p-4 hover:bg-slate-50 transition-colors group">
                                     <div class="flex items-start gap-3">
                                         <div class="p-2 bg-emerald-50 text-emerald-600 rounded-lg group-hover:bg-emerald-600 group-hover:text-white transition-colors">
@@ -96,7 +83,7 @@
                                         </div>
                                         <div>
                                             <div class="text-sm font-bold text-gray-800 group-hover:text-emerald-700">Master Data</div>
-                                            <div class="text-[11px] text-gray-500 mt-0.5">จัดการแผนก, ตำแหน่ง, เลเวลพนักงาน</div>
+                                            <div class="text-[11px] text-gray-500 mt-0.5">บริษัท, แผนก/ตำแหน่ง, รายการเงินเดือน, วันลา/วันหยุด</div>
                                         </div>
                                     </div>
                                 </a>

@@ -2,18 +2,40 @@
 @section('title', 'Master Data')
 
 @section('content')
-<div x-data="{ activeTab: localStorage.getItem('masterDataTab') ?? 'payroll_items' }"
+@php
+    $isAdmin = auth()->user()?->hasRole('admin') ?? false;
+    $tabMigrate = [
+        'departments' => 'org_structure',
+        'positions' => 'org_structure',
+        'fl_layer_rate' => 'org_structure',
+        'job_stages' => 'games_stages',
+        'games' => 'games_stages',
+        'leave_policies' => 'leave_holidays',
+        'holiday_types' => 'leave_holidays',
+        'workspace_access' => 'company',
+    ];
+    $queryTab = request('tab');
+@endphp
+<div x-data="{
+        activeTab: (() => {
+            const q = @js($queryTab);
+            if (q) return q;
+            const saved = localStorage.getItem('masterDataTab');
+            const migrate = @js($tabMigrate);
+            if (saved && migrate[saved]) return migrate[saved];
+            return saved || 'company';
+        })()
+     }"
      x-init="$watch('activeTab', value => localStorage.setItem('masterDataTab', value))">
     <!-- Header -->
     <div class="flex items-center justify-between mb-6">
         <div>
             <h1 class="text-2xl font-bold text-gray-900">Master Data</h1>
-            <p class="text-sm text-gray-500">จัดการข้อมูลหลัก: รายการเงินเดือน, แผนก, ตำแหน่ง, เกม, เรท FL, สิทธิ์ Workspace</p>
+            <p class="text-sm text-gray-500">จัดการข้อมูลหลัก: บริษัท, รายการเงินเดือน, โครงสร้างองค์กร, เกม &amp; Stage งาน, วันลา &amp; วันหยุด</p>
         </div>
         <div class="flex items-center gap-2">
-            <a href="{{ route('settings.rules') }}" class="px-3 py-1.5 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">← กฎระบบ</a>
+            <a href="{{ route('settings.rules') }}" class="px-3 py-1.5 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">กติกาคำนวณ</a>
             <a href="{{ route('settings.bonus.index') }}" class="px-3 py-1.5 text-sm text-indigo-700 bg-indigo-100 rounded-lg hover:bg-indigo-200">Bonus</a>
-            <a href="{{ route('settings.company') }}" class="px-3 py-1.5 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">บริษัท</a>
         </div>
     </div>
 
@@ -31,49 +53,119 @@
     </div>
     @endif
 
+    @php
+        $tabBase = 'px-4 py-2.5 text-sm font-semibold border-b-2 rounded-t-lg transition-all';
+        $tabActive = 'border-indigo-500 text-indigo-600 bg-indigo-50';
+        $tabIdle = 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50';
+        $countPill = 'ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-gray-200 text-gray-600';
+    @endphp
+
     <!-- Tab Navigation -->
-    <div class="flex border-b border-gray-200 mb-6 gap-1">
-        <button @click="activeTab = 'payroll_items'" :class="activeTab === 'payroll_items' ? 'border-indigo-500 text-indigo-600 bg-indigo-50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'" class="px-4 py-2.5 text-sm font-semibold border-b-2 rounded-t-lg transition-all">
-            รายการเงินเดือน
-            <span class="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-gray-200 text-gray-600">{{ $payrollItemTypes->count() }}</span>
+    <div class="flex border-b border-gray-200 mb-6 gap-1 flex-wrap">
+        <button @click="activeTab = 'company'" :class="activeTab === 'company' ? '{{ $tabActive }}' : '{{ $tabIdle }}'" class="{{ $tabBase }}">
+            🏢 ข้อมูลบริษัท
         </button>
-        <button @click="activeTab = 'departments'" :class="activeTab === 'departments' ? 'border-indigo-500 text-indigo-600 bg-indigo-50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'" class="px-4 py-2.5 text-sm font-semibold border-b-2 rounded-t-lg transition-all">
-            แผนก
-            <span class="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-gray-200 text-gray-600">{{ $departments->count() }}</span>
+        <button @click="activeTab = 'payroll_items'" :class="activeTab === 'payroll_items' ? '{{ $tabActive }}' : '{{ $tabIdle }}'" class="{{ $tabBase }}">
+            💰 รายการเงินเดือน
+            <span class="{{ $countPill }}">{{ $payrollItemTypes->count() }}</span>
         </button>
-        <button @click="activeTab = 'positions'" :class="activeTab === 'positions' ? 'border-indigo-500 text-indigo-600 bg-indigo-50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'" class="px-4 py-2.5 text-sm font-semibold border-b-2 rounded-t-lg transition-all">
-            ตำแหน่ง
-            <span class="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-gray-200 text-gray-600">{{ $positions->count() }}</span>
+        <button @click="activeTab = 'org_structure'" :class="activeTab === 'org_structure' ? '{{ $tabActive }}' : '{{ $tabIdle }}'" class="{{ $tabBase }}">
+            👥 โครงสร้างองค์กร
+            <span class="{{ $countPill }}">{{ $departments->count() }}/{{ $positions->count() }}</span>
         </button>
-        <button @click="activeTab = 'job_stages'" :class="activeTab === 'job_stages' ? 'border-indigo-500 text-indigo-600 bg-indigo-50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'" class="px-4 py-2.5 text-sm font-semibold border-b-2 rounded-t-lg transition-all">
-            Job Stages
-            <span class="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-gray-200 text-gray-600">{{ $jobStages->count() }}</span>
+        <button @click="activeTab = 'games_stages'" :class="activeTab === 'games_stages' ? '{{ $tabActive }}' : '{{ $tabIdle }}'" class="{{ $tabBase }}">
+            🎮 เกม &amp; Stage งาน
+            <span class="{{ $countPill }}">{{ $games->count() }}/{{ $jobStages->count() }}</span>
         </button>
-        <button @click="activeTab = 'games'" :class="activeTab === 'games' ? 'border-indigo-500 text-indigo-600 bg-indigo-50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'" class="px-4 py-2.5 text-sm font-semibold border-b-2 rounded-t-lg transition-all">
-            เกม
-            <span class="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-gray-200 text-gray-600">{{ $games->count() }}</span>
+        <button @click="activeTab = 'leave_holidays'" :class="activeTab === 'leave_holidays' ? '{{ $tabActive }}' : '{{ $tabIdle }}'" class="{{ $tabBase }}">
+            🏖️ วันลา &amp; วันหยุด
+            <span class="{{ $countPill }}">{{ $leavePolicies->count() }}/{{ $holidayTypes->count() }}</span>
         </button>
+    </div>
 
-        <button @click="activeTab = 'workspace_access'" :class="activeTab === 'workspace_access' ? 'border-indigo-500 text-indigo-600 bg-indigo-50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'" class="px-4 py-2.5 text-sm font-semibold border-b-2 rounded-t-lg transition-all">
-            คุมสิทธิ์ Workspace
-            <span class="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-gray-200 text-gray-600">{{ $employees->count() }}</span>
-        </button>
+    <!-- ===================== TAB: Company Profile ===================== -->
+    <div x-show="activeTab === 'company'" x-cloak>
+        <form method="POST" action="{{ route('settings.company.update') }}" enctype="multipart/form-data" class="bg-white rounded-2xl shadow-sm border p-6 space-y-6 max-w-5xl">
+            @csrf
 
-        @php $isAdmin = auth()->user()?->hasRole('admin'); @endphp
-        @if($isAdmin)
-        <button @click="activeTab = 'fl_layer_rate'" :class="activeTab === 'fl_layer_rate' ? 'border-indigo-500 text-indigo-600 bg-indigo-50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'" class="px-4 py-2.5 text-sm font-semibold border-b-2 rounded-t-lg transition-all">
-            FL Layer Rate
-            <span class="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-emerald-100 text-emerald-700">admin</span>
-        </button>
-        <button @click="activeTab = 'leave_policies'" :class="activeTab === 'leave_policies' ? 'border-indigo-500 text-indigo-600 bg-indigo-50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'" class="px-4 py-2.5 text-sm font-semibold border-b-2 rounded-t-lg transition-all">
-            🏖️ นโยบายวันลา
-            <span class="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-teal-100 text-teal-700">admin</span>
-        </button>
-        <button @click="activeTab = 'holiday_types'" :class="activeTab === 'holiday_types' ? 'border-indigo-500 text-indigo-600 bg-indigo-50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'" class="px-4 py-2.5 text-sm font-semibold border-b-2 rounded-t-lg transition-all">
-            📅 ประเภทวันหยุด
-            <span class="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-purple-100 text-purple-700">{{ $holidayTypes->count() }}</span>
-        </button>
-        @endif
+            <fieldset class="border border-gray-200 rounded-lg p-4">
+                <legend class="text-sm font-bold text-indigo-600 px-2">ข้อมูลบริษัท</legend>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">ชื่อบริษัท *</label>
+                        <input type="text" name="name" value="{{ old('name', $company?->name) }}" required class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">เลขประจำตัวผู้เสียภาษี</label>
+                        <input type="text" name="tax_id" value="{{ old('tax_id', $company?->tax_id) }}" placeholder="1234567890" class="w-full px-3 py-2 border rounded-lg text-sm">
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Tagline / คำอธิบาย</label>
+                        <input type="text" name="tagline" value="{{ old('tagline', $company?->tagline) }}" class="w-full px-3 py-2 border rounded-lg text-sm">
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">ชื่อเพิ่มเติมใน Payslip Header (หลัง /)</label>
+                        <input type="text" name="payslip_header_subtitle" value="{{ old('payslip_header_subtitle', $company?->payslip_header_subtitle) }}" class="w-full px-3 py-2 border rounded-lg text-sm">
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">ที่อยู่</label>
+                        <textarea name="address" rows="2" class="w-full px-3 py-2 border rounded-lg text-sm">{{ old('address', $company?->address) }}</textarea>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">โทรศัพท์</label>
+                        <input type="tel" name="phone" value="{{ old('phone', $company?->phone) }}" class="w-full px-3 py-2 border rounded-lg text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">อีเมล</label>
+                        <input type="email" name="email" value="{{ old('email', $company?->email) }}" class="w-full px-3 py-2 border rounded-lg text-sm">
+                    </div>
+                </div>
+            </fieldset>
+
+            <fieldset class="border border-gray-200 rounded-lg p-4">
+                <legend class="text-sm font-bold text-indigo-600 px-2">สี CI / Branding</legend>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Primary Color</label>
+                        <input type="color" name="primary_color" value="{{ old('primary_color', $company?->primary_color ?? '#4f46e5') }}" class="w-full h-10 border rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Secondary Color</label>
+                        <input type="color" name="secondary_color" value="{{ old('secondary_color', $company?->secondary_color ?? '#4338ca') }}" class="w-full h-10 border rounded-lg">
+                    </div>
+                </div>
+            </fieldset>
+
+            <fieldset class="border border-gray-200 rounded-lg p-4">
+                <legend class="text-sm font-bold text-indigo-600 px-2">ลายเซ็นผู้จ่ายเงินเดือน (Payslip)</legend>
+                <p class="text-xs text-gray-500 mb-3">ลายเซ็นบริษัทใช้บนสลิปทุกใบ ส่วนช่อง "ผู้รับ" บนสลิปให้พนักงานเซ็นมือเอง</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">ชื่อผู้จ่าย</label>
+                        <input type="text" name="signature_approver_name" value="{{ old('signature_approver_name', $company?->signature_approver_name) }}" class="w-full px-3 py-2 border rounded-lg text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">อัปโหลดลายเซ็น (PNG/JPG ≤2MB)</label>
+                        <input type="file" name="signature_approver_image" accept="image/png,image/jpeg" class="w-full px-3 py-2 border rounded-lg text-sm">
+                    </div>
+                </div>
+                @if($company?->signature_approver_image_path)
+                <div class="mt-3">
+                    <p class="text-xs text-gray-500 mb-1">ลายเซ็นปัจจุบัน:</p>
+                    <img src="{{ asset('storage/' . $company->signature_approver_image_path) }}" alt="Approver signature" class="max-h-12 border rounded">
+                </div>
+                @endif
+            </fieldset>
+
+            <fieldset class="border border-gray-200 rounded-lg p-4">
+                <legend class="text-sm font-bold text-indigo-600 px-2">ข้อความท้าย Payslip</legend>
+                <textarea name="payslip_footer_text" rows="3" class="w-full px-3 py-2 border rounded-lg text-sm mt-2">{{ old('payslip_footer_text', $company?->payslip_footer_text) }}</textarea>
+            </fieldset>
+
+            <div class="flex justify-end">
+                <button type="submit" class="px-5 py-2 text-sm font-bold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700">บันทึก</button>
+            </div>
+        </form>
     </div>
 
     <!-- ===================== TAB: Payroll Item Types ===================== -->
@@ -142,7 +234,7 @@
                                     @endif
                                 </div>
                             </div>
-                            <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div class="flex items-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
                                 <button @click="editing = true" class="px-2 py-1 text-[10px] font-bold text-indigo-600 bg-indigo-50 rounded border border-indigo-200 hover:bg-indigo-100">แก้ไข</button>
                                 @if(!$item->is_system)
                                 <form action="{{ route('settings.master-data.payroll-item-types.delete', $item->id) }}" method="POST" onsubmit="return confirm('ลบรายการ {{ $item->label_th }}?')">
@@ -199,7 +291,7 @@
                                     @endif
                                 </div>
                             </div>
-                            <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div class="flex items-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
                                 <button @click="editing = true" class="px-2 py-1 text-[10px] font-bold text-indigo-600 bg-indigo-50 rounded border border-indigo-200 hover:bg-indigo-100">แก้ไข</button>
                                 @if(!$item->is_system)
                                 <form action="{{ route('settings.master-data.payroll-item-types.delete', $item->id) }}" method="POST" onsubmit="return confirm('ลบรายการ {{ $item->label_th }}?')">
@@ -254,8 +346,13 @@
         </div>
     </div>
 
-    <!-- ===================== TAB: Departments ===================== -->
-    <div x-show="activeTab === 'departments'" x-cloak>
+    <!-- ===================== TAB: Org Structure (1) Departments ===================== -->
+    <div x-show="activeTab === 'org_structure'" x-cloak class="mb-8">
+        <h2 class="text-lg font-bold text-gray-700 mb-4 pb-2 border-b border-gray-200 flex items-center gap-2">
+            <span class="w-7 h-7 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs font-extrabold">1</span>
+            แผนก
+            <span class="text-xs font-normal text-gray-400">(หน่วยงานหลักภายในบริษัท)</span>
+        </h2>
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <!-- Add Department -->
             <div class="bg-white rounded-2xl shadow-sm border p-5">
@@ -317,7 +414,7 @@
                                                 </span>
                                             </div>
                                         </div>
-                                        <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <div class="flex items-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
                                             <button @click="editing = true" class="px-2 py-1 text-[10px] font-bold text-indigo-600 bg-indigo-50 rounded border border-indigo-200 hover:bg-indigo-100">แก้ไข</button>
                                             <form action="{{ route('settings.master-data.departments.delete', $dept->id) }}" method="POST" onsubmit="return confirm('ลบแผนก {{ $dept->name }}? (ต้องไม่มีพนักงานอยู่)')">
                                                 @csrf @method('DELETE')
@@ -350,8 +447,13 @@
         </div>
     </div>
 
-    <!-- ===================== TAB: Positions ===================== -->
-    <div x-show="activeTab === 'positions'" x-cloak>
+    <!-- ===================== TAB: Org Structure (2) Positions ===================== -->
+    <div x-show="activeTab === 'org_structure'" x-cloak class="mb-8">
+        <h2 class="text-lg font-bold text-gray-700 mb-4 pb-2 border-b border-gray-200 flex items-center gap-2">
+            <span class="w-7 h-7 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs font-extrabold">2</span>
+            ตำแหน่ง
+            <span class="text-xs font-normal text-gray-400">(ตำแหน่งภายในแต่ละแผนก)</span>
+        </h2>
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <!-- Add Position -->
             <div class="bg-white rounded-2xl shadow-sm border p-5">
@@ -447,7 +549,7 @@
                                                 </span>
                                             </div>
                                         </div>
-                                        <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <div class="flex items-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
                                             <button @click="editing = true" class="px-2 py-1 text-[10px] font-bold text-indigo-600 bg-indigo-50 rounded border border-indigo-200 hover:bg-indigo-100">แก้ไข</button>
                                             <form action="{{ route('settings.master-data.positions.delete', $pos->id) }}" method="POST" onsubmit="return confirm('ลบตำแหน่ง {{ $pos->name }}? (ต้องไม่มีพนักงานอยู่)')">
                                                 @csrf @method('DELETE')
@@ -491,7 +593,13 @@
     </div>
 
     <!-- ===================== TAB: Job Stages ===================== -->
-    <div x-show="activeTab === 'job_stages'" x-cloak>
+    <!-- ===================== TAB: Games & Stages (1) Job Stages ===================== -->
+    <div x-show="activeTab === 'games_stages'" x-cloak class="mb-8">
+        <h2 class="text-lg font-bold text-gray-700 mb-4 pb-2 border-b border-gray-200 flex items-center gap-2">
+            <span class="w-7 h-7 rounded-full bg-sky-100 text-sky-600 flex items-center justify-center text-xs font-extrabold">1</span>
+            Job Stages
+            <span class="text-xs font-normal text-gray-400">(ขั้นตอนงาน เช่น draft, edit, final)</span>
+        </h2>
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div class="bg-white rounded-2xl shadow-sm border p-5">
                 <h3 class="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
@@ -548,7 +656,7 @@
                                 @endif
                                 <span class="px-2 py-0.5 rounded-full text-[10px] font-bold {{ $stage->is_active ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600' }}">{{ $stage->is_active ? 'Active' : 'Inactive' }}</span>
                             </div>
-                            <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div class="flex items-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
                                 <button @click="editing = true" class="px-2 py-1 text-[10px] font-bold text-indigo-600 bg-indigo-50 rounded border border-indigo-200 hover:bg-indigo-100">แก้ไข</button>
                                 @if(!$stage->is_core)
                                 <form action="{{ route('settings.master-data.job-stages.delete', $stage->id) }}" method="POST" onsubmit="return confirm('ลบสถานะ {{ $stage->name }} ?')">
@@ -588,7 +696,13 @@
     </div>
 
     <!-- ===================== TAB: Games ===================== -->
-    <div x-show="activeTab === 'games'" x-cloak>
+    <!-- ===================== TAB: Games & Stages (2) Games ===================== -->
+    <div x-show="activeTab === 'games_stages'" x-cloak class="mb-8">
+        <h2 class="text-lg font-bold text-gray-700 mb-4 pb-2 border-b border-gray-200 flex items-center gap-2">
+            <span class="w-7 h-7 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center text-xs font-extrabold">2</span>
+            เกม
+            <span class="text-xs font-normal text-gray-400">(รายการเกมที่ใช้ในงานถ่าย/ตัดต่อ)</span>
+        </h2>
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <!-- Add Game -->
             <div class="bg-white rounded-2xl shadow-sm border p-5 h-fit">
@@ -634,7 +748,7 @@
                                 <span class="text-[10px] text-gray-400">{{ $jobCount }} งาน</span>
                                 @endif
                             </div>
-                            <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div class="flex items-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
                                 <button @click="editing = true" class="px-2 py-1 text-[10px] font-bold text-indigo-600 bg-indigo-50 rounded border border-indigo-200 hover:bg-indigo-100">แก้ไข</button>
                                 @if($jobCount === 0)
                                 <form action="{{ route('settings.master-data.games.delete', $game->id) }}" method="POST" onsubmit="return confirm('ลบเกม {{ $game->game_name }}?')">
@@ -666,7 +780,13 @@
 
     <!-- TAB: FL Layer Rate (admin only) -->
     @if($isAdmin ?? false)
-    <div x-show="activeTab === 'fl_layer_rate'" x-cloak x-data="{ selectedEmployeeId: '' }" class="space-y-6">
+    <!-- ===================== TAB: Org Structure (3) FL Layer Rate ===================== -->
+    <div x-show="activeTab === 'org_structure'" x-cloak x-data="{ selectedEmployeeId: '' }" class="space-y-6 mb-8">
+        <h2 class="text-lg font-bold text-gray-700 mb-4 pb-2 border-b border-gray-200 flex items-center gap-2">
+            <span class="w-7 h-7 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-xs font-extrabold">3</span>
+            เรท Freelance Layer
+            <span class="text-xs font-normal text-gray-400">(สำหรับพนักงาน payroll mode = freelance_layer)</span>
+        </h2>
 
         {{-- Global Templates --}}
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -732,7 +852,7 @@
                                                 {{ $tpl->is_active ? 'ใช้งาน' : 'ปิด' }}
                                             </span>
                                         </div>
-                                        <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-auto">
+                                        <div class="flex items-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity ml-auto">
                                             <button @click="editing = true" class="px-2 py-1 text-[10px] font-bold text-indigo-600 bg-indigo-50 rounded border border-indigo-200 hover:bg-indigo-100">แก้ไข</button>
                                             <form action="{{ route('settings.master-data.layer-rate-templates.delete', $tpl->id) }}" method="POST" onsubmit="return confirm('ลบ Template L{{ $tpl->layer_from }}-L{{ $tpl->layer_to }} ?')">
                                                 @csrf @method('DELETE')
@@ -856,7 +976,7 @@
                                                 {{ $rule->is_active ? 'ใช้งาน' : 'ปิด' }}
                                             </span>
                                         </div>
-                                        <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-auto">
+                                        <div class="flex items-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity ml-auto">
                                             <button @click="editing = true" class="px-2 py-1 text-[10px] font-bold text-indigo-600 bg-indigo-50 rounded border border-indigo-200 hover:bg-indigo-100">แก้ไข</button>
                                             <form action="{{ route('settings.master-data.layer-rate-rules.delete', $rule->id) }}" method="POST" onsubmit="return confirm('ลบเทมเพลตราคา L{{ $rule->layer_from }}-L{{ $rule->layer_to }} ของ {{ $rule->employee?->full_name }} ?')">
                                                 @csrf @method('DELETE')
@@ -901,7 +1021,8 @@
     @endif
 
     <!-- ===================== TAB: Workspace Access ===================== -->
-    <div x-show="activeTab === 'workspace_access'" x-cloak>
+    {{-- workspace_access tab removed from UI (backend toggle preserved in MasterDataController & WorkspaceController) --}}
+    <div x-show="false" x-cloak>
         <div class="bg-white rounded-2xl shadow-sm border overflow-hidden">
             <div class="px-5 py-4 bg-slate-50 border-b border-slate-200">
                 <h3 class="font-bold text-slate-800 text-sm">ควบคุมสิทธิ์แก้ไข Workspace</h3>
@@ -962,7 +1083,13 @@
 
     <!-- ===================== TAB: Leave Policies ===================== -->
     @if($isAdmin)
-    <div x-show="activeTab === 'leave_policies'" x-cloak>
+    <!-- ===================== TAB: Leave & Holidays (1) Leave Policies ===================== -->
+    <div x-show="activeTab === 'leave_holidays'" x-cloak class="mb-8">
+        <h2 class="text-lg font-bold text-gray-700 mb-4 pb-2 border-b border-gray-200 flex items-center gap-2">
+            <span class="w-7 h-7 rounded-full bg-teal-100 text-teal-600 flex items-center justify-center text-xs font-extrabold">1</span>
+            นโยบายวันลา
+            <span class="text-xs font-normal text-gray-400">(โควต้าลาพักร้อน/ป่วย/กิจ + กฎยกยอด/แลกเงิน)</span>
+        </h2>
         <div x-data="{ showAdd: false, editing: null }">
             <div class="flex items-center justify-between mb-4">
                 <div>
@@ -1206,7 +1333,13 @@
     </div>
 
     {{-- ===================== TAB: Holiday Types ===================== --}}
-    <div x-show="activeTab === 'holiday_types'" x-cloak>
+    <!-- ===================== TAB: Leave & Holidays (2) Holiday Types ===================== -->
+    <div x-show="activeTab === 'leave_holidays'" x-cloak class="mb-8">
+        <h2 class="text-lg font-bold text-gray-700 mb-4 pb-2 border-b border-gray-200 flex items-center gap-2">
+            <span class="w-7 h-7 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center text-xs font-extrabold">2</span>
+            ประเภทวันหยุด
+            <span class="text-xs font-normal text-gray-400">(หมวดของวันหยุด เช่น ราชการ/ศาสนา/บริษัท)</span>
+        </h2>
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {{-- Add Form --}}
             <div class="bg-white rounded-2xl shadow-sm border p-5"
@@ -1336,6 +1469,70 @@
                     </div>
                     @empty
                     <div class="py-8 text-center text-sm text-gray-400">ยังไม่มีประเภทวันหยุด</div>
+                    @endforelse
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================== TAB: Leave & Holidays (3) Company Holidays ===================== -->
+    <div x-show="activeTab === 'leave_holidays'" x-cloak class="mb-8">
+        <h2 class="text-lg font-bold text-gray-700 mb-4 pb-2 border-b border-gray-200 flex items-center gap-2">
+            <span class="w-7 h-7 rounded-full bg-pink-100 text-pink-600 flex items-center justify-center text-xs font-extrabold">3</span>
+            ปฏิทินวันหยุดบริษัท
+            <span class="text-xs font-normal text-gray-400">(วันที่หยุดจริงในปฏิทิน — ดึงวันหยุดราชการได้)</span>
+        </h2>
+        <div class="bg-white rounded-2xl shadow-sm border overflow-hidden">
+            <div class="px-5 py-3 bg-purple-50 border-b border-purple-100 flex items-center justify-between flex-wrap gap-2">
+                <span class="text-sm font-bold text-purple-800">รายการวันหยุดทั้งหมด ({{ $holidays->count() }})</span>
+                <form action="{{ route('settings.holidays.load-legal') }}" method="POST" class="flex items-center gap-2">
+                    @csrf
+                    <input type="number" name="year" value="{{ now()->year }}" class="w-20 px-2 py-1 border rounded text-xs font-bold">
+                    <button type="submit" class="px-3 py-1 bg-purple-600 text-white rounded-lg text-[10px] font-bold hover:bg-purple-700">ดึงข้อมูลวันหยุดราชการ</button>
+                </form>
+            </div>
+            <div class="p-5">
+                <form action="{{ route('settings.holidays.add') }}" method="POST" class="mb-6 p-4 bg-gray-50 rounded-xl border flex flex-col md:flex-row gap-3 items-end">
+                    @csrf
+                    <div class="flex-grow w-full">
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">ชื่อวันหยุด</label>
+                        <input type="text" name="name" required placeholder="เช่น วันสงกรานต์" class="w-full px-3 py-2 border rounded-lg text-sm">
+                    </div>
+                    <div class="w-full md:w-48">
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">วันที่</label>
+                        <input type="date" name="holiday_date" required class="w-full px-3 py-2 border rounded-lg text-sm">
+                    </div>
+                    <button type="submit" class="w-full md:w-auto bg-gray-800 text-white px-6 py-2 rounded-lg font-bold text-sm hover:bg-gray-900">+ เพิ่ม</button>
+                </form>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    @forelse($holidays as $holiday)
+                    @php $tCol = $holiday->holidayType?->default_color ?? 'purple'; @endphp
+                    <div class="p-3 bg-white border border-gray-100 rounded-xl flex items-center justify-between hover:border-{{ $tCol }}-200 transition-all">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 bg-{{ $tCol }}-100 rounded-lg flex flex-col items-center justify-center text-{{ $tCol }}-600">
+                                <span class="text-[8px] font-bold leading-none">{{ $holiday->holiday_date->format('M') }}</span>
+                                <span class="text-sm font-black">{{ $holiday->holiday_date->format('d') }}</span>
+                            </div>
+                            <div>
+                                <p class="text-xs font-bold text-gray-800">{{ $holiday->name }}</p>
+                                <p class="text-[10px] text-gray-400">
+                                    {{ $holiday->holiday_date->format('Y') }}
+                                    @if($holiday->holidayType) · {{ $holiday->holidayType->name }} @endif
+                                </p>
+                            </div>
+                        </div>
+                        <form action="{{ route('settings.holidays.delete', $holiday->id) }}" method="POST" onsubmit="return confirm('ลบวันหยุดนี้?')">
+                            @csrf @method('DELETE')
+                            <button type="submit" class="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg" title="ลบ">
+                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                            </button>
+                        </form>
+                    </div>
+                    @empty
+                    <div class="col-span-full py-8 text-center bg-gray-50 rounded-xl border-2 border-dashed text-sm text-gray-400">
+                        ยังไม่มีวันหยุด — กด "ดึงข้อมูลวันหยุดราชการ" เพื่อเริ่ม
+                    </div>
                     @endforelse
                 </div>
             </div>

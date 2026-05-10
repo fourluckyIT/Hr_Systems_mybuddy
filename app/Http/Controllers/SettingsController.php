@@ -350,9 +350,7 @@ class SettingsController extends Controller
     }
     public function company()
     {
-        $company = CompanyProfile::active();
-        
-        return view('settings.company', compact('company'));
+        return redirect()->route('settings.master-data', ['tab' => 'company']);
     }
 
     public function updateCompany(Request $request)
@@ -372,25 +370,14 @@ class SettingsController extends Controller
             'payslip_footer_text' => 'nullable|string',
             'signature_approver_name' => 'nullable|string|max:100',
             'signature_approver_image' => 'nullable|image|mimes:png,jpg,jpeg|max:2048',
-            'signature_receiver_name' => 'nullable|string|max:100',
-            'signature_receiver_image' => 'nullable|image|mimes:png,jpg,jpeg|max:2048',
         ]);
 
-        // Handle approver signature upload
         if ($request->hasFile('signature_approver_image')) {
             $path = $request->file('signature_approver_image')->store('signatures', 'public');
             $validated['signature_approver_image_path'] = $path;
         }
 
-        // Handle receiver signature upload
-        if ($request->hasFile('signature_receiver_image')) {
-            $path = $request->file('signature_receiver_image')->store('signatures', 'public');
-            $validated['signature_receiver_image_path'] = $path;
-        }
-
-        // Remove file inputs from validated array
         unset($validated['signature_approver_image']);
-        unset($validated['signature_receiver_image']);
 
         $oldData = $company->getAttributes();
 
@@ -399,7 +386,7 @@ class SettingsController extends Controller
         AuditLogService::log($company, 'updated', 'company_profile', $oldData, $company->getAttributes(), 'Company profile updated');
 
         return redirect()
-            ->route('settings.company')
+            ->route('settings.master-data', ['tab' => 'company'])
             ->with('success', 'บันทึกการตั้งค่าบริษัทสำเร็จ');
     }
 }

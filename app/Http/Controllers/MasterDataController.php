@@ -13,6 +13,8 @@ use App\Models\LayerRateTemplate;
 use App\Models\Game;
 use App\Models\LeavePolicy;
 use App\Models\HolidayType;
+use App\Models\CompanyProfile;
+use App\Models\CompanyHoliday;
 use App\Services\AuditLogService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
@@ -60,6 +62,9 @@ class MasterDataController extends Controller
 
         $colorPresets = HolidayType::COLOR_PRESETS;
 
+        $company = CompanyProfile::active();
+        $holidays = CompanyHoliday::with('holidayType')->orderBy('holiday_date')->get();
+
         return view('settings.master-data', compact(
             'payrollItemTypes',
             'departments',
@@ -72,7 +77,9 @@ class MasterDataController extends Controller
             'games',
             'leavePolicies',
             'holidayTypes',
-            'colorPresets'
+            'colorPresets',
+            'company',
+            'holidays'
         ));
     }
 
