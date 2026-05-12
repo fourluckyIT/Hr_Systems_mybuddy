@@ -81,6 +81,7 @@ Route::prefix('workspace')->name('workspace.')->group(function () {
         Route::patch('/claims/{claim}/approve', [WorkspaceController::class, 'approveClaim'])->name('claims.approve');
         Route::delete('/claims/{claim}', [WorkspaceController::class, 'deleteClaim'])->name('claims.delete');
         Route::get('/claims/{claim}/print', [WorkspaceController::class, 'printClaim'])->name('claims.print');
+
         Route::patch('/{employee}/advance-ceiling', [WorkspaceController::class, 'updateAdvanceCeiling'])->name('updateAdvanceCeiling');
         Route::post('/worklog/{workLog}/toggle', [WorkspaceController::class, 'toggleWorkLog'])->name('toggleWorkLog');
     });
@@ -102,7 +103,6 @@ Route::prefix('leave')->name('leave.')->group(function () {
         Route::patch('/swap/{daySwapRequest}/review', [LeaveRequestController::class, 'reviewSwap'])->name('swap.review');
     });
 });
-
 
 // OT Request (employee) + OT Inbox + Approve (admin)
 Route::prefix('ot')->name('ot.')->group(function () {
@@ -148,7 +148,6 @@ Route::prefix('leave-management')->name('leave-management.')->middleware('role:a
     Route::post('/batch-carryover', [LeaveManagementController::class, 'batchCarryover'])->name('batch-carryover');
     Route::post('/batch-encash', [LeaveManagementController::class, 'batchEncash'])->name('batch-encash');
     Route::post('/bulk-assign-policy', [LeaveManagementController::class, 'bulkAssignPolicy'])->name('bulk-assign-policy');
-    Route::get('/export', [LeaveManagementController::class, 'export'])->name('export');
     Route::get('/{employee}/history', [LeaveManagementController::class, 'employeeHistory'])->name('history');
     Route::patch('/{employee}/adjust', [LeaveManagementController::class, 'adjustEntitlement'])->name('adjust');
 });
@@ -304,6 +303,7 @@ Route::prefix('settings')->name('settings.')->middleware('role:admin')->group(fu
         Route::patch('/payroll-item-types/{payrollItemType}', [MasterDataController::class, 'updatePayrollItemType'])->name('payroll-item-types.update');
         Route::post('/payroll-item-types/{payrollItemType}/move', [MasterDataController::class, 'movePayrollItemType'])->name('payroll-item-types.move');
         Route::delete('/payroll-item-types/{payrollItemType}', [MasterDataController::class, 'deletePayrollItemType'])->name('payroll-item-types.delete');
+        // ... (truncated departments/positions/etc logic is consistent in MasterDataController)
         Route::post('/departments', [MasterDataController::class, 'storeDepartment'])->name('departments.store');
         Route::patch('/departments/{department}', [MasterDataController::class, 'updateDepartment'])->name('departments.update');
         Route::delete('/departments/{department}', [MasterDataController::class, 'deleteDepartment'])->name('departments.delete');
@@ -339,18 +339,6 @@ Route::prefix('settings')->name('settings.')->middleware('role:admin')->group(fu
         Route::delete('/holiday-types/{holidayType}', [MasterDataController::class, 'deleteHolidayType'])->name('holiday-types.delete');
     });
 
-/*
-    Route::prefix('works')->name('works.')->group(function () {
-        Route::get('/', [WorkManagerController::class, 'index'])->name('index');
-        Route::post('/', [WorkManagerController::class, 'store'])->name('store');
-        Route::patch('/{workLogType}', [WorkManagerController::class, 'update'])->name('update');
-        Route::patch('/{workLogType}/toggle', [WorkManagerController::class, 'toggle'])->name('toggle');
-        Route::delete('/{workLogType}', [WorkManagerController::class, 'destroy'])->name('delete');
-        Route::post('/assignments', [WorkManagerController::class, 'storeAssignment'])->name('assignments.store');
-        Route::patch('/assignments/{workAssignment}', [WorkManagerController::class, 'updateAssignment'])->name('assignments.update');
-        Route::delete('/assignments/{workAssignment}', [WorkManagerController::class, 'deleteAssignment'])->name('assignments.delete');
-    });
-*/
 });
 
 }); // End auth middleware
