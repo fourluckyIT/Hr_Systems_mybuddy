@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Employee;
 use App\Models\ExtraIncomeEntry;
 use App\Models\LeaveCarryover;
+use App\Models\LeaveEncashment;
 use App\Models\LeavePolicy;
 use App\Services\AuditLogService;
 use App\Services\NotificationService;
@@ -175,5 +176,116 @@ class LeaveManagementController extends Controller
             if (count($skipped) > 5) $msg .= '...';
         }
         return back()->with('success', $msg);
+    }
+
+    /** GET — employee leave history for year (JSON for modal) */
+    public function employeeHistory(Request $request, Employee $employee)
+    {
+        abort_unless(Auth::user()?->hasRole('admin'), 403);
+        $year = (int) $request->get('year', now()->year);
+
+        $carryovers = $employee->leaveCarryovers()
+            ->where(function ($q) use ($year) {
+                $q->where('year', $year)->orWhere('source_year', (string) $year);
+            })
+            ->orderByDesc('created_at')
+            ->get()
+            ->map(fn($c) => [
+                'id' => $c->id,
+                'leave_type' => $c->leave_type,
+                'leave_label' => Employee::LEAVE_TYPES_TRACKED[$c->leave_type]['label'] ?? $c->leave_type,
+                'days' => (float) $c->days,
+                'source_year' => $c->source_year,
+                'target_year' => $c->year,
+                'status' => $c->status,
+                'note' => $c->note,
+                'created_at' => $c->created_at?->toIso8601String(),
+            ]);
+
+        $encashments = $employee->leaveEncashments()
+            ->where('year', $year)
+            ->orderByDesc('created_at')
+            ->get()
+            ->map(fn($e) => [
+                'id' => $e->id,
+                'leave_type' => $e->leave_type,
+                'leave_label' => Employee::LEAVE_TYPES_TRACKED[$e->leave_type]['label'] ?? $e->leave_type,
+                'days' => (float) $e->days,
+                'amount' => (float) $e->amount,
+                'rate_per_day' => (float) ($e->rate_per_day ?? 0),
+                'payout_month' => $e->payout_month,
+                'payout_year' => $e->payout_year,
+                'status' => $e->status,
+                'note' => $e->note,
+                'created_at' => $e->created_at?->toIso8601String(),
+            ]);
+
+        $usedLogs = $employee->attendanceLogs()
+            ->whereYear('log_date', $year)
+            ->whereIn('day_type', array_keys(Employee::LEAVE_TYPES_TRACKED))
+            ->orderBy('log_date', 'desc')
+            ->get(['id', 'log_date', 'day_type', 'note'])
+            ->map(fn($l) => [
+                'id' => $l->id,
+                'log_date' => $l->log_date?->toDateString(),
+                'leave_type' => $l->day_type,
+                'leave_label' => Employee::LEAVE_TYPES_TRACKED[$l->day_type]['label'] ?? $l->day_type,
+                'note' => $l->note,
+            ]);
+
+        return response()->json([
+            'employee' => [
+                'id' => $employee->id,
+                'name' => $employee->display_name,
+                'code' => $employee->employee_code,
+            ],
+            'year' => $year,
+            'balances' => $employee->getAllLeaveBalances($year),
+            'carryovers' => $carryovers,
+            'encashments' => $encashments,
+            'used_logs' => $usedLogs,
+        ]);
+    }
+
+    /** PATCH — adjust per-employee entitlement override (null = use policy default) */
+    public function adjustEntitlement(Request $request, Employee $employee)
+    {
+        abort_unless(Auth::user()?->hasRole('admin'), 403);
+
+        $validated = $request->validate([
+            'vacation_entitlement'      => 'nullable|integer|min:0|max:365',
+            'sick_leave_entitlement'    => 'nullable|integer|min:0|max:365',
+            'personal_leave_entitlement'=> 'nullable|integer|min:0|max:365',
+            'leave_policy_id'           => 'nullable|exists:leave_policies,id',
+            'note'                      => 'nullable|string|max:255',
+        ]);
+
+        $old = $employee->only([
+            'vacation_entitlement', 'sick_leave_entitlement',
+            'personal_leave_entitlement', 'leave_policy_id',
+        ]);
+
+        $employee->update([
+            'vacation_entitlement'       => $validated['vacation_entitlement'] ?? null,
+            'sick_leave_entitlement'     => $validated['sick_leave_entitlement'] ?? null,
+            'personal_leave_entitlement' => $validated['personal_leave_entitlement'] ?? null,
+            'leave_policy_id'            => $validated['leave_policy_id'] ?? $employee->leave_policy_id,
+        ]);
+
+        $reason = $validated['note'] ?? 'ปรับสิทธิวันลาจาก Leave Management';
+        AuditLogService::log($employee, 'leave_entitlement_adjusted', 'leave_entitlement', $old, $employee->only(array_keys($old)), $reason);
+
+        if ($employee->user_id) {
+            NotificationService::notify(
+                $employee->user_id,
+                'leave.entitlement_adjusted',
+                'สิทธิวันลาของคุณถูกปรับ',
+                $reason,
+                route('workspace.my', [], false),
+                []
+            );
+        }
+
+        return back()->with('success', "ปรับสิทธิวันลาของ {$employee->display_name} สำเร็จ");
     }
 }

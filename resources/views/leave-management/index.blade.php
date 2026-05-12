@@ -234,10 +234,10 @@
                             </td>
                             @endforeach
                             <td class="px-3 py-2 text-right whitespace-nowrap">
+                                <button @click="openHistory(row)" class="px-2 py-1 text-[10px] font-bold text-indigo-600 bg-indigo-50 rounded border border-indigo-200 hover:bg-indigo-100">📜 ประวัติ</button>
+                                <button @click="openAdjust(row)" class="px-2 py-1 text-[10px] font-bold text-amber-700 bg-amber-50 rounded border border-amber-200 hover:bg-amber-100">✏️ ปรับสิทธิ</button>
                                 <a :href="'{{ url('workspace') }}/' + row.id + '/{{ now()->month }}/{{ now()->year }}'"
-                                   class="text-[10px] text-indigo-600 hover:underline">Workspace ↗</a>
-                                <a :href="'{{ url('employees') }}/' + row.id + '/edit'"
-                                   class="ml-2 text-[10px] text-gray-500 hover:underline">แก้ไข</a>
+                                   class="ml-1 text-[10px] text-gray-500 hover:underline">Workspace ↗</a>
                             </td>
                         </tr>
                     </template>
@@ -250,6 +250,172 @@
                     </tr>
                 </tbody>
             </table>
+        </div>
+    </div>
+
+    {{-- History Modal --}}
+    <div x-show="showHistory" x-cloak class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto" @click.self="showHistory = false">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-3xl my-6 max-h-[90vh] overflow-y-auto">
+            <div class="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between">
+                <div>
+                    <h3 class="text-lg font-bold">📜 ประวัติวันลา</h3>
+                    <p class="text-xs text-gray-500" x-show="historyData">
+                        <span x-text="historyData?.employee?.name"></span> · <span x-text="historyData?.employee?.code"></span> · ปี <span x-text="(historyData?.year || 0) + 543"></span>
+                    </p>
+                </div>
+                <button @click="showHistory = false" class="text-gray-400 hover:text-gray-700 text-xl">×</button>
+            </div>
+            <div class="p-6 space-y-5">
+                <div x-show="historyLoading" class="py-12 text-center text-gray-400 text-sm">กำลังโหลด...</div>
+                <template x-if="!historyLoading && historyData">
+                    <div class="space-y-5">
+                        {{-- Balance summary --}}
+                        <div class="grid grid-cols-3 gap-3">
+                            <template x-for="(b, key) in historyData.balances" :key="key">
+                                <div class="p-3 bg-gray-50 rounded-xl">
+                                    <div class="text-[10px] font-bold text-gray-500 uppercase" x-text="b.label"></div>
+                                    <div class="text-xl font-extrabold text-gray-800 mt-1">
+                                        <span x-text="formatDays(b.remaining)"></span>
+                                        <span class="text-[10px] text-gray-400 font-normal">/ <span x-text="formatDays(b.total_available)"></span></span>
+                                    </div>
+                                    <div class="text-[10px] text-gray-500 mt-1">
+                                        ใช้ <span x-text="formatDays(b.used)"></span> ·
+                                        แลก <span x-text="formatDays(b.encashed)"></span> ·
+                                        ยกเข้า <span x-text="formatDays(b.carryover)"></span>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+
+                        {{-- Carryovers --}}
+                        <div>
+                            <h4 class="text-sm font-bold text-gray-700 mb-2">📥 ยกยอด (<span x-text="historyData.carryovers.length"></span>)</h4>
+                            <template x-if="historyData.carryovers.length === 0">
+                                <div class="p-3 bg-gray-50 rounded-lg text-xs text-gray-400 text-center">ไม่มีรายการยกยอด</div>
+                            </template>
+                            <div class="space-y-1.5">
+                                <template x-for="c in historyData.carryovers" :key="c.id">
+                                    <div class="p-2.5 bg-emerald-50 border border-emerald-100 rounded-lg flex items-start justify-between text-xs">
+                                        <div>
+                                            <div class="font-bold text-emerald-900">
+                                                <span x-text="c.leave_label"></span>:
+                                                <span x-text="formatDays(c.days)"></span> วัน
+                                                <span class="text-[10px] text-gray-500"
+                                                      x-text="(c.source_year || '?') + ' → ' + c.target_year"></span>
+                                            </div>
+                                            <div class="text-[10px] text-gray-500" x-show="c.note" x-text="c.note"></div>
+                                        </div>
+                                        <span class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase"
+                                              :class="c.status === 'approved' ? 'bg-emerald-200 text-emerald-700' : 'bg-amber-200 text-amber-700'"
+                                              x-text="c.status"></span>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+
+                        {{-- Encashments --}}
+                        <div>
+                            <h4 class="text-sm font-bold text-gray-700 mb-2">💵 แลกเงิน (<span x-text="historyData.encashments.length"></span>)</h4>
+                            <template x-if="historyData.encashments.length === 0">
+                                <div class="p-3 bg-gray-50 rounded-lg text-xs text-gray-400 text-center">ไม่มีรายการแลกเงิน</div>
+                            </template>
+                            <div class="space-y-1.5">
+                                <template x-for="e in historyData.encashments" :key="e.id">
+                                    <div class="p-2.5 bg-rose-50 border border-rose-100 rounded-lg flex items-start justify-between text-xs">
+                                        <div>
+                                            <div class="font-bold text-rose-900">
+                                                <span x-text="e.leave_label"></span>:
+                                                <span x-text="formatDays(e.days)"></span> วัน
+                                                = ฿<span x-text="Number(e.amount).toLocaleString()"></span>
+                                            </div>
+                                            <div class="text-[10px] text-gray-500">
+                                                จ่ายงวด <span x-text="e.payout_month + '/' + e.payout_year"></span>
+                                                <span x-show="e.note"> · <span x-text="e.note"></span></span>
+                                            </div>
+                                        </div>
+                                        <span class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase"
+                                              :class="e.status === 'approved' ? 'bg-rose-200 text-rose-700' : 'bg-amber-200 text-amber-700'"
+                                              x-text="e.status"></span>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+
+                        {{-- Used logs --}}
+                        <div>
+                            <h4 class="text-sm font-bold text-gray-700 mb-2">📋 วันที่ลาในปีนี้ (<span x-text="historyData.used_logs.length"></span>)</h4>
+                            <template x-if="historyData.used_logs.length === 0">
+                                <div class="p-3 bg-gray-50 rounded-lg text-xs text-gray-400 text-center">ไม่มีบันทึกการลาในปีนี้</div>
+                            </template>
+                            <div class="grid grid-cols-2 md:grid-cols-3 gap-1.5">
+                                <template x-for="l in historyData.used_logs" :key="l.id">
+                                    <div class="px-2 py-1 bg-gray-50 border border-gray-100 rounded text-[10px]">
+                                        <span class="font-bold" x-text="l.log_date"></span>
+                                        <span class="text-gray-500" x-text="' · ' + l.leave_label"></span>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </div>
+
+    {{-- Adjust Entitlement Modal --}}
+    <div x-show="showAdjust" x-cloak class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto" @click.self="showAdjust = false">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg my-6" x-show="adjustEmp">
+            <form :action="adjustEmp ? '{{ url('leave-management') }}/' + adjustEmp.id + '/adjust' : ''" method="POST" class="p-6">
+                @csrf
+                @method('PATCH')
+                <h3 class="text-lg font-bold mb-1">✏️ ปรับสิทธิวันลา</h3>
+                <p class="text-xs text-gray-500 mb-4">
+                    <span x-text="adjustEmp?.name"></span> · <span x-text="adjustEmp?.code"></span>
+                </p>
+                <p class="text-[11px] text-amber-700 mb-4 p-2 bg-amber-50 rounded-lg border border-amber-100">
+                    💡 เว้นช่อง = ใช้ค่าจากนโยบาย · ใส่ตัวเลข = override สิทธิเฉพาะคนนี้
+                </p>
+
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">นโยบายวันลา</label>
+                        <select name="leave_policy_id" class="w-full px-3 py-2 border rounded-lg text-sm">
+                            <option value="">— ใช้ default —</option>
+                            @foreach($policies as $p)
+                            <option value="{{ $p->id }}" x-bind:selected="adjustEmp?.policy_id == {{ $p->id }}">{{ $p->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    @foreach(['vacation','sick_leave','personal_leave'] as $field)
+                    @php
+                        $fieldName = $field === 'vacation' ? 'vacation_entitlement' : $field . '_entitlement';
+                        $labelKey = $field === 'vacation' ? 'vacation_leave' : $field;
+                        $meta = $typeMeta[$labelKey];
+                    @endphp
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">
+                            {{ $meta['icon'] }} {{ $meta['label'] }} (วัน/ปี)
+                        </label>
+                        <input type="number" name="{{ $fieldName }}" min="0" max="365"
+                               :value="adjustEmp?.balances?.{{ $labelKey }}?.is_override ? adjustEmp.balances.{{ $labelKey }}.limit : ''"
+                               :placeholder="'default: ' + (adjustEmp?.balances?.{{ $labelKey }}?.limit || 0)"
+                               class="w-full px-3 py-2 border rounded-lg text-sm">
+                    </div>
+                    @endforeach
+
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">เหตุผล (audit log)</label>
+                        <input type="text" name="note" maxlength="255" placeholder="เช่น โบนัสพิเศษ, แก้ข้อมูลผิด"
+                               class="w-full px-3 py-2 border rounded-lg text-sm">
+                    </div>
+                </div>
+
+                <div class="flex justify-end gap-2 pt-4">
+                    <button type="button" @click="showAdjust = false" class="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">ยกเลิก</button>
+                    <button type="submit" class="px-4 py-2 text-sm bg-amber-600 text-white rounded-lg hover:bg-amber-700 font-bold">บันทึก</button>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -311,6 +477,11 @@ function leaveMgmt({ rows, departments, policies, year }) {
         sortDir: 'asc',
         selected: [],
         showBatchCarry: false,
+        showHistory: false,
+        historyLoading: false,
+        historyData: null,
+        showAdjust: false,
+        adjustEmp: null,
 
         get filteredRows() {
             let arr = this.rows;
@@ -376,6 +547,26 @@ function leaveMgmt({ rows, departments, policies, year }) {
         formatDays(n) {
             const v = Number(n) || 0;
             return (Math.round(v * 10) / 10).toString().replace(/\.0$/, '');
+        },
+        async openHistory(row) {
+            this.showHistory = true;
+            this.historyData = null;
+            this.historyLoading = true;
+            try {
+                const url = `{{ url('leave-management') }}/${row.id}/history?year=${this.year}`;
+                const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+                if (!res.ok) throw new Error('Failed to fetch history');
+                this.historyData = await res.json();
+            } catch (e) {
+                alert('โหลดประวัติไม่สำเร็จ: ' + e.message);
+                this.showHistory = false;
+            } finally {
+                this.historyLoading = false;
+            }
+        },
+        openAdjust(row) {
+            this.adjustEmp = row;
+            this.showAdjust = true;
         },
         progressPct(b) {
             const total = (Number(b?.total_available) || 0);
