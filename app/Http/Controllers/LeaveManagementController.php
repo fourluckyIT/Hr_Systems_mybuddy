@@ -7,6 +7,7 @@ use App\Models\ExtraIncomeEntry;
 use App\Models\LeaveCarryover;
 use App\Models\LeaveEncashment;
 use App\Models\LeavePolicy;
+use App\Models\AuditLog;
 use App\Services\AuditLogService;
 use App\Services\NotificationService;
 use Illuminate\Http\Request;
@@ -385,24 +386,42 @@ class LeaveManagementController extends Controller
                 'note' => $l->note,
             ]);
 
-        $auditLogs = \App\Models\AuditLog::with('user')->where('target_id', $employee->id)
-            ->where('target_type', get_class($employee))
-            ->where(function ($q) {
-                $q->where('action', 'like', 'leave_%')
-                  ->orWhere('action', 'like', '%carryover%')
-                  ->orWhere('action', 'like', '%encashment%');
+        // Comprehensive audit trail
+        $carryoverIds = $employee->leaveCarryovers()->pluck('id');
+        $encashIds = $employee->leaveEncashments()->pluck('id');
+
+        $audits = AuditLog::with('user')
+            ->where(function ($q) use ($employee, $carryoverIds, $encashIds) {
+                $q->where(function ($q2) use ($employee) {
+                    $q2->where('auditable_type', Employee::class)
+                       ->where('auditable_id', $employee->id)
+                       ->where(function ($q3) {
+                           $q3->where('action', 'like', 'leave%')
+                              ->orWhere('field_name', 'like', 'leave%');
+                       });
+                })
+                ->orWhere(function ($q2) use ($carryoverIds) {
+                    $q2->where('auditable_type', LeaveCarryover::class)
+                       ->whereIn('auditable_id', $carryoverIds);
+                })
+                ->orWhere(function ($q2) use ($encashIds) {
+                    $q2->where('auditable_type', LeaveEncashment::class)
+                       ->whereIn('auditable_id', $encashIds);
+                });
             })
             ->orderByDesc('created_at')
+            ->limit(50)
             ->get()
             ->map(fn($a) => [
                 'id' => $a->id,
                 'action' => $a->action,
                 'field_name' => $a->field_name,
+                'reason' => $a->reason,
                 'old_value' => $a->old_value,
                 'new_value' => $a->new_value,
-                'reason' => $a->reason,
-                'created_by' => $a->user?->name ?? 'System',
+                'created_by' => $a->user?->name ?? 'system',
                 'created_at' => $a->created_at?->toIso8601String(),
+                'subject' => class_basename($a->auditable_type),
             ]);
 
         return response()->json([
@@ -416,7 +435,7 @@ class LeaveManagementController extends Controller
             'carryovers' => $carryovers,
             'encashments' => $encashments,
             'used_logs' => $usedLogs,
-            'audit_logs' => $auditLogs,
+            'audit_logs' => $audits, // Normalized key
         ]);
     }
 

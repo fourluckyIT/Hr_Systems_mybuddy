@@ -148,6 +148,7 @@ Route::prefix('leave-management')->name('leave-management.')->middleware('role:a
     Route::post('/batch-carryover', [LeaveManagementController::class, 'batchCarryover'])->name('batch-carryover');
     Route::post('/batch-encash', [LeaveManagementController::class, 'batchEncash'])->name('batch-encash');
     Route::post('/bulk-assign-policy', [LeaveManagementController::class, 'bulkAssignPolicy'])->name('bulk-assign-policy');
+    Route::get('/export', [LeaveManagementController::class, 'export'])->name('export');
     Route::get('/{employee}/history', [LeaveManagementController::class, 'employeeHistory'])->name('history');
     Route::patch('/{employee}/adjust', [LeaveManagementController::class, 'adjustEntitlement'])->name('adjust');
 });
@@ -287,6 +288,7 @@ Route::prefix('settings')->name('settings.')->middleware('role:admin')->group(fu
     Route::get('/tiers', [\App\Http\Controllers\PerformanceTierController::class, 'index'])->name('tiers.index');
     Route::post('/tiers', [\App\Http\Controllers\PerformanceTierController::class, 'store'])->name('tiers.store');
     Route::patch('/tiers/{tier}', [\App\Http\Controllers\PerformanceTierController::class, 'update'])->name('tiers.update');
+    Route::post('/tiers/{tier}/move', [\App\Http\Controllers\PerformanceTierController::class, 'move'])->name('tiers.move');
     Route::delete('/tiers/{tier}', [\App\Http\Controllers\PerformanceTierController::class, 'destroy'])->name('tiers.destroy');
 
     Route::post('/holidays', [SettingsController::class, 'addHoliday'])->name('holidays.add');
@@ -300,6 +302,7 @@ Route::prefix('settings')->name('settings.')->middleware('role:admin')->group(fu
     Route::prefix('master-data')->name('master-data.')->group(function () {
         Route::post('/payroll-item-types', [MasterDataController::class, 'storePayrollItemType'])->name('payroll-item-types.store');
         Route::patch('/payroll-item-types/{payrollItemType}', [MasterDataController::class, 'updatePayrollItemType'])->name('payroll-item-types.update');
+        Route::post('/payroll-item-types/{payrollItemType}/move', [MasterDataController::class, 'movePayrollItemType'])->name('payroll-item-types.move');
         Route::delete('/payroll-item-types/{payrollItemType}', [MasterDataController::class, 'deletePayrollItemType'])->name('payroll-item-types.delete');
         Route::post('/departments', [MasterDataController::class, 'storeDepartment'])->name('departments.store');
         Route::patch('/departments/{department}', [MasterDataController::class, 'updateDepartment'])->name('departments.update');
@@ -317,6 +320,7 @@ Route::prefix('settings')->name('settings.')->middleware('role:admin')->group(fu
         
         Route::post('/job-stages', [MasterDataController::class, 'storeJobStage'])->name('job-stages.store');
         Route::patch('/job-stages/{jobStage}', [MasterDataController::class, 'updateJobStage'])->name('job-stages.update');
+        Route::post('/job-stages/{jobStage}/move', [MasterDataController::class, 'moveJobStage'])->name('job-stages.move');
         Route::delete('/job-stages/{jobStage}', [MasterDataController::class, 'deleteJobStage'])->name('job-stages.delete');
         // Games
         Route::post('/games', [MasterDataController::class, 'storeGame'])->name('games.store');
@@ -331,6 +335,7 @@ Route::prefix('settings')->name('settings.')->middleware('role:admin')->group(fu
         // Holiday Types (Master Data)
         Route::post('/holiday-types', [MasterDataController::class, 'storeHolidayType'])->name('holiday-types.store');
         Route::patch('/holiday-types/{holidayType}', [MasterDataController::class, 'updateHolidayType'])->name('holiday-types.update');
+        Route::post('/holiday-types/{holidayType}/move', [MasterDataController::class, 'moveHolidayType'])->name('holiday-types.move');
         Route::delete('/holiday-types/{holidayType}', [MasterDataController::class, 'deleteHolidayType'])->name('holiday-types.delete');
     });
 

@@ -112,16 +112,10 @@
                 </div>
             </div>
 
-            <div class="grid grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Multiplier (ตัวคูณ)</label>
-                    <input type="number" step="0.001" min="-1" max="10" name="multiplier" :value="editTier ? editTier.multiplier : '0.000'" required class="w-full px-3 py-2 border rounded-lg text-sm" placeholder="เช่น 0.20 = +20%, -0.10 = -10%">
-                    <p class="text-[9px] text-gray-400 mt-1">+0.20 = โบนัส ×1.20 · -0.10 = หัก 10% (×0.90) · ติดลบได้ถึง -1.00</p>
-                </div>
-                <div>
-                    <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">ลำดับการแสดงผล</label>
-                    <input type="number" name="display_order" :value="editTier ? editTier.display_order : '1'" required class="w-full px-3 py-2 border rounded-lg text-sm">
-                </div>
+            <div>
+                <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Multiplier (ตัวคูณ)</label>
+                <input type="number" step="0.001" min="-1" max="10" name="multiplier" :value="editTier ? editTier.multiplier : '0.000'" required class="w-full px-3 py-2 border rounded-lg text-sm" placeholder="เช่น 0.20 = +20%, -0.10 = -10%">
+                <p class="text-[9px] text-gray-400 mt-1">+0.20 = โบนัส ×1.20 · -0.10 = หัก 10% (×0.90) • ลำดับการแสดงผลปรับด้วยปุ่ม ▲ ▼ ในตาราง</p>
             </div>
 
             <div class="border-t border-gray-100 pt-4 mt-2">

@@ -34,7 +34,7 @@
                 </select>
             </form>
             <button onclick="window.location.reload()" class="px-3 py-1.5 bg-white border border-gray-200 text-gray-700 rounded-lg text-xs font-bold hover:bg-gray-50" title="คำนวณยอดใหม่ (Recompute)">🔄 โหลดใหม่</button>
-            <a :href="'{{ route('leave-management.export-csv') }}?year=' + year" class="px-3 py-1.5 bg-white border border-gray-200 text-gray-700 rounded-lg text-xs font-bold hover:bg-gray-50">📥 Export CSV</a>
+            <a :href="'{{ route('leave-management.export-csv') }}?year=' + year" class="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700">⬇️ Export CSV</a>
             <a href="{{ route('settings.master-data') }}?tab=leave_holidays" class="px-3 py-1.5 bg-white border border-gray-200 text-gray-700 rounded-lg text-xs font-bold hover:bg-gray-50">⚙️ จัดการนโยบาย</a>
         </div>
     </div>
@@ -473,6 +473,7 @@
                                 </template>
                             </div>
                         </div>
+
                         {{-- Audit logs --}}
                         <div>
                             <h4 class="text-sm font-bold text-gray-700 mb-2">🔎 ประวัติการแก้ไข (Audit Logs) (<span x-text="historyData.audit_logs?.length || 0"></span>)</h4>
@@ -483,12 +484,15 @@
                                 <template x-for="a in historyData.audit_logs" :key="a.id">
                                     <div class="p-2.5 bg-slate-50 border border-slate-100 rounded-lg text-xs">
                                         <div class="flex justify-between items-start mb-1">
-                                            <span class="font-bold text-slate-700" x-text="a.action"></span>
+                                            <div>
+                                                <span class="font-bold text-slate-700" x-text="a.action"></span>
+                                                <span class="ml-1 px-1 bg-slate-200 text-slate-600 rounded text-[9px]" x-text="a.subject"></span>
+                                            </div>
                                             <span class="text-[10px] text-slate-500" x-text="new Date(a.created_at).toLocaleString('th-TH')"></span>
                                         </div>
-                                        <div class="text-slate-600 mb-1">
+                                        <div class="text-slate-600 mb-1" x-show="a.field_name">
                                             เปลี่ยน <span class="font-mono text-[10px] bg-white px-1 rounded border border-slate-200" x-text="a.field_name"></span>: 
-                                            <span class="text-rose-600" x-text="a.old_value"></span> ➔ <span class="text-emerald-600 font-bold" x-text="a.new_value"></span>
+                                            <span class="text-rose-600" x-text="a.old_value || '—'"></span> ➔ <span class="text-emerald-600 font-bold" x-text="a.new_value"></span>
                                         </div>
                                         <div class="text-[10px] text-slate-500">
                                             โดย: <span x-text="a.created_by"></span>
