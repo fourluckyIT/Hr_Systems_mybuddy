@@ -287,6 +287,7 @@ Route::prefix('settings')->name('settings.')->middleware('role:admin')->group(fu
     Route::get('/tiers', [\App\Http\Controllers\PerformanceTierController::class, 'index'])->name('tiers.index');
     Route::post('/tiers', [\App\Http\Controllers\PerformanceTierController::class, 'store'])->name('tiers.store');
     Route::patch('/tiers/{tier}', [\App\Http\Controllers\PerformanceTierController::class, 'update'])->name('tiers.update');
+    Route::post('/tiers/{tier}/move', [\App\Http\Controllers\PerformanceTierController::class, 'move'])->name('tiers.move');
     Route::delete('/tiers/{tier}', [\App\Http\Controllers\PerformanceTierController::class, 'destroy'])->name('tiers.destroy');
 
     Route::post('/holidays', [SettingsController::class, 'addHoliday'])->name('holidays.add');

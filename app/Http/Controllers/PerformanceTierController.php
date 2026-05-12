@@ -24,13 +24,13 @@ class PerformanceTierController extends Controller
             'min_qualified_months' => 'nullable|integer|min:0',
             'max_qualified_months' => 'nullable|integer|min:0',
             'description' => 'nullable|string',
-            'display_order' => 'required|integer',
             'is_active' => 'boolean',
             'auto_select_enabled' => 'boolean',
         ]);
 
         $validated['is_active'] = $request->has('is_active');
         $validated['auto_select_enabled'] = $request->has('auto_select_enabled');
+        $validated['display_order'] = (int) PerformanceTier::max('display_order') + 10;
 
         PerformanceTier::create($validated);
 
@@ -47,7 +47,6 @@ class PerformanceTierController extends Controller
             'min_qualified_months' => 'nullable|integer|min:0',
             'max_qualified_months' => 'nullable|integer|min:0',
             'description' => 'nullable|string',
-            'display_order' => 'required|integer',
         ]);
 
         $validated['is_active'] = $request->has('is_active');
@@ -56,6 +55,29 @@ class PerformanceTierController extends Controller
         $tier->update($validated);
 
         return back()->with('success', 'อัปเดตระดับผลงานสำเร็จ');
+    }
+
+    public function move(Request $request, PerformanceTier $tier)
+    {
+        $dir = $request->validate(['direction' => 'required|in:up,down'])['direction'];
+        $neighbor = PerformanceTier::where('display_order', $dir === 'up' ? '<' : '>', $tier->display_order)
+            ->orderBy('display_order', $dir === 'up' ? 'desc' : 'asc')
+            ->orderBy('id', $dir === 'up' ? 'desc' : 'asc')
+            ->first();
+        if ($neighbor) {
+            \Illuminate\Support\Facades\DB::transaction(function () use ($tier, $neighbor) {
+                [$a, $b] = [$tier->display_order, $neighbor->display_order];
+                if ($a === $b) {
+                    $neighbor->display_order = $a + ($tier->id > $neighbor->id ? -1 : 1);
+                } else {
+                    $tier->display_order = $b;
+                    $neighbor->display_order = $a;
+                }
+                $tier->save();
+                $neighbor->save();
+            });
+        }
+        return back();
     }
 
     public function destroy(PerformanceTier $tier)

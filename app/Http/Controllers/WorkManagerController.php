@@ -56,11 +56,37 @@ class WorkManagerController extends Controller
     {
         $validated = $this->validatePayload($request);
 
-        $wlt = WorkLogType::create($this->mapPayload($validated));
+        $payload = $this->mapPayload($validated);
+        $payload['sort_order'] = (int) WorkLogType::max('sort_order') + 10;
+
+        $wlt = WorkLogType::create($payload);
 
         AuditLogService::logCreated($wlt, 'Work template created');
 
         return back()->with('success', 'เพิ่ม Work Template สำเร็จ');
+    }
+
+    public function move(Request $request, WorkLogType $workLogType)
+    {
+        $dir = $request->validate(['direction' => 'required|in:up,down'])['direction'];
+        $neighbor = WorkLogType::where('sort_order', $dir === 'up' ? '<' : '>', $workLogType->sort_order)
+            ->orderBy('sort_order', $dir === 'up' ? 'desc' : 'asc')
+            ->orderBy('id', $dir === 'up' ? 'desc' : 'asc')
+            ->first();
+        if ($neighbor) {
+            \Illuminate\Support\Facades\DB::transaction(function () use ($workLogType, $neighbor) {
+                [$a, $b] = [$workLogType->sort_order, $neighbor->sort_order];
+                if ($a === $b) {
+                    $neighbor->sort_order = $a + ($workLogType->id > $neighbor->id ? -1 : 1);
+                } else {
+                    $workLogType->sort_order = $b;
+                    $neighbor->sort_order = $a;
+                }
+                $workLogType->save();
+                $neighbor->save();
+            });
+        }
+        return back();
     }
 
     public function update(Request $request, WorkLogType $workLogType)
@@ -163,7 +189,6 @@ class WorkManagerController extends Controller
             'target_length_hms' => ['nullable', 'regex:/^\d{1,2}:\d{2}(?::\d{2})?$/'],
             'target_length_minutes' => 'nullable|numeric|min:0',
             'default_rate_per_minute' => 'nullable|numeric|min:0',
-            'sort_order' => 'nullable|integer|min:0',
             'description' => 'nullable|string|max:2000',
             'config_json' => 'nullable|string',
             'is_active' => 'nullable|boolean',
@@ -194,7 +219,6 @@ class WorkManagerController extends Controller
             'footage_size' => $validated['footage_size'] ?? null,
             'target_length_minutes' => $targetLengthMinutes,
             'default_rate_per_minute' => $validated['default_rate_per_minute'] ?? null,
-            'sort_order' => $validated['sort_order'] ?? 0,
             'description' => $validated['description'] ?? null,
             'config' => $config,
             'is_active' => (bool) ($validated['is_active'] ?? true),
