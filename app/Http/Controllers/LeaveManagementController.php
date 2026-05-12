@@ -385,6 +385,26 @@ class LeaveManagementController extends Controller
                 'note' => $l->note,
             ]);
 
+        $auditLogs = \App\Models\AuditLog::with('user')->where('target_id', $employee->id)
+            ->where('target_type', get_class($employee))
+            ->where(function ($q) {
+                $q->where('action', 'like', 'leave_%')
+                  ->orWhere('action', 'like', '%carryover%')
+                  ->orWhere('action', 'like', '%encashment%');
+            })
+            ->orderByDesc('created_at')
+            ->get()
+            ->map(fn($a) => [
+                'id' => $a->id,
+                'action' => $a->action,
+                'field_name' => $a->field_name,
+                'old_value' => $a->old_value,
+                'new_value' => $a->new_value,
+                'reason' => $a->reason,
+                'created_by' => $a->user?->name ?? 'System',
+                'created_at' => $a->created_at?->toIso8601String(),
+            ]);
+
         return response()->json([
             'employee' => [
                 'id' => $employee->id,
@@ -396,6 +416,7 @@ class LeaveManagementController extends Controller
             'carryovers' => $carryovers,
             'encashments' => $encashments,
             'used_logs' => $usedLogs,
+            'audit_logs' => $auditLogs,
         ]);
     }
 
@@ -439,5 +460,54 @@ class LeaveManagementController extends Controller
         }
 
         return back()->with('success', "ปรับสิทธิวันลาของ {$employee->display_name} สำเร็จ");
+    }
+
+    /** Export leave balances as CSV */
+    public function exportCsv(Request $request)
+    {
+        abort_unless(Auth::user()?->hasRole('admin'), 403);
+        $year = (int) $request->get('year', now()->year);
+
+        $employees = Employee::with(['department', 'position', 'leavePolicy'])
+            ->where('is_active', true)
+            ->whereIn('payroll_mode', ['monthly_staff', 'office_staff', 'youtuber_salary'])
+            ->orderBy('first_name')
+            ->get();
+
+        $filename = "leave_balances_{$year}.csv";
+        $headers = [
+            "Content-type"        => "text/csv; charset=UTF-8",
+            "Content-Disposition" => "attachment; filename=$filename",
+            "Pragma"              => "no-cache",
+            "Cache-Control"       => "must-revalidate, post-check=0, pre-check=0",
+            "Expires"             => "0"
+        ];
+
+        $callback = function () use ($employees, $year) {
+            $file = fopen('php://output', 'w');
+            fputs($file, "\xEF\xBB\xBF"); // UTF-8 BOM
+            fputcsv($file, ['Employee Code', 'Name', 'Department', 'Position', 'Policy', 'Leave Type', 'Total Entitlement', 'Used', 'Remaining']);
+
+            foreach ($employees as $emp) {
+                $balances = $emp->getAllLeaveBalances($year);
+                foreach ($balances as $type => $b) {
+                    $label = Employee::LEAVE_TYPES_TRACKED[$type]['label'] ?? $type;
+                    fputcsv($file, [
+                        $emp->employee_code,
+                        $emp->display_name,
+                        $emp->department?->name ?? '—',
+                        $emp->position?->name ?? '—',
+                        $emp->effectivePolicy()?->name ?? '—',
+                        $label,
+                        $b['entitlement'],
+                        $b['used'],
+                        $b['remaining']
+                    ]);
+                }
+            }
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, $headers);
     }
 }

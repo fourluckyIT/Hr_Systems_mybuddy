@@ -144,6 +144,7 @@ Route::prefix('leave-balance')->name('leave-balance.')->middleware('role:admin')
 // Centralized leave management dashboard (admin)
 Route::prefix('leave-management')->name('leave-management.')->middleware('role:admin')->group(function () {
     Route::get('/', [LeaveManagementController::class, 'index'])->name('index');
+    Route::get('/export-csv', [LeaveManagementController::class, 'exportCsv'])->name('export-csv');
     Route::post('/batch-carryover', [LeaveManagementController::class, 'batchCarryover'])->name('batch-carryover');
     Route::post('/batch-encash', [LeaveManagementController::class, 'batchEncash'])->name('batch-encash');
     Route::post('/bulk-assign-policy', [LeaveManagementController::class, 'bulkAssignPolicy'])->name('bulk-assign-policy');

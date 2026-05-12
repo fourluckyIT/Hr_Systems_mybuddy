@@ -33,6 +33,8 @@
                     @endfor
                 </select>
             </form>
+            <button onclick="window.location.reload()" class="px-3 py-1.5 bg-white border border-gray-200 text-gray-700 rounded-lg text-xs font-bold hover:bg-gray-50" title="คำนวณยอดใหม่ (Recompute)">🔄 โหลดใหม่</button>
+            <a :href="'{{ route('leave-management.export-csv') }}?year=' + year" class="px-3 py-1.5 bg-white border border-gray-200 text-gray-700 rounded-lg text-xs font-bold hover:bg-gray-50">📥 Export CSV</a>
             <a href="{{ route('settings.master-data') }}?tab=leave_holidays" class="px-3 py-1.5 bg-white border border-gray-200 text-gray-700 rounded-lg text-xs font-bold hover:bg-gray-50">⚙️ จัดการนโยบาย</a>
         </div>
     </div>
@@ -467,6 +469,31 @@
                                     <div class="px-2 py-1 bg-gray-50 border border-gray-100 rounded text-[10px]">
                                         <span class="font-bold" x-text="l.log_date"></span>
                                         <span class="text-gray-500" x-text="' · ' + l.leave_label"></span>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                        {{-- Audit logs --}}
+                        <div>
+                            <h4 class="text-sm font-bold text-gray-700 mb-2">🔎 ประวัติการแก้ไข (Audit Logs) (<span x-text="historyData.audit_logs?.length || 0"></span>)</h4>
+                            <template x-if="!historyData.audit_logs || historyData.audit_logs.length === 0">
+                                <div class="p-3 bg-gray-50 rounded-lg text-xs text-gray-400 text-center">ไม่มีประวัติการแก้ไข</div>
+                            </template>
+                            <div class="space-y-1.5">
+                                <template x-for="a in historyData.audit_logs" :key="a.id">
+                                    <div class="p-2.5 bg-slate-50 border border-slate-100 rounded-lg text-xs">
+                                        <div class="flex justify-between items-start mb-1">
+                                            <span class="font-bold text-slate-700" x-text="a.action"></span>
+                                            <span class="text-[10px] text-slate-500" x-text="new Date(a.created_at).toLocaleString('th-TH')"></span>
+                                        </div>
+                                        <div class="text-slate-600 mb-1">
+                                            เปลี่ยน <span class="font-mono text-[10px] bg-white px-1 rounded border border-slate-200" x-text="a.field_name"></span>: 
+                                            <span class="text-rose-600" x-text="a.old_value"></span> ➔ <span class="text-emerald-600 font-bold" x-text="a.new_value"></span>
+                                        </div>
+                                        <div class="text-[10px] text-slate-500">
+                                            โดย: <span x-text="a.created_by"></span>
+                                            <template x-if="a.reason"><span x-text="' · เหตุผล: ' + a.reason"></span></template>
+                                        </div>
                                     </div>
                                 </template>
                             </div>
