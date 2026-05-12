@@ -1375,10 +1375,7 @@
                             @endforeach
                         </div>
                     </div>
-                    <div>
-                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">ลำดับ</label>
-                        <input type="number" name="sort_order" min="0" value="99" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-purple-500">
-                    </div>
+                    <p class="text-[10px] text-gray-400">💡 จะเพิ่มต่อท้ายรายการ — ใช้ปุ่ม ↑ ↓ ในรายการเพื่อจัดเรียง</p>
                     <button type="submit" class="w-full bg-purple-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-purple-700 transition">+ เพิ่มประเภท</button>
                 </form>
             </div>
@@ -1387,7 +1384,8 @@
             <div class="lg:col-span-2 bg-white rounded-2xl shadow-sm border p-5">
                 <h3 class="text-sm font-bold text-gray-700 mb-4">ประเภทวันหยุดทั้งหมด ({{ $holidayTypes->count() }})</h3>
                 <div class="space-y-2">
-                    @forelse($holidayTypes as $type)
+                    @forelse($holidayTypes as $idx => $type)
+                    @php $isFirst = $idx === 0; $isLast = $idx === $holidayTypes->count() - 1; @endphp
                     <div class="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100"
                          x-data="{
                              editing: false,
@@ -1395,11 +1393,20 @@
                                  name: @js($type->name),
                                  icon: @js($type->icon),
                                  default_color: @js($type->default_color),
-                                 sort_order: @js($type->sort_order),
                                  is_active: {{ $type->is_active ? 'true' : 'false' }},
                              }
                          }">
                         <div x-show="!editing" class="flex items-center gap-3 flex-grow">
+                            <div class="flex flex-col gap-0.5">
+                                <form action="{{ route('settings.master-data.holiday-types.move', $type->id) }}" method="POST" class="leading-none">
+                                    @csrf <input type="hidden" name="direction" value="up">
+                                    <button type="submit" {{ $isFirst ? 'disabled' : '' }} class="w-5 h-5 flex items-center justify-center rounded {{ $isFirst ? 'text-gray-300 cursor-not-allowed' : 'text-gray-500 hover:bg-purple-100 hover:text-purple-700' }}" title="เลื่อนขึ้น">▲</button>
+                                </form>
+                                <form action="{{ route('settings.master-data.holiday-types.move', $type->id) }}" method="POST" class="leading-none">
+                                    @csrf <input type="hidden" name="direction" value="down">
+                                    <button type="submit" {{ $isLast ? 'disabled' : '' }} class="w-5 h-5 flex items-center justify-center rounded {{ $isLast ? 'text-gray-300 cursor-not-allowed' : 'text-gray-500 hover:bg-purple-100 hover:text-purple-700' }}" title="เลื่อนลง">▼</button>
+                                </form>
+                            </div>
                             <div class="w-10 h-10 rounded-xl bg-{{ $type->default_color }}-100 text-{{ $type->default_color }}-700 flex items-center justify-center text-lg">
                                 {{ $type->icon ?: '📅' }}
                             </div>
@@ -1431,7 +1438,7 @@
                             @csrf @method('PATCH')
                             <input type="hidden" name="default_color" x-model="form.default_color">
                             <div class="grid grid-cols-1 md:grid-cols-12 gap-2 items-end">
-                                <div class="md:col-span-4">
+                                <div class="md:col-span-5">
                                     <label class="block text-[9px] font-bold text-gray-400 uppercase">ชื่อ</label>
                                     <input type="text" name="name" x-model="form.name" required class="w-full px-2 py-1.5 border rounded text-sm">
                                 </div>
@@ -1439,16 +1446,12 @@
                                     <label class="block text-[9px] font-bold text-gray-400 uppercase">ไอคอน</label>
                                     <input type="text" name="icon" x-model="form.icon" maxlength="10" class="w-full px-2 py-1.5 border rounded text-sm">
                                 </div>
-                                <div class="md:col-span-2">
-                                    <label class="block text-[9px] font-bold text-gray-400 uppercase">ลำดับ</label>
-                                    <input type="number" name="sort_order" x-model="form.sort_order" min="0" class="w-full px-2 py-1.5 border rounded text-sm">
-                                </div>
                                 <div class="md:col-span-2 flex items-center gap-2">
                                     <input type="hidden" name="is_active" value="0">
                                     <input type="checkbox" name="is_active" value="1" x-model="form.is_active" class="rounded border-gray-300 text-purple-600">
                                     <span class="text-xs text-gray-600">เปิดใช้</span>
                                 </div>
-                                <div class="md:col-span-2 flex gap-1">
+                                <div class="md:col-span-3 flex gap-1">
                                     <button type="submit" class="flex-1 px-2 py-1.5 bg-purple-600 text-white rounded text-xs font-bold">บันทึก</button>
                                     <button type="button" @click="editing = false" class="px-2 py-1.5 bg-gray-100 text-gray-600 rounded text-xs">ยกเลิก</button>
                                 </div>

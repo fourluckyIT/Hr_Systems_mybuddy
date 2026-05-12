@@ -331,6 +331,7 @@ Route::prefix('settings')->name('settings.')->middleware('role:admin')->group(fu
         // Holiday Types (Master Data)
         Route::post('/holiday-types', [MasterDataController::class, 'storeHolidayType'])->name('holiday-types.store');
         Route::patch('/holiday-types/{holidayType}', [MasterDataController::class, 'updateHolidayType'])->name('holiday-types.update');
+        Route::post('/holiday-types/{holidayType}/move', [MasterDataController::class, 'moveHolidayType'])->name('holiday-types.move');
         Route::delete('/holiday-types/{holidayType}', [MasterDataController::class, 'deleteHolidayType'])->name('holiday-types.delete');
     });
 

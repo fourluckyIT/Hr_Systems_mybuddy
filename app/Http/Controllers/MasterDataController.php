@@ -565,17 +565,47 @@ class MasterDataController extends Controller
             'name' => 'required|string|max:100',
             'default_color' => ['required', 'string', 'max:30', \Illuminate\Validation\Rule::in(array_keys(HolidayType::COLOR_PRESETS))],
             'icon' => 'nullable|string|max:10',
-            'sort_order' => 'nullable|integer|min:0',
         ]);
 
         $validated['is_system'] = false;
         $validated['is_active'] = true;
-        $validated['sort_order'] = $validated['sort_order'] ?? 99;
+        $validated['sort_order'] = (int) HolidayType::max('sort_order') + 10;
 
         $type = HolidayType::create($validated);
         $this->audit->logCreated($type, 'เพิ่มประเภทวันหยุด: ' . $type->name);
 
         return back()->with('success', "เพิ่มประเภทวันหยุด \"{$type->name}\" สำเร็จ");
+    }
+
+    public function moveHolidayType(Request $request, HolidayType $holidayType)
+    {
+        $this->requireAdmin();
+        $dir = $request->validate(['direction' => 'required|in:up,down'])['direction'];
+
+        $neighbor = HolidayType::where('sort_order', $dir === 'up' ? '<' : '>', $holidayType->sort_order)
+            ->orderBy('sort_order', $dir === 'up' ? 'desc' : 'asc')
+            ->orderBy('id', $dir === 'up' ? 'desc' : 'asc')
+            ->first();
+
+        if (!$neighbor) {
+            return back();
+        }
+
+        \Illuminate\Support\Facades\DB::transaction(function () use ($holidayType, $neighbor) {
+            [$a, $b] = [$holidayType->sort_order, $neighbor->sort_order];
+            if ($a === $b) {
+                // Resolve tie-breaker by spreading
+                $holidayType->sort_order = $a;
+                $neighbor->sort_order = $a + ($holidayType->id > $neighbor->id ? -1 : 1);
+            } else {
+                $holidayType->sort_order = $b;
+                $neighbor->sort_order = $a;
+            }
+            $holidayType->save();
+            $neighbor->save();
+        });
+
+        return back();
     }
 
     public function updateHolidayType(Request $request, HolidayType $holidayType)
@@ -585,7 +615,6 @@ class MasterDataController extends Controller
             'name' => 'required|string|max:100',
             'default_color' => ['required', 'string', 'max:30', \Illuminate\Validation\Rule::in(array_keys(HolidayType::COLOR_PRESETS))],
             'icon' => 'nullable|string|max:10',
-            'sort_order' => 'nullable|integer|min:0',
             'is_active' => 'nullable|boolean',
         ]);
 
