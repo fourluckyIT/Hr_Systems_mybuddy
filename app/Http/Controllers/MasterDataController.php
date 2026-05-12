@@ -308,11 +308,10 @@ class MasterDataController extends Controller
             'label_th' => 'required|string|max:100',
             'label_en' => 'nullable|string|max:100',
             'category' => 'required|in:income,deduction',
-            'sort_order' => 'nullable|integer|min:0',
         ]);
 
         $validated['is_system'] = false;
-        $validated['sort_order'] = $validated['sort_order'] ?? 99;
+        $validated['sort_order'] = (int) PayrollItemType::where('category', $validated['category'])->max('sort_order') + 10;
 
         $item = PayrollItemType::create($validated);
 
@@ -321,13 +320,36 @@ class MasterDataController extends Controller
         return back()->with('success', "เพิ่มรายการ \"{$item->label_th}\" สำเร็จ");
     }
 
+    public function movePayrollItemType(Request $request, PayrollItemType $payrollItemType)
+    {
+        $dir = $request->validate(['direction' => 'required|in:up,down'])['direction'];
+        $neighbor = PayrollItemType::where('category', $payrollItemType->category)
+            ->where('sort_order', $dir === 'up' ? '<' : '>', $payrollItemType->sort_order)
+            ->orderBy('sort_order', $dir === 'up' ? 'desc' : 'asc')
+            ->orderBy('id', $dir === 'up' ? 'desc' : 'asc')
+            ->first();
+        if ($neighbor) {
+            \Illuminate\Support\Facades\DB::transaction(function () use ($payrollItemType, $neighbor) {
+                [$a, $b] = [$payrollItemType->sort_order, $neighbor->sort_order];
+                if ($a === $b) {
+                    $neighbor->sort_order = $a + ($payrollItemType->id > $neighbor->id ? -1 : 1);
+                } else {
+                    $payrollItemType->sort_order = $b;
+                    $neighbor->sort_order = $a;
+                }
+                $payrollItemType->save();
+                $neighbor->save();
+            });
+        }
+        return back();
+    }
+
     public function updatePayrollItemType(Request $request, PayrollItemType $payrollItemType)
     {
         $validated = $request->validate([
             'label_th' => 'required|string|max:100',
             'label_en' => 'nullable|string|max:100',
             'category' => 'required|in:income,deduction',
-            'sort_order' => 'nullable|integer|min:0',
         ]);
 
         $old = $payrollItemType->toArray();
@@ -454,11 +476,10 @@ class MasterDataController extends Controller
             'code' => 'required|string|max:50|unique:job_stages,code',
             'name' => 'required|string|max:100',
             'color' => 'required|string|max:20',
-            'sort_order' => 'nullable|integer|min:0',
         ]);
 
         $validated['is_core'] = false;
-        $validated['sort_order'] = $validated['sort_order'] ?? 99;
+        $validated['sort_order'] = (int) \App\Models\JobStage::where('type', $validated['type'])->max('sort_order') + 10;
 
         $stage = \App\Models\JobStage::create($validated);
         $this->audit->logCreated($stage, 'เพิ่มสถานะงาน (Job Stage) ใหม่');
@@ -466,12 +487,35 @@ class MasterDataController extends Controller
         return back()->with('success', "เพิ่มสถานะ \"{$stage->name}\" สำเร็จ");
     }
 
+    public function moveJobStage(Request $request, \App\Models\JobStage $jobStage)
+    {
+        $dir = $request->validate(['direction' => 'required|in:up,down'])['direction'];
+        $neighbor = \App\Models\JobStage::where('type', $jobStage->type)
+            ->where('sort_order', $dir === 'up' ? '<' : '>', $jobStage->sort_order)
+            ->orderBy('sort_order', $dir === 'up' ? 'desc' : 'asc')
+            ->orderBy('id', $dir === 'up' ? 'desc' : 'asc')
+            ->first();
+        if ($neighbor) {
+            \Illuminate\Support\Facades\DB::transaction(function () use ($jobStage, $neighbor) {
+                [$a, $b] = [$jobStage->sort_order, $neighbor->sort_order];
+                if ($a === $b) {
+                    $neighbor->sort_order = $a + ($jobStage->id > $neighbor->id ? -1 : 1);
+                } else {
+                    $jobStage->sort_order = $b;
+                    $neighbor->sort_order = $a;
+                }
+                $jobStage->save();
+                $neighbor->save();
+            });
+        }
+        return back();
+    }
+
     public function updateJobStage(Request $request, \App\Models\JobStage $jobStage)
     {
         $validated = $request->validate([
             'name' => 'required|string|max:100',
             'color' => 'required|string|max:20',
-            'sort_order' => 'nullable|integer|min:0',
             'is_active' => 'nullable|boolean',
         ]);
 

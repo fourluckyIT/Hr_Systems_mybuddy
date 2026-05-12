@@ -300,6 +300,7 @@ Route::prefix('settings')->name('settings.')->middleware('role:admin')->group(fu
     Route::prefix('master-data')->name('master-data.')->group(function () {
         Route::post('/payroll-item-types', [MasterDataController::class, 'storePayrollItemType'])->name('payroll-item-types.store');
         Route::patch('/payroll-item-types/{payrollItemType}', [MasterDataController::class, 'updatePayrollItemType'])->name('payroll-item-types.update');
+        Route::post('/payroll-item-types/{payrollItemType}/move', [MasterDataController::class, 'movePayrollItemType'])->name('payroll-item-types.move');
         Route::delete('/payroll-item-types/{payrollItemType}', [MasterDataController::class, 'deletePayrollItemType'])->name('payroll-item-types.delete');
         Route::post('/departments', [MasterDataController::class, 'storeDepartment'])->name('departments.store');
         Route::patch('/departments/{department}', [MasterDataController::class, 'updateDepartment'])->name('departments.update');
@@ -317,6 +318,7 @@ Route::prefix('settings')->name('settings.')->middleware('role:admin')->group(fu
         
         Route::post('/job-stages', [MasterDataController::class, 'storeJobStage'])->name('job-stages.store');
         Route::patch('/job-stages/{jobStage}', [MasterDataController::class, 'updateJobStage'])->name('job-stages.update');
+        Route::post('/job-stages/{jobStage}/move', [MasterDataController::class, 'moveJobStage'])->name('job-stages.move');
         Route::delete('/job-stages/{jobStage}', [MasterDataController::class, 'deleteJobStage'])->name('job-stages.delete');
         // Games
         Route::post('/games', [MasterDataController::class, 'storeGame'])->name('games.store');
