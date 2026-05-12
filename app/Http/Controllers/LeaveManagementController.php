@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\ExtraIncomeEntry;
 use App\Models\LeaveCarryover;
@@ -385,6 +386,44 @@ class LeaveManagementController extends Controller
                 'note' => $l->note,
             ]);
 
+        // Audit trail of leave-related changes
+        $carryoverIds = $employee->leaveCarryovers()->pluck('id');
+        $encashIds = $employee->leaveEncashments()->pluck('id');
+
+        $audits = AuditLog::with('user')
+            ->where(function ($q) use ($employee, $carryoverIds, $encashIds) {
+                $q->where(function ($q2) use ($employee) {
+                    $q2->where('auditable_type', Employee::class)
+                       ->where('auditable_id', $employee->id)
+                       ->where(function ($q3) {
+                           $q3->where('action', 'like', 'leave%')
+                              ->orWhere('field', 'like', 'leave%');
+                       });
+                })
+                ->orWhere(function ($q2) use ($carryoverIds) {
+                    $q2->where('auditable_type', LeaveCarryover::class)
+                       ->whereIn('auditable_id', $carryoverIds);
+                })
+                ->orWhere(function ($q2) use ($encashIds) {
+                    $q2->where('auditable_type', LeaveEncashment::class)
+                       ->whereIn('auditable_id', $encashIds);
+                });
+            })
+            ->orderByDesc('created_at')
+            ->limit(50)
+            ->get()
+            ->map(fn($a) => [
+                'id' => $a->id,
+                'action' => $a->action,
+                'field' => $a->field,
+                'reason' => $a->reason,
+                'old_value' => $a->old_value,
+                'new_value' => $a->new_value,
+                'user' => $a->user?->name ?? 'system',
+                'at' => $a->created_at?->toIso8601String(),
+                'subject' => class_basename($a->auditable_type),
+            ]);
+
         return response()->json([
             'employee' => [
                 'id' => $employee->id,
@@ -396,6 +435,56 @@ class LeaveManagementController extends Controller
             'carryovers' => $carryovers,
             'encashments' => $encashments,
             'used_logs' => $usedLogs,
+            'audits' => $audits,
+        ]);
+    }
+
+    /** Export all leave balances as CSV */
+    public function export(Request $request)
+    {
+        abort_unless(Auth::user()?->hasRole('admin'), 403);
+        $year = (int) $request->get('year', now()->year);
+
+        $employees = Employee::with(['department', 'position', 'leavePolicy'])
+            ->where('is_active', true)
+            ->whereIn('payroll_mode', ['monthly_staff', 'office_staff', 'youtuber_salary'])
+            ->orderBy('first_name')->orderBy('last_name')
+            ->get();
+
+        $filename = "leave-balances-{$year}.csv";
+
+        return response()->streamDownload(function () use ($employees, $year) {
+            $out = fopen('php://output', 'w');
+            // BOM for Excel Thai support
+            fwrite($out, "\xEF\xBB\xBF");
+
+            $header = [
+                'รหัสพนักงาน', 'ชื่อ', 'แผนก', 'ตำแหน่ง', 'นโยบาย',
+                'พักร้อน_สิทธิ', 'พักร้อน_ยกเข้า', 'พักร้อน_ใช้', 'พักร้อน_แลก', 'พักร้อน_เหลือ',
+                'ป่วย_สิทธิ', 'ป่วย_ใช้', 'ป่วย_เหลือ',
+                'กิจ_สิทธิ', 'กิจ_ใช้', 'กิจ_เหลือ',
+            ];
+            fputcsv($out, $header);
+
+            foreach ($employees as $emp) {
+                $b = $emp->getAllLeaveBalances($year);
+                $v = $b['vacation_leave'] ?? [];
+                $s = $b['sick_leave'] ?? [];
+                $p = $b['personal_leave'] ?? [];
+                fputcsv($out, [
+                    $emp->employee_code,
+                    $emp->display_name,
+                    $emp->department?->name,
+                    $emp->position?->name,
+                    $emp->effectivePolicy()?->name,
+                    $v['limit'] ?? 0, $v['carryover'] ?? 0, $v['used'] ?? 0, $v['encashed'] ?? 0, $v['remaining'] ?? 0,
+                    $s['limit'] ?? 0, $s['used'] ?? 0, $s['remaining'] ?? 0,
+                    $p['limit'] ?? 0, $p['used'] ?? 0, $p['remaining'] ?? 0,
+                ]);
+            }
+            fclose($out);
+        }, $filename, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
         ]);
     }
 

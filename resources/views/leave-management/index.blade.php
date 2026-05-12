@@ -33,6 +33,7 @@
                     @endfor
                 </select>
             </form>
+            <a href="{{ route('leave-management.export', ['year' => $year]) }}" class="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700">⬇️ Export CSV</a>
             <a href="{{ route('settings.master-data') }}?tab=leave_holidays" class="px-3 py-1.5 bg-white border border-gray-200 text-gray-700 rounded-lg text-xs font-bold hover:bg-gray-50">⚙️ จัดการนโยบาย</a>
         </div>
     </div>
@@ -467,6 +468,29 @@
                                     <div class="px-2 py-1 bg-gray-50 border border-gray-100 rounded text-[10px]">
                                         <span class="font-bold" x-text="l.log_date"></span>
                                         <span class="text-gray-500" x-text="' · ' + l.leave_label"></span>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+
+                        {{-- Audit trail --}}
+                        <div>
+                            <h4 class="text-sm font-bold text-gray-700 mb-2">🔍 Audit Trail (<span x-text="historyData.audits?.length || 0"></span>)</h4>
+                            <template x-if="(historyData.audits?.length || 0) === 0">
+                                <div class="p-3 bg-gray-50 rounded-lg text-xs text-gray-400 text-center">ไม่มีประวัติการแก้ไข</div>
+                            </template>
+                            <div class="space-y-1">
+                                <template x-for="a in (historyData.audits || [])" :key="a.id">
+                                    <div class="p-2 bg-slate-50 border border-slate-100 rounded text-[11px] flex items-start gap-2">
+                                        <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-200 text-slate-700 whitespace-nowrap" x-text="a.subject"></span>
+                                        <div class="flex-grow">
+                                            <div>
+                                                <span class="font-bold text-gray-700" x-text="a.action"></span>
+                                                <span class="text-gray-500" x-show="a.field"> · <span x-text="a.field"></span></span>
+                                                <span class="text-gray-400 ml-1" x-show="a.reason" x-text="'— ' + a.reason"></span>
+                                            </div>
+                                            <div class="text-[9px] text-gray-400">โดย <span x-text="a.user"></span> · <span x-text="new Date(a.at).toLocaleString('th-TH')"></span></div>
+                                        </div>
                                     </div>
                                 </template>
                             </div>
