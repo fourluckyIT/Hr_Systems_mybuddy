@@ -145,6 +145,8 @@ Route::prefix('leave-balance')->name('leave-balance.')->middleware('role:admin')
 Route::prefix('leave-management')->name('leave-management.')->middleware('role:admin')->group(function () {
     Route::get('/', [LeaveManagementController::class, 'index'])->name('index');
     Route::post('/batch-carryover', [LeaveManagementController::class, 'batchCarryover'])->name('batch-carryover');
+    Route::post('/batch-encash', [LeaveManagementController::class, 'batchEncash'])->name('batch-encash');
+    Route::post('/bulk-assign-policy', [LeaveManagementController::class, 'bulkAssignPolicy'])->name('bulk-assign-policy');
     Route::get('/{employee}/history', [LeaveManagementController::class, 'employeeHistory'])->name('history');
     Route::patch('/{employee}/adjust', [LeaveManagementController::class, 'adjustEntitlement'])->name('adjust');
 });

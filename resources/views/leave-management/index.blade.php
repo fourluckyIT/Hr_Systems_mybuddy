@@ -138,11 +138,21 @@
             <span class="font-bold text-indigo-700">เลือก: <span x-text="selected.length"></span> คน</span>
             <span class="text-gray-500 ml-2 text-xs">(<span x-text="filteredRows.length"></span> คนหลังกรอง)</span>
         </div>
-        <div class="flex gap-2">
+        <div class="flex gap-2 flex-wrap">
             <button @click="showBatchCarry = true" :disabled="selected.length === 0"
                     :class="selected.length === 0 ? 'opacity-40 cursor-not-allowed' : 'hover:bg-indigo-700'"
-                    class="px-4 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold transition-colors">
-                📥 ยกยอดให้คนที่เลือก
+                    class="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold transition-colors">
+                📥 ยกยอด
+            </button>
+            <button @click="showBatchEncash = true" :disabled="selected.length === 0"
+                    :class="selected.length === 0 ? 'opacity-40 cursor-not-allowed' : 'hover:bg-rose-700'"
+                    class="px-3 py-1.5 bg-rose-600 text-white rounded-lg text-xs font-bold transition-colors">
+                💵 แลกเงิน
+            </button>
+            <button @click="showBulkPolicy = true" :disabled="selected.length === 0"
+                    :class="selected.length === 0 ? 'opacity-40 cursor-not-allowed' : 'hover:bg-violet-700'"
+                    class="px-3 py-1.5 bg-violet-600 text-white rounded-lg text-xs font-bold transition-colors">
+                🎯 เปลี่ยนนโยบาย
             </button>
         </div>
     </div>
@@ -250,6 +260,111 @@
                     </tr>
                 </tbody>
             </table>
+        </div>
+    </div>
+
+    {{-- Batch Encash Modal --}}
+    <div x-show="showBatchEncash" x-cloak class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto" @click.self="showBatchEncash = false">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-md my-6">
+            <form method="POST" action="{{ route('leave-management.batch-encash') }}" class="p-6">
+                @csrf
+                <h3 class="text-lg font-bold mb-1">💵 แลกวันลาเป็นเงิน (Batch)</h3>
+                <p class="text-xs text-gray-500 mb-4">สำหรับ <span class="font-bold text-rose-600" x-text="selected.length"></span> คนที่เลือก</p>
+
+                <template x-for="empId in selected" :key="'enc-' + empId">
+                    <input type="hidden" name="employee_ids[]" :value="empId">
+                </template>
+
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">ประเภทวันลา</label>
+                        <select name="leave_type" required class="w-full px-3 py-2 border rounded-lg text-sm">
+                            @foreach($leaveTypes as $key => $cfg)
+                            <option value="{{ $key }}" {{ $key === 'vacation_leave' ? 'selected' : '' }}>{{ $typeMeta[$key]['icon'] ?? '' }} {{ $cfg['label'] }}</option>
+                            @endforeach
+                        </select>
+                        <p class="text-[10px] text-gray-400 mt-1">นโยบายต้องเปิด allow_encashment</p>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">โหมด</label>
+                        <select name="mode" x-model="encashMode" class="w-full px-3 py-2 border rounded-lg text-sm">
+                            <option value="all_remaining">แลกหมดที่เหลือ</option>
+                            <option value="fixed">แลกจำนวนคงที่ (วัน)</option>
+                        </select>
+                    </div>
+
+                    <div x-show="encashMode === 'fixed'">
+                        <label class="block text-xs font-medium text-gray-600 mb-1">จำนวนวันที่แลก</label>
+                        <input type="number" step="0.5" min="0.5" name="days" placeholder="เช่น 3" class="w-full px-3 py-2 border rounded-lg text-sm">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">ปีของยอดวันลา</label>
+                        <input type="number" name="year" required value="{{ $year }}" class="w-full px-3 py-2 border rounded-lg text-sm">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">เดือนจ่าย</label>
+                            <input type="number" name="payout_month" required min="1" max="12" value="{{ now()->month }}" class="w-full px-3 py-2 border rounded-lg text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">ปีจ่าย</label>
+                            <input type="number" name="payout_year" required value="{{ now()->year }}" class="w-full px-3 py-2 border rounded-lg text-sm">
+                        </div>
+                    </div>
+
+                    <label class="flex items-center gap-2 p-2 bg-amber-50 border border-amber-100 rounded-lg">
+                        <input type="checkbox" name="cap_to_max" value="1" checked>
+                        <span class="text-xs">ตัดให้ไม่เกิน max_encash_days_per_year</span>
+                    </label>
+
+                    <p class="text-[11px] text-gray-500">
+                        เรท/วันคำนวณจาก encash_rate_formula ของแต่ละ policy • คนที่แลกไม่ได้ (ไม่มีเรท/นโยบายห้าม/เหลือ 0) จะถูกข้าม
+                    </p>
+                </div>
+
+                <div class="flex justify-end gap-2 pt-4">
+                    <button type="button" @click="showBatchEncash = false" class="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">ยกเลิก</button>
+                    <button type="submit" class="px-4 py-2 text-sm bg-rose-600 text-white rounded-lg hover:bg-rose-700 font-bold">แลกเงิน</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {{-- Bulk Assign Policy Modal --}}
+    <div x-show="showBulkPolicy" x-cloak class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto" @click.self="showBulkPolicy = false">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-md my-6">
+            <form method="POST" action="{{ route('leave-management.bulk-assign-policy') }}" class="p-6">
+                @csrf
+                <h3 class="text-lg font-bold mb-1">🎯 เปลี่ยนนโยบายวันลา (Batch)</h3>
+                <p class="text-xs text-gray-500 mb-4">สำหรับ <span class="font-bold text-violet-600" x-text="selected.length"></span> คนที่เลือก</p>
+
+                <template x-for="empId in selected" :key="'pol-' + empId">
+                    <input type="hidden" name="employee_ids[]" :value="empId">
+                </template>
+
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">นโยบายที่จะใช้</label>
+                        <select name="leave_policy_id" class="w-full px-3 py-2 border rounded-lg text-sm">
+                            <option value="">— ไม่กำหนด (ใช้ Default) —</option>
+                            @foreach($policies as $p)
+                            <option value="{{ $p->id }}">{{ $p->name }}@if($p->is_default) ⭐@endif</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <p class="text-[11px] text-gray-500">
+                        สิทธิเดิม (entitlement override) ที่ตั้งไว้รายคน <strong>ไม่ถูกล้าง</strong> — ถ้าต้องการล้าง ให้ใช้ ✏️ ปรับสิทธิ รายคน
+                    </p>
+                </div>
+
+                <div class="flex justify-end gap-2 pt-4">
+                    <button type="button" @click="showBulkPolicy = false" class="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">ยกเลิก</button>
+                    <button type="submit" class="px-4 py-2 text-sm bg-violet-600 text-white rounded-lg hover:bg-violet-700 font-bold">บันทึก</button>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -477,6 +592,9 @@ function leaveMgmt({ rows, departments, policies, year }) {
         sortDir: 'asc',
         selected: [],
         showBatchCarry: false,
+        showBatchEncash: false,
+        showBulkPolicy: false,
+        encashMode: 'all_remaining',
         showHistory: false,
         historyLoading: false,
         historyData: null,

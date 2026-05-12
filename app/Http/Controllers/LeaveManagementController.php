@@ -178,6 +178,158 @@ class LeaveManagementController extends Controller
         return back()->with('success', $msg);
     }
 
+    /** Batch encashment — turn leave days into payroll income for many employees */
+    public function batchEncash(Request $request)
+    {
+        abort_unless(Auth::user()?->hasRole('admin'), 403);
+
+        $validated = $request->validate([
+            'leave_type'   => ['required', 'string', 'in:' . implode(',', array_keys(Employee::LEAVE_TYPES_TRACKED))],
+            'year'         => 'required|integer|min:2020|max:2100',
+            'mode'         => 'required|in:fixed,all_remaining',
+            'days'         => 'nullable|numeric|min:0.5|max:365',
+            'payout_month' => 'required|integer|min:1|max:12',
+            'payout_year'  => 'required|integer|min:2020|max:2100',
+            'employee_ids' => 'required|array|min:1',
+            'employee_ids.*' => 'exists:employees,id',
+            'cap_to_max'   => 'sometimes|boolean',
+        ]);
+
+        if ($validated['mode'] === 'fixed' && empty($validated['days'])) {
+            return back()->withErrors(['days' => 'ต้องระบุจำนวนวันเมื่อเลือกโหมด "วันคงที่"']);
+        }
+
+        $created = 0;
+        $totalAmount = 0.0;
+        $skipped = [];
+
+        DB::transaction(function () use ($validated, &$created, &$totalAmount, &$skipped) {
+            $config = Employee::LEAVE_TYPES_TRACKED[$validated['leave_type']];
+
+            foreach ($validated['employee_ids'] as $empId) {
+                $emp = Employee::find($empId);
+                if (!$emp) continue;
+
+                $balance = $emp->getLeaveBalance($validated['leave_type'], $validated['year']);
+                if (!$balance['allow_encashment']) {
+                    $skipped[] = $emp->display_name . ' (นโยบายห้ามแลก)';
+                    continue;
+                }
+
+                $days = $validated['mode'] === 'all_remaining'
+                    ? (float) $balance['remaining']
+                    : (float) $validated['days'];
+
+                if (!empty($validated['cap_to_max']) && $balance['max_encash_days_per_year'] !== null) {
+                    $maxRemain = max(0, $balance['max_encash_days_per_year'] - $balance['encashed']);
+                    $days = min($days, $maxRemain);
+                }
+
+                if ($days <= 0) {
+                    $skipped[] = $emp->display_name . ' (เหลือ 0 / เกินเพดาน)';
+                    continue;
+                }
+                if ($days > $balance['remaining']) {
+                    $skipped[] = $emp->display_name . ' (เหลือไม่พอ ' . $balance['remaining'] . ' วัน)';
+                    continue;
+                }
+
+                $policy = $emp->effectivePolicy();
+                $rate = $policy ? $policy->computeEncashRate($emp) : 0.0;
+                if ($rate <= 0) {
+                    $base = (float) ($emp->salaryProfile?->base_salary ?? 0);
+                    $rate = round($base / 30, 2);
+                }
+                if ($rate <= 0) {
+                    $skipped[] = $emp->display_name . ' (ไม่มีเรท/ฐานเงินเดือน)';
+                    continue;
+                }
+
+                $amount = round($days * $rate, 2);
+
+                $extra = ExtraIncomeEntry::create([
+                    'employee_id'        => $emp->id,
+                    'month'              => $validated['payout_month'],
+                    'year'               => $validated['payout_year'],
+                    'label'              => "แลกวันลาเป็นเงิน ({$config['label']}) — {$days} วัน × " . number_format($rate, 2) . " บาท (Batch)",
+                    'category'           => 'leave_encashment',
+                    'amount'             => $amount,
+                    'include_in_payslip' => true,
+                ]);
+
+                $encash = LeaveEncashment::create([
+                    'employee_id'           => $emp->id,
+                    'year'                  => $validated['year'],
+                    'leave_type'            => $validated['leave_type'],
+                    'days'                  => $days,
+                    'rate_per_day'          => $rate,
+                    'amount'                => $amount,
+                    'payout_month'          => $validated['payout_month'],
+                    'payout_year'           => $validated['payout_year'],
+                    'extra_income_entry_id' => $extra->id,
+                    'note'                  => 'Batch encash',
+                    'created_by'            => Auth::id(),
+                    'status'                => 'approved',
+                    'approved_by'           => Auth::id(),
+                    'approved_at'           => now(),
+                ]);
+
+                AuditLogService::logCreated($encash, "Batch encash {$days} วัน ({$config['label']}) → " . number_format($amount, 2) . " บาท");
+
+                if ($emp->user_id) {
+                    NotificationService::notify(
+                        $emp->user_id,
+                        'leave.encashed',
+                        'แลกวันลาเป็นเงินสำเร็จ',
+                        "{$days} วัน ({$config['label']}) = " . number_format($amount, 2) . " บาท จะรวมในเงินเดือน {$validated['payout_month']}/{$validated['payout_year']}",
+                        route('workspace.my', [], false),
+                        ['encashment_id' => $encash->id, 'source' => 'batch']
+                    );
+                }
+
+                $created++;
+                $totalAmount += $amount;
+            }
+        });
+
+        $msg = "แลกสำเร็จ {$created} คน รวม " . number_format($totalAmount, 2) . " บาท";
+        if (!empty($skipped)) {
+            $msg .= ' / ข้าม ' . count($skipped) . ': ' . implode(', ', array_slice($skipped, 0, 5));
+            if (count($skipped) > 5) $msg .= '...';
+        }
+        return back()->with('success', $msg);
+    }
+
+    /** Bulk assign one policy to multiple employees */
+    public function bulkAssignPolicy(Request $request)
+    {
+        abort_unless(Auth::user()?->hasRole('admin'), 403);
+
+        $validated = $request->validate([
+            'leave_policy_id' => 'nullable|exists:leave_policies,id',
+            'employee_ids' => 'required|array|min:1',
+            'employee_ids.*' => 'exists:employees,id',
+        ]);
+
+        $count = 0;
+        DB::transaction(function () use ($validated, &$count) {
+            foreach ($validated['employee_ids'] as $empId) {
+                $emp = Employee::find($empId);
+                if (!$emp) continue;
+                $old = $emp->leave_policy_id;
+                $emp->leave_policy_id = $validated['leave_policy_id'];
+                if ($emp->isDirty('leave_policy_id')) {
+                    $emp->save();
+                    AuditLogService::log($emp, 'leave_policy_assigned', 'leave_policy_id', $old, $emp->leave_policy_id, 'Bulk policy assignment');
+                    $count++;
+                }
+            }
+        });
+
+        $policy = $validated['leave_policy_id'] ? LeavePolicy::find($validated['leave_policy_id'])?->name : 'ค่า Default';
+        return back()->with('success', "เปลี่ยนนโยบายเป็น \"{$policy}\" ให้ {$count} คน");
+    }
+
     /** GET — employee leave history for year (JSON for modal) */
     public function employeeHistory(Request $request, Employee $employee)
     {
