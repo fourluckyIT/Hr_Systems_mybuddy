@@ -171,8 +171,38 @@ class PortalController extends Controller
 
         $company = CompanyProfile::active();
 
+        // Leave stats for the printed PDF (ลามาแล้ว / ลาครั้งนี้ / table breakdown)
+        $stats = null;
+        if ($type === 'leave') {
+            $year = Carbon::parse($doc->leave_date)->year;
+            $leaveType = $doc->leave_type;
+
+            $usedBefore = AttendanceLog::where('employee_id', $doc->employee_id)
+                ->whereYear('log_date', $year)
+                ->where('day_type', $leaveType)
+                ->whereDate('log_date', '<', Carbon::parse($doc->leave_date)->toDateString())
+                ->count();
+
+            $current = 1;
+
+            $stats = [
+                'used_before' => $usedBefore,
+                'current'     => $current,
+                'total'       => $usedBefore + $current,
+            ];
+
+            // Breakdown table for combined sick/personal/maternity sheet
+            if (in_array($leaveType, ['sick_leave', 'personal_leave', 'maternity_leave'], true)) {
+                $stats['table'] = [
+                    'sick_leave'      => AttendanceLog::where('employee_id', $doc->employee_id)->whereYear('log_date', $year)->where('day_type', 'sick_leave')->count(),
+                    'personal_leave'  => AttendanceLog::where('employee_id', $doc->employee_id)->whereYear('log_date', $year)->where('day_type', 'personal_leave')->count(),
+                    'maternity_leave' => AttendanceLog::where('employee_id', $doc->employee_id)->whereYear('log_date', $year)->where('day_type', 'maternity_leave')->count(),
+                ];
+            }
+        }
+
         $pdf = app('dompdf.wrapper');
-        $pdf->loadView("portal.pdf.$type", compact('doc', 'company'));
+        $pdf->loadView("portal.pdf.$type", compact('doc', 'company', 'stats'));
         $pdf->setPaper('a4', 'portrait');
         $filename = $doc->document_number . '.pdf';
         return $pdf->stream($filename);
