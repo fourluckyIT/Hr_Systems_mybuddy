@@ -37,13 +37,27 @@
                             @forelse($tiers as $tier)
                             <tr class="hover:bg-gray-50 {{ !$tier->is_active ? 'opacity-50' : '' }}">
                                 <td class="px-4 py-3">
-                                    <div class="font-bold text-gray-900 flex items-center gap-2">
-                                        {{ $tier->tier_code }}
-                                        @if($tier->auto_select_enabled)
-                                        <span title="เปิดใช้งาน Auto-select" class="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[9px] rounded uppercase">Auto</span>
-                                        @endif
+                                    <div class="flex items-center gap-2">
+                                        <div class="flex flex-col gap-0.5">
+                                            <form action="{{ route('settings.tiers.move', $tier) }}" method="POST" class="leading-none">
+                                                @csrf <input type="hidden" name="direction" value="up">
+                                                <button type="submit" {{ $loop->first ? 'disabled' : '' }} class="w-5 h-4 flex items-center justify-center rounded text-[10px] {{ $loop->first ? 'text-gray-300 cursor-not-allowed' : 'text-gray-500 hover:bg-indigo-100 hover:text-indigo-700' }}" title="เลื่อนขึ้น">▲</button>
+                                            </form>
+                                            <form action="{{ route('settings.tiers.move', $tier) }}" method="POST" class="leading-none">
+                                                @csrf <input type="hidden" name="direction" value="down">
+                                                <button type="submit" {{ $loop->last ? 'disabled' : '' }} class="w-5 h-4 flex items-center justify-center rounded text-[10px] {{ $loop->last ? 'text-gray-300 cursor-not-allowed' : 'text-gray-500 hover:bg-indigo-100 hover:text-indigo-700' }}" title="เลื่อนลง">▼</button>
+                                            </form>
+                                        </div>
+                                        <div>
+                                            <div class="font-bold text-gray-900 flex items-center gap-2">
+                                                {{ $tier->tier_code }}
+                                                @if($tier->auto_select_enabled)
+                                                <span title="เปิดใช้งาน Auto-select" class="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[9px] rounded uppercase">Auto</span>
+                                                @endif
+                                            </div>
+                                            <div class="text-[10px] text-gray-500">{{ $tier->tier_name }}</div>
+                                        </div>
                                     </div>
-                                    <div class="text-[10px] text-gray-500">{{ $tier->tier_name }}</div>
                                 </td>
                                 <td class="px-4 py-3 text-right font-mono font-bold text-indigo-700">
                                     {{ number_format((float) $tier->multiplier * 100, 1) }}%
