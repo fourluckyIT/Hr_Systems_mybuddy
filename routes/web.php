@@ -8,7 +8,6 @@ use App\Http\Controllers\PayslipController;
 use App\Http\Controllers\CompanyFinanceController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\CalendarController;
-use App\Http\Controllers\WorkManagerController;
 use App\Http\Controllers\MasterDataController;
 use App\Http\Controllers\BonusManagementController;
 use App\Http\Controllers\AnnualSummaryController;
@@ -338,18 +337,6 @@ Route::prefix('settings')->name('settings.')->middleware('role:admin')->group(fu
         Route::delete('/holiday-types/{holidayType}', [MasterDataController::class, 'deleteHolidayType'])->name('holiday-types.delete');
     });
 
-/*
-    Route::prefix('works')->name('works.')->group(function () {
-        Route::get('/', [WorkManagerController::class, 'index'])->name('index');
-        Route::post('/', [WorkManagerController::class, 'store'])->name('store');
-        Route::patch('/{workLogType}', [WorkManagerController::class, 'update'])->name('update');
-        Route::patch('/{workLogType}/toggle', [WorkManagerController::class, 'toggle'])->name('toggle');
-        Route::delete('/{workLogType}', [WorkManagerController::class, 'destroy'])->name('delete');
-        Route::post('/assignments', [WorkManagerController::class, 'storeAssignment'])->name('assignments.store');
-        Route::patch('/assignments/{workAssignment}', [WorkManagerController::class, 'updateAssignment'])->name('assignments.update');
-        Route::delete('/assignments/{workAssignment}', [WorkManagerController::class, 'deleteAssignment'])->name('assignments.delete');
-    });
-*/
 });
 
 }); // End auth middleware

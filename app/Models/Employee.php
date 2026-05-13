@@ -226,11 +226,6 @@ class Employee extends Model
         return $this->hasMany(PerformanceRecord::class);
     }
 
-    public function workAssignments()
-    {
-        return $this->hasMany(WorkAssignment::class);
-    }
-
     public function editingJobs()
     {
         return $this->hasMany(EditingJob::class, 'assigned_to');
