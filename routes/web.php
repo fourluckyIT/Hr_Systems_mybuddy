@@ -8,7 +8,6 @@ use App\Http\Controllers\PayslipController;
 use App\Http\Controllers\CompanyFinanceController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\CalendarController;
-use App\Http\Controllers\WorkManagerController;
 use App\Http\Controllers\MasterDataController;
 use App\Http\Controllers\BonusManagementController;
 use App\Http\Controllers\AnnualSummaryController;

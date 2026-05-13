@@ -20,6 +20,20 @@ class Employee extends Model
     ];
 
     /** ประเภทวันลาที่นับสิทธิและยกยอด/แลกเงินได้ — ใช้ key ตรงกับ leave_type ใน LeaveRequest/AttendanceLog */
+    /**
+     * All leave types accepted by the leave-request flow (dropdowns, label maps).
+     * Subset LEAVE_TYPES_TRACKED below = ones that have a quota/balance.
+     * Add a row here to make a new type appear in every dropdown across the app.
+     */
+    public const LEAVE_TYPE_LABELS = [
+        'sick_leave'      => 'ลาป่วย',
+        'personal_leave'  => 'ลากิจ',
+        'vacation_leave'  => 'ลาพักร้อน',
+        'maternity_leave' => 'ลาคลอดบุตร',
+        'paternity_leave' => 'ลาไปช่วยเหลือภริยาที่คลอดบุตร',
+        'lwop'            => 'ลาไม่รับค่าจ้าง (LWOP)',
+    ];
+
     public const LEAVE_TYPES_TRACKED = [
         'vacation_leave' => [
             'label' => 'ลาพักร้อน',
@@ -224,11 +238,6 @@ class Employee extends Model
     public function performanceRecords()
     {
         return $this->hasMany(PerformanceRecord::class);
-    }
-
-    public function workAssignments()
-    {
-        return $this->hasMany(WorkAssignment::class);
     }
 
     public function editingJobs()

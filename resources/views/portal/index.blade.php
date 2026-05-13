@@ -162,19 +162,19 @@
 
     {{-- Filters --}}
     <form method="GET" action="{{ route('portal.index') }}"
-          class="bg-white border border-gray-200 rounded-lg p-3 mb-3 grid grid-cols-2 md:grid-cols-{{ $isAdmin ? '6' : '5' }} gap-2 items-end">
-        <div>
-            <label class="block text-xs text-gray-500 mb-1">ประเภท</label>
-            <select name="type" class="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-sm">
+          class="bg-white border border-gray-200 rounded-lg p-4 mb-4 flex flex-wrap gap-4 items-end">
+        <div class="flex-1 min-w-[150px]">
+            <label class="block text-xs font-semibold text-gray-600 mb-1">ประเภท</label>
+            <select name="type" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-50 focus:bg-white transition-colors">
                 <option value="all">ทั้งหมด</option>
                 @foreach($types as $slug => $meta)
                     <option value="{{ $slug }}" @selected($filters['typeFilter'] === $slug)>{{ $meta['label'] }}</option>
                 @endforeach
             </select>
         </div>
-        <div>
-            <label class="block text-xs text-gray-500 mb-1">สถานะ</label>
-            <select name="status" class="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-sm">
+        <div class="flex-1 min-w-[120px]">
+            <label class="block text-xs font-semibold text-gray-600 mb-1">สถานะ</label>
+            <select name="status" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-50 focus:bg-white transition-colors">
                 <option value="all">ทั้งหมด</option>
                 <option value="pending"  @selected($filters['statusFilter'] === 'pending')>รออนุมัติ</option>
                 <option value="approved" @selected($filters['statusFilter'] === 'approved')>อนุมัติแล้ว</option>
@@ -182,9 +182,9 @@
             </select>
         </div>
         @if($isAdmin)
-        <div class="col-span-2">
-            <label class="block text-xs text-gray-500 mb-1">พนักงาน</label>
-            <select name="employee_id" class="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-sm">
+        <div class="w-full md:w-auto md:flex-1 min-w-[200px]">
+            <label class="block text-xs font-semibold text-gray-600 mb-1">พนักงาน</label>
+            <select name="employee_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-50 focus:bg-white transition-colors">
                 <option value="">— ทั้งหมด —</option>
                 @foreach($employees as $emp)
                     <option value="{{ $emp->id }}" @selected($filters['employeeFilter'] == $emp->id)>
@@ -194,22 +194,22 @@
             </select>
         </div>
         @endif
-        <div>
-            <label class="block text-xs text-gray-500 mb-1">ปี</label>
-            <input type="number" name="year" value="{{ $filters['year'] }}" min="2020" max="2099" class="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-sm">
+        <div class="w-24">
+            <label class="block text-xs font-semibold text-gray-600 mb-1">ปี</label>
+            <input type="number" name="year" value="{{ $filters['year'] }}" min="2020" max="2099" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-50 focus:bg-white transition-colors">
         </div>
-        <div>
-            <label class="block text-xs text-gray-500 mb-1">เดือน</label>
-            <select name="month" class="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-sm">
+        <div class="w-24">
+            <label class="block text-xs font-semibold text-gray-600 mb-1">เดือน</label>
+            <select name="month" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-50 focus:bg-white transition-colors">
                 <option value="">ทั้งปี</option>
                 @foreach(range(1, 12) as $m)
                     <option value="{{ $m }}" @selected($filters['month'] == $m)>{{ $m }}</option>
                 @endforeach
             </select>
         </div>
-        <div class="flex gap-1">
-            <button type="submit" class="flex-1 px-3 py-1.5 bg-gray-800 text-white rounded-lg text-sm font-semibold hover:bg-gray-900">กรอง</button>
-            <a href="{{ route('portal.index') }}" class="px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-sm hover:bg-gray-200">ล้าง</a>
+        <div class="flex gap-2">
+            <button type="submit" class="px-5 py-2 bg-gray-800 text-white rounded-lg text-sm font-semibold hover:bg-gray-900 shadow-sm transition-colors">กรอง</button>
+            <a href="{{ route('portal.index') }}" class="px-5 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-200 transition-colors">ล้าง</a>
         </div>
     </form>
 

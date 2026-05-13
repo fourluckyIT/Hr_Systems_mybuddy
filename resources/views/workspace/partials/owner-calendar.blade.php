@@ -230,10 +230,9 @@
                     <div class="text-[10px] font-bold text-rose-600 uppercase">ขอลาวันที่ <span x-text="formatThaiDate(selectedDay)"></span></div>
                     <div class="grid grid-cols-2 gap-2">
                         <select name="leave_type" required class="border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-white">
-                            <option value="sick_leave">ลาป่วย</option>
-                            <option value="personal_leave">ลากิจ</option>
-                            <option value="vacation_leave">ลาพักร้อน</option>
-                            <option value="lwop">ลาไม่รับค่าจ้าง</option>
+                            @foreach($leaveTypes as $val => $label)
+                                <option value="{{ $val }}">{{ $label }}</option>
+                            @endforeach
                         </select>
                         <input type="text" name="reason" placeholder="เหตุผล (ไม่บังคับ)" maxlength="500" class="border border-gray-200 rounded-lg px-2 py-1.5 text-xs">
                     </div>

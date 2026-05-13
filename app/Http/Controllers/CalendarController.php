@@ -175,7 +175,7 @@ class CalendarController extends Controller
         }
 
         // Add Leave Requests to events (personal)
-        $leaveTypeLabels = ['sick_leave' => 'ลาป่วย', 'personal_leave' => 'ลากิจ', 'vacation_leave' => 'ลาพักร้อน', 'lwop' => 'LWOP'];
+        $leaveTypeLabels = \App\Models\Employee::LEAVE_TYPE_LABELS;
         foreach ($leaveRequests as $lr) {
             $dateStr = Carbon::parse($lr->leave_date)->format('Y-m-d');
             $isPending = $lr->status === 'pending';
@@ -366,7 +366,7 @@ class CalendarController extends Controller
                 'sub'   => 'ครบกำหนด',
             ]);
         }
-        $leaveTypeLabelsUp = ['sick_leave' => 'ลาป่วย', 'personal_leave' => 'ลากิจ', 'vacation_leave' => 'ลาพักร้อน', 'lwop' => 'LWOP'];
+        $leaveTypeLabelsUp = \App\Models\Employee::LEAVE_TYPE_LABELS;
         foreach ($upcomingLeaves as $lr) {
             $name = $lr->employee->nickname ?: trim(($lr->employee->first_name ?? '') . ' ' . ($lr->employee->last_name ?? ''));
             $typeLabel = $leaveTypeLabelsUp[$lr->leave_type] ?? $lr->leave_type;
@@ -408,12 +408,7 @@ class CalendarController extends Controller
 
         $games = \App\Models\Game::where('is_active', true)->orderBy('game_name')->get();
 
-        $leaveTypes = [
-            'sick_leave'     => 'ลาป่วย',
-            'personal_leave' => 'ลากิจ',
-            'vacation_leave' => 'ลาพักร้อน',
-            'lwop'           => 'ลาไม่รับค่าจ้าง (LWOP)',
-        ];
+        $leaveTypes = \App\Models\Employee::LEAVE_TYPE_LABELS;
 
         return view('calendar.index', compact(
             'weekDays', 'monthWeeks', 'viewMode', 'filterEmployeeId',
@@ -425,11 +420,7 @@ class CalendarController extends Controller
 
     protected function getLogLabel($log)
     {
-        $labels = [
-            'sick_leave' => 'ลาป่วย',
-            'personal_leave' => 'ลากิจ',
-            'vacation_leave' => 'ลาพักร้อน',
-            'lwop' => 'LWOP',
+        $labels = \App\Models\Employee::LEAVE_TYPE_LABELS + [
             'not_started' => 'ยังไม่เริ่มงาน',
             'ot_full_day' => 'OT เต็มวัน',
         ];

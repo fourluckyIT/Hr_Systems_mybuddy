@@ -7,12 +7,10 @@ use App\Models\AttendanceLog;
 use App\Models\AttendanceDaySwap;
 use App\Models\AttendanceRule;
 use App\Models\WorkLog;
-use App\Models\WorkAssignment;
 use App\Models\PayrollItem;
 use App\Models\PayrollBatch;
 use App\Models\LayerRateRule;
 use App\Models\PerformanceRecord;
-use App\Models\WorkLogType;
 use App\Models\EditingJob;
 use App\Models\Payslip;
 use App\Models\PaymentProof;
@@ -1135,10 +1133,9 @@ class WorkspaceController extends Controller
     {
         $employee->load(['department', 'position', 'salaryProfile', 'bankAccount', 'profile']);
 
-        $dayTypeLabels = [
-            'workday' => 'วันทำงาน', 'holiday' => 'วันหยุด', 'sick_leave' => 'ลาป่วย',
-            'personal_leave' => 'ลากิจ', 'vacation_leave' => 'ลาพักร้อน', 
-            'ot_full_day' => 'OT เต็มวัน', 'lwop' => 'LWOP',
+        $dayTypeLabels = Employee::LEAVE_TYPE_LABELS + [
+            'workday' => 'วันทำงาน', 'holiday' => 'วันหยุด',
+            'ot_full_day' => 'OT เต็มวัน',
             'not_started' => 'ยังไม่เริ่มงาน', 'company_holiday' => 'วันหยุดบริษัท',
         ];
 
@@ -1292,12 +1289,7 @@ class WorkspaceController extends Controller
             })
             ->orderByDesc('created_at')->limit(5)->get();
 
-        $leaveTypes = [
-            'sick_leave'     => 'ลาป่วย',
-            'personal_leave' => 'ลากิจ',
-            'vacation_leave' => 'ลาพักร้อน',
-            'lwop'           => 'ลาไม่รับค่าจ้าง (LWOP)',
-        ];
+        $leaveTypes = Employee::LEAVE_TYPE_LABELS;
 
         // ── Owner Calendar Data (non-admin gets a personal calendar in the workspace) ──
         $ownerCalendar = [];
