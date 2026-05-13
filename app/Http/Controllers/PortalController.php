@@ -141,12 +141,7 @@ class PortalController extends Controller
             'filters'   => compact('statusFilter', 'typeFilter', 'employeeFilter', 'year', 'month'),
             'employees' => $employees,
             'isAdmin'   => $isAdmin,
-            'leaveTypes' => [
-                'sick_leave'     => 'ลาป่วย',
-                'personal_leave' => 'ลากิจ',
-                'vacation_leave' => 'ลาพักร้อน',
-                'lwop'           => 'ลาไม่รับค่าจ้าง (LWOP)',
-            ],
+            'leaveTypes' => \App\Models\Employee::LEAVE_TYPE_LABELS,
         ]);
     }
 
@@ -459,13 +454,7 @@ class PortalController extends Controller
 
     protected function leaveTypeLabel(string $type): string
     {
-        return match ($type) {
-            'sick_leave' => 'ลาป่วย',
-            'personal_leave' => 'ลากิจ',
-            'vacation_leave' => 'ลาพักร้อน',
-            'lwop' => 'ลาไม่รับค่าจ้าง',
-            default => $type,
-        };
+        return \App\Models\Employee::LEAVE_TYPE_LABELS[$type] ?? $type;
     }
 
     protected function extractBody(string $html): string

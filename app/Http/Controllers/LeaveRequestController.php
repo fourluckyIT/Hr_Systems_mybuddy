@@ -17,12 +17,12 @@ use Illuminate\Validation\ValidationException;
 
 class LeaveRequestController extends Controller
 {
-    protected array $leaveTypes = [
-        'sick_leave'     => 'ลาป่วย',
-        'personal_leave' => 'ลากิจ',
-        'vacation_leave' => 'ลาพักร้อน',
-        'lwop'           => 'ลาไม่รับค่าจ้าง (LWOP)',
-    ];
+    protected array $leaveTypes;
+
+    public function __construct()
+    {
+        $this->leaveTypes = \App\Models\Employee::LEAVE_TYPE_LABELS;
+    }
 
     // ─── Leave Requests ─────────────────────────────────────────────────
 

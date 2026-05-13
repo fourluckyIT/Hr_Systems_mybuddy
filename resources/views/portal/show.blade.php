@@ -13,13 +13,7 @@
 
     $fields = match($type) {
         'leave' => [
-            ['label' => 'ประเภทการลา', 'value' => match($doc->leave_type) {
-                'sick_leave'     => 'ลาป่วย',
-                'personal_leave' => 'ลากิจ',
-                'vacation_leave' => 'ลาพักร้อน',
-                'lwop'           => 'ลาไม่รับค่าจ้าง (LWOP)',
-                default => $doc->leave_type,
-            }],
+            ['label' => 'ประเภทการลา', 'value' => \App\Models\Employee::LEAVE_TYPE_LABELS[$doc->leave_type] ?? $doc->leave_type],
             ['label' => 'วันที่ลา', 'value' => optional($doc->leave_date)->format('d/m/Y') . ' (' . optional($doc->leave_date)->locale('th')->isoFormat('dddd') . ')'],
             ['label' => 'เหตุผล',   'value' => $doc->reason ?: '—'],
         ],
