@@ -382,7 +382,7 @@
                         <label class="block">
                             <span class="text-[11px] font-bold text-gray-500 uppercase">โควต้าอนุโลม/เดือน</span>
                             <div class="relative mt-1">
-                                <input type="number" name="grace_period_minutes" value="{{ $lateConfig['grace_period_minutes'] ?? 0 }}" class="w-full px-3 py-2 border rounded-lg text-sm font-bold focus:ring-2 focus:ring-gray-400">
+                                <input type="number" name="grace_period_minutes" min="0" value="{{ $lateConfig['grace_period_minutes'] ?? 0 }}" class="w-full px-3 py-2 border rounded-lg text-sm font-bold focus:ring-2 focus:ring-gray-400">
                                 <span class="absolute right-3 top-2.5 text-xs text-gray-400">นาที</span>
                             </div>
                             <p class="text-[10px] text-gray-500 mt-1">หักฟรีจากยอดสายรวมของเดือน (ไม่ใช่ต่อครั้ง)</p>
@@ -390,10 +390,29 @@
                     </div>
                 </div>
 
+                <div class="border-t border-gray-100 pt-4">
+                    <h3 class="font-bold text-gray-900 mb-1">การหักออกก่อนเวลา</h3>
+                    <p class="text-xs text-gray-500 mb-3">ใช้ rate เดียวกับมาสาย แต่มีโควต้าอนุโลมแยก</p>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <span class="text-[11px] font-bold text-gray-500 uppercase">โหมด</span>
+                            <div class="mt-1 px-3 py-2 bg-gray-50 border rounded-lg text-xs font-bold text-gray-700">Proportional (เท่ากับมาสาย)</div>
+                        </div>
+                        <label class="block">
+                            <span class="text-[11px] font-bold text-gray-500 uppercase">โควต้าอนุโลม/เดือน</span>
+                            <div class="relative mt-1">
+                                <input type="number" name="early_leave_grace_minutes" min="0" value="{{ $lateConfig['early_leave_grace_minutes'] ?? 0 }}" class="w-full px-3 py-2 border rounded-lg text-sm font-bold focus:ring-2 focus:ring-gray-400">
+                                <span class="absolute right-3 top-2.5 text-xs text-gray-400">นาที</span>
+                            </div>
+                            <p class="text-[10px] text-gray-500 mt-1">หักฟรีจากยอดออกก่อนเวลารวมของเดือน — ตั้ง 0 ถ้าไม่อนุโลม</p>
+                        </label>
+                    </div>
+                </div>
+
                 <input type="hidden" name="type" value="per_minute">
 
                 <div class="text-[11px] text-gray-500 bg-gray-50 border border-gray-100 rounded-lg p-3">
-                    <strong class="text-gray-700">ออกก่อนเวลา / ขาดงาน:</strong> ใช้ rate เดียวกับมาสาย (เงินเดือน ÷ นาที) คำนวณอัตโนมัติจาก attendance — ไม่ต้องตั้งค่าเพิ่ม
+                    <strong class="text-gray-700">ขาดงาน (LWOP):</strong> หัก = เงินเดือน ÷ จำนวนวันทำการ × วันที่ขาด — คำนวณอัตโนมัติ ไม่ต้องตั้งค่า
                 </div>
 
                 <button type="submit" class="bg-gray-800 text-white px-6 py-2.5 rounded-xl font-bold text-sm hover:bg-gray-900 transition shadow-sm">บันทึกกฎหักเงิน</button>

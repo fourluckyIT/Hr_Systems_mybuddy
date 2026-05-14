@@ -266,11 +266,12 @@ class MonthlyStaffCalculator
             $lateDeduction = round($billableLateMinutes * $minuteRate, 2);
         }
 
-        // Early Leave deduction (Salary-Proportional)
+        // Early Leave deduction (Salary-Proportional, independent grace quota)
         $earlyLeaveDeduction = 0;
+        $earlyGrace = (int) ($lateRule->config['early_leave_grace_minutes'] ?? 0);
+        $earlyBillableMinutes = max(0, $totalEarlyLeaveMinutes - $earlyGrace);
         if ($employee->isModuleEnabled('deduct_early')) {
-            // Usually early leave doesn't have a grace period in the same way, but we can reuse the same rate.
-            $earlyLeaveDeduction = round($totalEarlyLeaveMinutes * $minuteRate, 2);
+            $earlyLeaveDeduction = round($earlyBillableMinutes * $minuteRate, 2);
         }
 
         // Social Security
@@ -312,9 +313,14 @@ class MonthlyStaffCalculator
         }
         $earlyNote = !empty($earlyLeaveDates) ? implode("\n", array_unique($earlyLeaveDates)) : null;
         if ($earlyNote && $earlyLeaveDeduction == 0 && $totalEarlyLeaveMinutes > 0) {
-            $earlyNote = (!$employee->isModuleEnabled('deduct_early')
-                ? 'กฎหักออกก่อนเวลาถูกปิดเฉพาะพนักงานคนนี้ — กดปุ่ม EARLY บนหัว workspace เพื่อเปิด'
-                : 'กฎหักออกก่อนเวลาปิดทั้งบริษัท') . "\n" . $earlyNote;
+            if (!$employee->isModuleEnabled('deduct_early')) {
+                $reason = 'กฎหักออกก่อนเวลาถูกปิดเฉพาะพนักงานคนนี้ — กดปุ่ม EARLY บนหัว workspace เพื่อเปิด';
+            } elseif ($earlyGrace > 0 && $totalEarlyLeaveMinutes <= $earlyGrace) {
+                $reason = 'ภายในโควต้าอนุโลมออกก่อนเวลา ' . $earlyGrace . ' นาที — ไม่หักเงิน';
+            } else {
+                $reason = 'กฎหักออกก่อนเวลาปิดทั้งบริษัท';
+            }
+            $earlyNote = $reason . "\n" . $earlyNote;
         }
         $items[] = $this->resolveItem('late_deduction', 'deduction', 'มาสาย', $lateDeduction, 'auto', ++$sortOrder, $existingItems, $lateNote);
         $items[] = $this->resolveItem('early_leave_deduction', 'deduction', 'ออกก่อนเวลา', $earlyLeaveDeduction, 'auto', ++$sortOrder, $existingItems, $earlyNote);
