@@ -575,35 +575,57 @@
 
                 <div>
                     <h3 class="font-bold text-gray-900 mb-1">ค่าเริ่มต้นพนักงานใหม่</h3>
-                    <p class="text-xs text-gray-500 mb-3">ใช้เป็น default ตอนสร้างพนักงานใหม่ — <strong>ไม่กระทบของเดิม</strong></p>
+                    <p class="text-xs text-gray-500 mb-3">
+                        ใช้เป็น default ตอนสร้างพนักงานใหม่ — <strong>ไม่กระทบของเดิม</strong> เว้นแต่จะติ๊ก
+                        <span class="text-rose-600 font-semibold">"ผลักไปยังพนักงานทั้งหมด"</span>
+                    </p>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <label class="flex items-center justify-between p-4 border rounded-xl bg-white">
-                            <div>
+                        <div class="p-4 border rounded-xl bg-white space-y-2">
+                            <label class="flex items-center justify-between">
                                 <p class="text-sm font-bold text-gray-800">หักประกันสังคม</p>
-                            </div>
-                            <input type="hidden" name="default_sso_deduction" value="0">
-                            <input type="checkbox" name="default_sso_deduction" value="1" {{ ($moduleDefaults['default_sso_deduction'] ?? true) ? 'checked' : '' }} class="rounded border-gray-300 text-indigo-600 w-5 h-5">
-                        </label>
+                                <input type="hidden" name="default_sso_deduction" value="0">
+                                <input type="checkbox" name="default_sso_deduction" value="1" {{ ($moduleDefaults['default_sso_deduction'] ?? true) ? 'checked' : '' }} class="rounded border-gray-300 text-indigo-600 w-5 h-5">
+                            </label>
+                            <label class="flex items-center gap-2 text-xs text-rose-600 font-medium cursor-pointer">
+                                <input type="checkbox" name="apply_to_all[sso_deduction]" value="1" class="rounded border-gray-300 text-rose-600">
+                                ผลักไปยังพนักงานทั้งหมด (existing employees)
+                            </label>
+                        </div>
 
-                        <label class="flex items-center justify-between p-4 border rounded-xl bg-white">
-                            <div>
+                        <div class="p-4 border rounded-xl bg-white space-y-2">
+                            <label class="flex items-center justify-between">
                                 <p class="text-sm font-bold text-gray-800">หักมาสาย</p>
-                            </div>
-                            <input type="hidden" name="default_deduct_late" value="0">
-                            <input type="checkbox" name="default_deduct_late" value="1" {{ ($moduleDefaults['default_deduct_late'] ?? true) ? 'checked' : '' }} class="rounded border-gray-300 text-indigo-600 w-5 h-5">
-                        </label>
+                                <input type="hidden" name="default_deduct_late" value="0">
+                                <input type="checkbox" name="default_deduct_late" value="1" {{ ($moduleDefaults['default_deduct_late'] ?? true) ? 'checked' : '' }} class="rounded border-gray-300 text-indigo-600 w-5 h-5">
+                            </label>
+                            <label class="flex items-center gap-2 text-xs text-rose-600 font-medium cursor-pointer">
+                                <input type="checkbox" name="apply_to_all[deduct_late]" value="1" class="rounded border-gray-300 text-rose-600">
+                                ผลักไปยังพนักงานทั้งหมด (existing employees)
+                            </label>
+                        </div>
 
-                        <label class="flex items-center justify-between p-4 border rounded-xl bg-white">
-                            <div>
+                        <div class="p-4 border rounded-xl bg-white space-y-2">
+                            <label class="flex items-center justify-between">
                                 <p class="text-sm font-bold text-gray-800">หักออกก่อนเวลา</p>
-                            </div>
-                            <input type="hidden" name="default_deduct_early" value="0">
-                            <input type="checkbox" name="default_deduct_early" value="1" {{ ($moduleDefaults['default_deduct_early'] ?? true) ? 'checked' : '' }} class="rounded border-gray-300 text-indigo-600 w-5 h-5">
-                        </label>
+                                <input type="hidden" name="default_deduct_early" value="0">
+                                <input type="checkbox" name="default_deduct_early" value="1" {{ ($moduleDefaults['default_deduct_early'] ?? true) ? 'checked' : '' }} class="rounded border-gray-300 text-indigo-600 w-5 h-5">
+                            </label>
+                            <label class="flex items-center gap-2 text-xs text-rose-600 font-medium cursor-pointer">
+                                <input type="checkbox" name="apply_to_all[deduct_early]" value="1" class="rounded border-gray-300 text-rose-600">
+                                ผลักไปยังพนักงานทั้งหมด (existing employees)
+                            </label>
+                        </div>
                     </div>
+                    <p class="text-xs text-gray-400 mt-2">
+                        💡 ติ๊กข้อ "ผลักไปยังพนักงานทั้งหมด" เฉพาะข้อที่ต้องการเขียนทับการตั้งค่าส่วนตัวของพนักงานทุกคน
+                    </p>
                 </div>
 
-                <button type="submit" class="bg-slate-700 text-white px-6 py-2.5 rounded-xl font-bold text-sm hover:bg-slate-800 transition shadow-sm">บันทึกการตั้งค่าขั้นสูง</button>
+                <button type="submit"
+                        onclick="return !this.form.querySelector('input[name^=\'apply_to_all\']:checked') || confirm('แน่ใจ? การติ๊ก \'ผลักไปยังพนักงานทั้งหมด\' จะเขียนทับการตั้งค่าเฉพาะตัวของพนักงานทั้งบริษัท');"
+                        class="bg-slate-700 text-white px-6 py-2.5 rounded-xl font-bold text-sm hover:bg-slate-800 transition shadow-sm">
+                    บันทึกการตั้งค่าขั้นสูง
+                </button>
             </form>
         </div>
 

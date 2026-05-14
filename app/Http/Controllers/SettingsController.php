@@ -146,7 +146,34 @@ class SettingsController extends Controller
             $rule->update(['config' => $config]);
             AuditLogService::log($rule, 'updated', 'config', $oldConfig, $config, "Rule '{$type}' updated");
 
-            return back()->with('success', 'อัปเดตค่าเริ่มต้นของโมดูลสำเร็จ');
+            // Optional: bulk-apply each module's default to every existing employee.
+            // Triggered by separate checkbox inputs `apply_to_all[<module_name>] = 1`.
+            // Maps the company-default config key → the per-employee module_toggles row.
+            $applyMap = [
+                'default_sso_deduction' => 'sso_deduction',
+                'default_deduct_late'   => 'deduct_late',
+                'default_deduct_early'  => 'deduct_early',
+            ];
+            $applyTo = $request->input('apply_to_all', []);
+            $bulkResults = [];
+            foreach ($applyMap as $cfgKey => $moduleName) {
+                if (empty($applyTo[$moduleName])) continue;
+                $value = (bool) $config[$cfgKey];
+                $rows = \App\Models\Employee::query()->pluck('id');
+                foreach ($rows as $employeeId) {
+                    \App\Models\ModuleToggle::updateOrCreate(
+                        ['employee_id' => $employeeId, 'module_name' => $moduleName],
+                        ['is_enabled' => $value],
+                    );
+                }
+                $bulkResults[] = $moduleName . ' = ' . ($value ? 'เปิด' : 'ปิด') . ' (' . $rows->count() . ' คน)';
+            }
+
+            $msg = 'อัปเดตค่าเริ่มต้นของโมดูลสำเร็จ';
+            if (!empty($bulkResults)) {
+                $msg .= ' — ผลักไปยังพนักงานทั้งหมด: ' . implode(', ', $bulkResults);
+            }
+            return back()->with('success', $msg);
         }
 
         $rule = AttendanceRule::where('rule_type', $type)->where('is_active', true)->first();

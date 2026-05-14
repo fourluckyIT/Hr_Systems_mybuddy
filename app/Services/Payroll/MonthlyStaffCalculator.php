@@ -297,17 +297,24 @@ class MonthlyStaffCalculator
         $sortOrder = 0;
         $items[] = $this->resolveItem('cash_advance', 'deduction', 'เงินหักล่วงหน้า', 0, 'manual', ++$sortOrder, $existingItems);
         $items[] = $this->resolveItem('lwop', 'deduction', 'ขาดงาน', $lwopDeduction, 'auto', ++$sortOrder, $existingItems, !empty($lwopDates) ? implode("\n", array_unique($lwopDates)) : null);
-        // If late minutes accumulated but deduction is 0 (rule disabled or grace ate it), prepend an explanation
+        // If late minutes accumulated but deduction is 0 (per-employee toggle off, global rule disabled,
+        // or grace ate it), prepend a specific explanation so admins know where to fix it.
         $lateNote = !empty($lateDates) ? implode("\n", array_unique($lateDates)) : null;
         if ($lateNote && $lateDeduction == 0 && $totalLateMinutes > 0) {
-            $reason = (!$lateRule || ($lateRule->config['type'] ?? 'none') === 'none')
-                ? 'กฎหักมาสายปิดอยู่ — ไม่หักเงิน'
-                : ('ภายในช่วงผ่อนผัน ' . ((int)($lateRule->config['grace_period_minutes'] ?? 0)) . ' นาที — ไม่หักเงิน');
+            if (!$employee->isModuleEnabled('deduct_late')) {
+                $reason = 'กฎหักมาสายถูกปิดเฉพาะพนักงานคนนี้ — กดปุ่ม LATE บนหัว workspace เพื่อเปิด';
+            } elseif (!$lateRule || ($lateRule->config['type'] ?? 'none') === 'none') {
+                $reason = 'กฎหักมาสายปิดทั้งบริษัท (ตั้งค่า → กฎคำนวณ → หักเงิน)';
+            } else {
+                $reason = 'ภายในช่วงผ่อนผัน ' . ((int)($lateRule->config['grace_period_minutes'] ?? 0)) . ' นาที — ไม่หักเงิน';
+            }
             $lateNote = $reason . "\n" . $lateNote;
         }
         $earlyNote = !empty($earlyLeaveDates) ? implode("\n", array_unique($earlyLeaveDates)) : null;
         if ($earlyNote && $earlyLeaveDeduction == 0 && $totalEarlyLeaveMinutes > 0) {
-            $earlyNote = 'กฎหักออกก่อนเวลาปิดอยู่ — ไม่หักเงิน' . "\n" . $earlyNote;
+            $earlyNote = (!$employee->isModuleEnabled('deduct_early')
+                ? 'กฎหักออกก่อนเวลาถูกปิดเฉพาะพนักงานคนนี้ — กดปุ่ม EARLY บนหัว workspace เพื่อเปิด'
+                : 'กฎหักออกก่อนเวลาปิดทั้งบริษัท') . "\n" . $earlyNote;
         }
         $items[] = $this->resolveItem('late_deduction', 'deduction', 'มาสาย', $lateDeduction, 'auto', ++$sortOrder, $existingItems, $lateNote);
         $items[] = $this->resolveItem('early_leave_deduction', 'deduction', 'ออกก่อนเวลา', $earlyLeaveDeduction, 'auto', ++$sortOrder, $existingItems, $earlyNote);
