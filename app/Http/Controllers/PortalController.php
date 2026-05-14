@@ -6,6 +6,7 @@ use App\Models\AttendanceLog;
 use App\Models\CompanyProfile;
 use App\Models\DaySwapRequest;
 use App\Models\DocumentAttachment;
+use App\Models\DocumentTemplate;
 use App\Models\Employee;
 use App\Models\ExpenseClaim;
 use App\Models\ExtraIncomeEntry;
@@ -14,6 +15,8 @@ use App\Models\LeaveEncashment;
 use App\Models\LeaveRequest;
 use App\Models\OtRequest;
 use App\Services\AuditLogService;
+use App\Services\DocumentFieldCatalog;
+use App\Services\DocxTemplateRenderer;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -198,11 +201,52 @@ class PortalController extends Controller
                     'personal_leave'  => AttendanceLog::where('employee_id', $doc->employee_id)->whereYear('log_date', $year)->where('day_type', 'personal_leave')->count(),
                     'maternity_leave' => AttendanceLog::where('employee_id', $doc->employee_id)->whereYear('log_date', $year)->where('day_type', 'maternity_leave')->count(),
                 ];
+
+                // Last leave of the same type (for "ครั้งสุดท้ายตั้งแต่วันที่ ... ถึงวันที่ ...")
+                $lastLog = AttendanceLog::where('employee_id', $doc->employee_id)
+                    ->where('day_type', $leaveType)
+                    ->whereDate('log_date', '<', Carbon::parse($doc->leave_date)->toDateString())
+                    ->orderByDesc('log_date')
+                    ->first();
+                $stats['last_leave_date'] = $lastLog ? Carbon::parse($lastLog->log_date) : null;
+            }
+
+            // Vacation balance — fills "สิทธิลาสะสม / ลาประจำปีนี้ / รวม" on the vacation form
+            if ($leaveType === 'vacation_leave' && method_exists($doc->employee, 'getLeaveBalance')) {
+                $bal = $doc->employee->getLeaveBalance('vacation_leave', $year);
+                $stats['balance'] = [
+                    'carryover' => (float) ($bal['carryover'] ?? 0),
+                    'annual'    => (float) ($bal['limit'] ?? 0),
+                    'total'     => (float) (($bal['carryover'] ?? 0) + ($bal['limit'] ?? 0)),
+                ];
             }
         }
 
+        // Prefer custom template if one is configured for this doc/variant
+        $variant = DocumentFieldCatalog::variantFor($type, $doc);
+        $template = DocumentTemplate::resolveFor($type, $variant);
+
+        if ($template && $template->kind === 'docx') {
+            // DOCX path: fill placeholders → LibreOffice → PDF
+            try {
+                $pdfPath = DocxTemplateRenderer::render($template, $doc);
+                $filename = ($doc->document_number ?? 'document') . '.pdf';
+                return response()->file($pdfPath, [
+                    'Content-Type'        => 'application/pdf',
+                    'Content-Disposition' => 'inline; filename="' . $filename . '"',
+                ])->deleteFileAfterSend(true);
+            } catch (\Throwable $e) {
+                return response($e->getMessage(), 500)->header('Content-Type', 'text/plain; charset=utf-8');
+            }
+        }
+
+        $template?->load('fields');
         $pdf = app('dompdf.wrapper');
-        $pdf->loadView("portal.pdf.$type", compact('doc', 'company', 'stats'));
+        if ($template && $template->kind === 'image') {
+            $pdf->loadView('portal.pdf._template_overlay', compact('doc', 'template'));
+        } else {
+            $pdf->loadView("portal.pdf.$type", compact('doc', 'company', 'stats'));
+        }
         $pdf->setPaper('a4', 'portrait');
         $filename = $doc->document_number . '.pdf';
         return $pdf->stream($filename);

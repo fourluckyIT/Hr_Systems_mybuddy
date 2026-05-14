@@ -2,276 +2,391 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>ใบลา - {{ $doc->document_number }}</title>
+    <title>{{ $doc->document_number }}</title>
     <style>
-        @page { margin: 50px 60px; }
-        body { font-family: 'thsarabun', sans-serif; font-size: 22px; line-height: 1.2; color: #000; }
-        .text-center { text-align: center; }
-        .text-right { text-align: right; }
+        @page { margin: 24px 36px; }
+        * { box-sizing: border-box; }
+        body { font-family: 'thsarabun', sans-serif; font-size: 15px; line-height: 1.25; color: #000; margin: 0; padding: 0; }
+
+        .title { font-size: 18px; font-weight: bold; text-align: center; margin: 0 0 6px 0; }
+        .right { text-align: right; }
+        .center { text-align: center; }
         .bold { font-weight: bold; }
-        .title { font-size: 28px; font-weight: bold; text-align: center; margin-bottom: 25px; margin-top: 20px; }
-        .indent { padding-left: 50px; }
-        
-        table { width: 100%; border-collapse: collapse; }
-        table.layout td { padding: 3px 0; vertical-align: top; }
-        
-        /* Stats Table */
-        table.stats-table { width: 100%; border-collapse: collapse; text-align: center; font-size: 20px; margin-top: 15px; }
-        table.stats-table th, table.stats-table td { border: 1px solid #000; padding: 5px; font-weight: normal; }
-        
-        /* Signature Blocks using tables */
-        table.sig-table { width: 100%; margin-top: 40px; text-align: center; }
-        table.sig-table td { vertical-align: top; width: 50%; padding: 10px; }
-        
-        .box { border: 1px solid #000; padding: 10px; }
-        .red-text { color: red; }
-        
-        .spacing-lg { margin-top: 25px; }
-        .spacing-md { margin-top: 15px; }
+        .red { color: #c00; }
+
+        .header-meta { text-align: right; margin-bottom: 6px; line-height: 1.35; }
+
+        .row { margin-bottom: 2px; }
+        .indent { padding-left: 24px; }
+        .body { margin-top: 4px; }
+
+        /* Stats table */
+        table.stats { width: 100%; border-collapse: collapse; text-align: center; font-size: 13px; margin-top: 3px; }
+        table.stats th, table.stats td { border: 1px solid #000; padding: 1px 4px; font-weight: normal; }
+        table.stats th { font-weight: bold; }
+
+        /* Stats grid (replaces nested table for dompdf-friendliness) */
+        .stats-grid { font-size: 13px; margin-top: 3px; }
+        .stats-grid .sg-row { display: block; }
+        .stats-grid .sg-row > div { display: inline-block; border: 1px solid #000; padding: 1px 4px; text-align: center; }
+        .stats-grid .sg-head { font-weight: bold; }
+
+        /* 2-column signature layout */
+        table.sigs { width: 100%; border-collapse: collapse; margin-top: 6px; }
+        table.sigs td { vertical-align: top; padding: 0 6px; }
+        .sig-block { line-height: 1.35; }
+        .sig-line { letter-spacing: 0.5px; }
+
+        .box { border: 1px solid #000; padding: 6px 10px; }
+        .footnote { font-size: 12px; color: #c00; margin-top: 4px; }
+
+        @php
+            // Helpers used in every form
+            $type = $doc->leave_type;
+            $isCancelled = $doc->status === 'cancelled';
+
+            $employeeName = trim($doc->employee->first_name . ' ' . $doc->employee->last_name);
+            $position     = $doc->employee->position?->name ?? '—';
+            $companyName  = $company?->name ?? 'บริษัท โลโพลีเกรด จำกัด';
+
+            $thMonths = [1=>'มกราคม',2=>'กุมภาพันธ์',3=>'มีนาคม',4=>'เมษายน',5=>'พฤษภาคม',6=>'มิถุนายน',7=>'กรกฎาคม',8=>'สิงหาคม',9=>'กันยายน',10=>'ตุลาคม',11=>'พฤศจิกายน',12=>'ธันวาคม'];
+
+            $cd = $doc->created_at;
+            $cDay   = $cd ? $cd->format('d') : '—';
+            $cMonth = $cd ? ($thMonths[(int) $cd->format('m')] ?? '—') : '—';
+            $cYearBE= $cd ? ((int) $cd->format('Y') + 543) : '—';
+
+            $ld = $doc->leave_date ? \Carbon\Carbon::parse($doc->leave_date) : null;
+            $leaveDateTh = $ld ? $ld->format('d') . ' ' . ($thMonths[(int) $ld->format('m')] ?? '') . ' ' . ((int) $ld->format('Y') + 543) : '—';
+
+            $leaveTypeLabel = \App\Models\Employee::LEAVE_TYPE_LABELS[$type] ?? $type;
+
+            $reason = $doc->reason ?: str_repeat('.', 60);
+        @endphp
     </style>
 </head>
 <body>
 
-@php
-    $type = $doc->leave_type;
-    $isCancelled = $doc->status === 'cancelled';
-    
-    // Fallbacks
-    $employeeName = $doc->employee->first_name . ' ' . $doc->employee->last_name;
-    $position = $doc->employee->position?->name ?? '-';
-    $companyName = $company?->name ?? 'บริษัท โลโพลีเกรด จำกัด';
-    
-    // Dates
-    $createdDate = optional($doc->created_at)->locale('th');
-    $d = $createdDate ? $createdDate->format('d') : '....';
-    $m = $createdDate ? $createdDate->translatedFormat('F') : '................';
-    $y = $createdDate ? $createdDate->format('Y') + 543 : '........';
-    
-    $leaveDateObj = optional($doc->leave_date)->locale('th');
-    $ld = $leaveDateObj ? $leaveDateObj->format('d') : '....';
-    $lm = $leaveDateObj ? $leaveDateObj->translatedFormat('F') : '................';
-    $ly = $leaveDateObj ? $leaveDateObj->format('Y') + 543 : '........';
-@endphp
-
-{{-- ========================================================= --}}
-{{-- 4. ขอยกเลิกวันลา (Cancelled) --}}
-{{-- ========================================================= --}}
+{{-- ════════════════════════════════════════════════════════════════ --}}
+{{-- 1. ใบยกเลิกวันลา (Cancelled) --}}
+{{-- ════════════════════════════════════════════════════════════════ --}}
 @if($isCancelled)
-    <div class="title">แบบฟอร์มขอยกเลิกวันลา</div>
-    <div class="text-right">เขียนที่ {{ $companyName }}</div>
-    <div class="text-right spacing-md">วันที่ {{ $d }} เดือน {{ $m }} พ.ศ. {{ $y }}</div>
-    
-    <div class="spacing-lg"><span class="bold">เรื่อง</span> ขอยกเลิกวันลา</div>
-    <div class="spacing-md"><span class="bold">เรียน</span> คุณ สาระวิน ยาสาสันต์</div>
-    
-    <div class="indent spacing-lg">
-        ข้าพเจ้า (ชื่อ-สกุล): {{ $employeeName }} ตำแหน่ง: {{ $position }}
-    </div>
-    <div class="spacing-md">ภายใต้: {{ $companyName }}</div>
-    
-    <div class="indent spacing-lg">
-        ตามที่ข้าพเจ้าได้รับอนุญาตให้ลา {{ $leaveTypes[$type] ?? $type }} ตั้งแต่วันที่ {{ $ld }} {{ $lm }} {{ $ly }}<br><br>
-        ถึงวันที่ {{ $ld }} {{ $lm }} {{ $ly }} รวมกำหนดเวลา 1 วัน นั้น<br><br>
-        เนื่องจาก {{ $doc->reason ?: '....................................................................................................' }}
-    </div>
-    
-    <div class="spacing-lg">จึงขอยกเลิกวันลาดังกล่าว จำนวน 1 วัน</div>
-    <div class="spacing-md">ตั้งแต่วันที่ {{ $ld }} {{ $lm }} {{ $ly }} ถึงวันที่ {{ $ld }} {{ $lm }} {{ $ly }}</div>
 
-    <table class="sig-table spacing-lg">
+    <div class="title">แบบฟอร์มขอยกเลิกวันลา</div>
+
+    <div class="header-meta">
+        เขียนที่ <span class="bold">{{ $companyName }}</span><br>
+        วันที่ <span class="bold">{{ $cDay }}</span> / <span class="bold">{{ $cMonth }}</span> / พ.ศ. <span class="bold">{{ $cYearBE }}</span>
+    </div>
+
+    <div class="row"><span class="bold">เรื่อง</span>&nbsp;&nbsp;ขอยกเลิกวันลา</div>
+    <div class="row"><span class="bold">เรียน</span>&nbsp;&nbsp;คุณ สาระวิน ยาสาสันต์</div>
+
+    <div class="body indent row">
+        ข้าพเจ้า (ชื่อ-สกุล): <span class="bold">{{ $employeeName }}</span>&nbsp;&nbsp;&nbsp;
+        ตำแหน่ง: <span class="bold">{{ $position }}</span>
+    </div>
+    <div class="row">ภายใต้ : <span class="bold">{{ $companyName }}</span></div>
+
+    <div class="body row">
+        ตามที่ข้าพเจ้าได้รับอนุญาตให้ลา <span class="bold">{{ $leaveTypeLabel }}</span>
+        ตั้งแต่วันที่ <span class="bold">{{ $leaveDateTh }}</span>
+        ถึงวันที่ <span class="bold">{{ $leaveDateTh }}</span>
+        รวมกำหนดเวลา <span class="bold">1</span> วัน นั้น
+    </div>
+    <div class="row">เนื่องจาก <span class="bold">{{ $reason }}</span></div>
+
+    <div class="body row">
+        จึงขอยกเลิกวันลาดังกล่าว จำนวน <span class="bold">1</span> วัน
+        ตั้งแต่วันที่ <span class="bold">{{ $leaveDateTh }}</span>
+        ถึงวันที่ <span class="bold">{{ $leaveDateTh }}</span>
+    </div>
+
+    <table class="sigs" style="margin-top:14px; border: 1px solid #000; border-collapse: collapse;">
         <tr>
-            <td></td>
-            <td>
-                <div class="bold mb-4">ขอแสดงความนับถือ</div>
-                <br><br>
-                <div>(ลงชื่อ) ..............................................................</div>
-                <div class="spacing-md">({{ $employeeName }})</div>
-                <div class="spacing-md">ผู้ขอยกเลิกวันลา</div>
+            <td style="width:50%; border-right: 1px solid #000; padding:10px 14px;" class="sig-block center">
+                <div class="bold">ขอแสดงความนับถือ</div>
+                <div style="height:24px;"></div>
+                <div class="sig-line">(ลงชื่อ) ……………………………………</div>
+                <div>({{ $employeeName }})</div>
+                <div>ผู้ขอยกเลิกวันลา</div>
+            </td>
+            <td style="width:50%; padding:10px 14px;" class="sig-block center">
+                <div>[ &nbsp; ] อนุญาต &nbsp;&nbsp;&nbsp;&nbsp; [ &nbsp; ] ไม่อนุญาต</div>
+                <div style="height:14px;"></div>
+                <div class="sig-line">(ลงชื่อ) ………………………………… ผู้อนุมัติ</div>
+                <div>(…………………………………)</div>
+                <div>ตำแหน่ง …………………………………</div>
+                <div>วันที่ ……… / ……………… / ………</div>
             </td>
         </tr>
     </table>
-    
-    <div style="width: 50%; float: right; border: 1px solid #000; padding: 15px; margin-top: 40px; text-align: center;">
-        <div>[ &nbsp; ] อนุญาต &nbsp;&nbsp;&nbsp;&nbsp; [ &nbsp; ] ไม่อนุญาต</div>
-        <br><br>
-        <div>(ลงชื่อ) .............................................................. ผู้อนุมัติ</div>
-        <div class="spacing-md">(..............................................................)</div>
-        <div class="spacing-md">ตำแหน่ง ..............................................................</div>
-        <div class="spacing-md">วันที่ .......... / .......................... / ..................</div>
-    </div>
 
-{{-- ========================================================= --}}
-{{-- 1. ลาไปช่วยเหลือภริยาที่คลอดบุตร (Paternity Leave) --}}
-{{-- ========================================================= --}}
+{{-- ════════════════════════════════════════════════════════════════ --}}
+{{-- 2. ลาไปช่วยเหลือภริยาที่คลอดบุตร (Paternity) --}}
+{{-- ════════════════════════════════════════════════════════════════ --}}
 @elseif($type === 'paternity_leave')
 
     <div class="title">แบบใบลาไปช่วยเหลือภริยาที่คลอดบุตร</div>
-    <div class="text-right">เขียนที่ {{ $companyName }}</div>
-    <div class="text-right spacing-md">วันที่ {{ $d }} เดือน {{ $m }} พ.ศ. {{ $y }}</div>
-    
-    <div class="spacing-lg"><span class="bold">เรื่อง</span> ขอลาไปช่วยเหลือภริยาที่คลอดบุตร</div>
-    <div class="spacing-md"><span class="bold">เรียน</span> คุณ สาระวิน ยาสาสันต์</div>
-    
-    <div class="indent spacing-lg">
-        ข้าพเจ้า (ชื่อ-สกุล): {{ $employeeName }} ตำแหน่ง: {{ $position }}
-    </div>
-    <div class="spacing-md">ภายใต้: {{ $companyName }}</div>
-    
-    <div class="spacing-lg">
-        มีความประสงค์ลาไปช่วยเหลือภริยาโดยชอบด้วยกฎหมายชื่อ {{ $doc->reason ?: '........................................................................' }}<br><br>
-        ซึ่งคลอดบุตรเมื่อวันที่ ............ เดือน ........................................ พ.ศ. ....................<br><br>
-        จึงขออนุญาตลาไปช่วยเหลือภริยาที่คลอดบุตร ตั้งแต่วันที่ {{ $ld }} {{ $lm }} {{ $ly }} ถึงวันที่ {{ $ld }} {{ $lm }} {{ $ly }}<br><br>
-        รวมกำหนดเวลา 1 วันทำการ
-    </div>
-    
-    <div class="spacing-lg">
-        ในระหว่างลา สามารถติดต่อข้าพเจ้าได้ที่เบอร์โทรศัพท์ ........................................................................................<br><br>
-        ขอมอบหมายงานดังนี้ / ให้ ........................................................................ เป็นผู้รับผิดชอบแทน
-    </div>
-    
-    <div class="red-text spacing-lg">
-        หมายเหตุ: ต้องแนบสำเนาเอกสารการจดทะเบียนสมรส จำนวน 1 ฉบับ
+
+    <div class="header-meta">
+        เขียนที่ <span class="bold">{{ $companyName }}</span><br>
+        วันที่ <span class="bold">{{ $cDay }}</span> / <span class="bold">{{ $cMonth }}</span> / พ.ศ. <span class="bold">{{ $cYearBE }}</span>
     </div>
 
-    <table class="sig-table">
+    <div class="row"><span class="bold">เรื่อง</span>&nbsp;&nbsp;ขอลาไปช่วยเหลือภริยาที่คลอดบุตร</div>
+    <div class="row"><span class="bold">เรียน</span>&nbsp;&nbsp;คุณ สาระวิน ยาสาสันต์</div>
+
+    <div class="body indent row">
+        ข้าพเจ้า (ชื่อ-สกุล): <span class="bold">{{ $employeeName }}</span>&nbsp;&nbsp;&nbsp;
+        ตำแหน่ง: <span class="bold">{{ $position }}</span>
+    </div>
+    <div class="row">ภายใต้ : <span class="bold">{{ $companyName }}</span></div>
+
+    <div class="body row">
+        มีความประสงค์ลาไปช่วยเหลือภริยาโดยชอบด้วยกฎหมายชื่อ <span class="bold">{{ $reason }}</span>
+    </div>
+    <div class="row">
+        ซึ่งคลอดบุตรเมื่อวันที่ ………… เดือน ………………………… พ.ศ. ……………
+    </div>
+    <div class="row">
+        จึงขออนุญาตลาไปช่วยเหลือภริยาที่คลอดบุตร
+        ตั้งแต่วันที่ <span class="bold">{{ $leaveDateTh }}</span>
+        ถึงวันที่ <span class="bold">{{ $leaveDateTh }}</span>
+    </div>
+    <div class="row">รวมกำหนดเวลา <span class="bold">1</span> วันทำการ</div>
+
+    <div class="body row">ในระหว่างลา สามารถติดต่อข้าพเจ้าได้ที่เบอร์โทรศัพท์ {{ str_repeat('.', 50) }}</div>
+    <div class="row">ขอมอบหมายงานดังนี้ / ให้ {{ str_repeat('.', 50) }} เป็นผู้รับผิดชอบแทน</div>
+
+    <div class="footnote">หมายเหตุ: ต้องแนบสำเนาเอกสารการจดทะเบียนสมรส จำนวน 1 ฉบับ</div>
+
+    <table class="sigs" style="margin-top:10px; border: 1px solid #000; border-collapse: collapse;">
         <tr>
-            <td></td>
-            <td>
-                <div class="bold mb-4">ขอแสดงความนับถือ</div>
-                <br><br>
-                <div>(ลงชื่อ) ..............................................................</div>
-                <div class="spacing-md">({{ $employeeName }})</div>
-                <div class="spacing-md">ผู้ขออนุญาตลา</div>
+            <td style="width:50%; border-right: 1px solid #000; padding:10px 14px;" class="sig-block center">
+                <div class="bold">ขอแสดงความนับถือ</div>
+                <div style="height:24px;"></div>
+                <div class="sig-line">(ลงชื่อ) ……………………………………</div>
+                <div>({{ $employeeName }})</div>
+                <div>ผู้ขออนุญาตลา</div>
+            </td>
+            <td style="width:50%; padding:10px 14px;" class="sig-block center">
+                <div>[ &nbsp; ] อนุญาต &nbsp;&nbsp;&nbsp;&nbsp; [ &nbsp; ] ไม่อนุญาต</div>
+                <div style="height:14px;"></div>
+                <div class="sig-line">(ลงชื่อ) ………………………………… ผู้อนุมัติ</div>
+                <div>(…………………………………)</div>
+                <div>ตำแหน่ง …………………………………</div>
+                <div>วันที่ ……… / ……………… / ………</div>
             </td>
         </tr>
     </table>
-    
-    <div style="width: 50%; float: right; border: 1px solid #ddd; background: #fcfcfc; padding: 15px; margin-top: 40px; text-align: center;">
-        <div>[ &nbsp; ] อนุญาต &nbsp;&nbsp;&nbsp;&nbsp; [ &nbsp; ] ไม่อนุญาต</div>
-        <br><br>
-        <div>(ลงชื่อ) .............................................................. ผู้อนุมัติ</div>
-        <div class="spacing-md">(..............................................................)</div>
-        <div class="spacing-md">ตำแหน่ง ..............................................................</div>
-        <div class="spacing-md">วันที่ .......... / .......................... / ..................</div>
-    </div>
 
-{{-- ========================================================= --}}
-{{-- 2. ลาป่วย / ลาคลอดบุตร / ลากิจส่วนตัว --}}
-{{-- ========================================================= --}}
+{{-- ════════════════════════════════════════════════════════════════ --}}
+{{-- 3. ลาป่วย / ลาคลอดบุตร / ลากิจส่วนตัว --}}
+{{-- ════════════════════════════════════════════════════════════════ --}}
 @elseif(in_array($type, ['sick_leave', 'maternity_leave', 'personal_leave']))
 
+    @php
+        $cb = fn($t) => $type === $t ? '/' : ' ';
+        $lastLeaveDate = isset($stats['last_leave_date']) && $stats['last_leave_date']
+            ? $stats['last_leave_date']->format('d') . ' ' . ($thMonths[(int) $stats['last_leave_date']->format('m')] ?? '') . ' ' . ((int) $stats['last_leave_date']->format('Y') + 543)
+            : '—';
+        $sickPrior = $stats['table']['sick_leave'] ?? 0;
+        $matPrior  = $stats['table']['maternity_leave'] ?? 0;
+        $perPrior  = $stats['table']['personal_leave'] ?? 0;
+    @endphp
+
     <div class="title">แบบใบลาป่วย ลาคลอดบุตร ลากิจส่วนตัว</div>
-    <div class="text-right">เขียนที่ {{ $companyName }}</div>
-    <div class="text-right spacing-md">วันที่ {{ $d }} เดือน {{ $m }} พ.ศ. {{ $y }}</div>
-    
-    <div class="spacing-lg"><span class="bold">เรื่อง</span> ขออนุญาตลา</div>
-    <div class="spacing-md"><span class="bold">เรียน</span> คุณ สาระวิน ยาสาสันต์</div>
-    
-    <div class="indent spacing-lg">
-        ข้าพเจ้า (ชื่อ-สกุล): {{ $employeeName }} ตำแหน่ง: {{ $position }}
-    </div>
-    <div class="spacing-md">ภายใต้: {{ $companyName }}</div>
-    
-    <div class="bold spacing-lg">ประเภทการลาที่ขอ (ทำเครื่องหมาย / เลือกประเภท)</div>
-    <div class="indent spacing-md">
-        [ {{ $type === 'sick_leave' ? '/' : ' ' }} ] ป่วย &nbsp;&nbsp;&nbsp; [ {{ $type === 'maternity_leave' ? '/' : ' ' }} ] คลอดบุตร &nbsp;&nbsp;&nbsp; [ {{ $type === 'personal_leave' ? '/' : ' ' }} ] กิจส่วนตัว
-    </div>
-    
-    <div class="bold spacing-lg">รายละเอียดการขอลา</div>
-    <div class="indent spacing-md">
-        ขอลา ตั้งแต่วันที่ {{ $ld }} {{ $lm }} {{ $ly }} ถึงวันที่ {{ $ld }} {{ $lm }} {{ $ly }} มีกำหนด 1 วัน<br><br>
-        เนื่องจาก {{ $doc->reason ?: '....................................................................................................................' }}
-    </div>
-    
-    <div class="spacing-lg">
-        <span class="bold">ข้าพเจ้าได้ลา</span> [ ] ป่วย &nbsp;&nbsp;&nbsp; [ ] คลอดบุตร &nbsp;&nbsp;&nbsp; [ ] กิจส่วนตัว<br><br>
-        ครั้งสุดท้ายตั้งแต่วันที่ ............................................................ ถึงวันที่ ............................................................
+
+    <div class="header-meta">
+        เขียนที่ <span class="bold">{{ $companyName }}</span><br>
+        วันที่ <span class="bold">{{ $cDay }}</span> / <span class="bold">{{ $cMonth }}</span> / พ.ศ. <span class="bold">{{ $cYearBE }}</span>
     </div>
 
-    <table class="sig-table">
+    <div class="row"><span class="bold">เรื่อง</span>&nbsp;&nbsp;ขออนุญาตลา</div>
+    <div class="row"><span class="bold">เรียน</span>&nbsp;&nbsp;คุณ สาระวิน ยาสาสันต์</div>
+
+    <div class="body indent row">
+        ข้าพเจ้า (ชื่อ-สกุล): <span class="bold">{{ $employeeName }}</span>&nbsp;&nbsp;&nbsp;
+        ตำแหน่ง: <span class="bold">{{ $position }}</span>
+    </div>
+    <div class="row">ภายใต้ : <span class="bold">{{ $companyName }}</span></div>
+
+    <div class="body row">
+        <span class="bold">ประเภทการลาที่ขอ:</span>
+        [ <span class="bold">{{ $cb('sick_leave') }}</span> ] ป่วย
+        &nbsp;&nbsp;&nbsp;
+        [ <span class="bold">{{ $cb('maternity_leave') }}</span> ] คลอดบุตร
+        &nbsp;&nbsp;&nbsp;
+        [ <span class="bold">{{ $cb('personal_leave') }}</span> ] กิจส่วนตัว
+    </div>
+
+    <div class="row">
+        ขอลาตั้งแต่วันที่ <span class="bold">{{ $leaveDateTh }}</span>
+        ถึงวันที่ <span class="bold">{{ $leaveDateTh }}</span>
+        มีกำหนด <span class="bold">1</span> วัน
+    </div>
+    <div class="row">เนื่องจาก <span class="bold">{{ $reason }}</span></div>
+
+    <div class="row">
+        <span class="bold">ข้าพเจ้าได้ลา</span>
+        [ {{ $sickPrior > 0 ? '/' : ' ' }} ] ป่วย
+        &nbsp;&nbsp;&nbsp;
+        [ {{ $matPrior > 0  ? '/' : ' ' }} ] คลอดบุตร
+        &nbsp;&nbsp;&nbsp;
+        [ {{ $perPrior > 0  ? '/' : ' ' }} ] กิจส่วนตัว
+        ครั้งสุดท้าย <span class="bold">{{ $lastLeaveDate }}</span>
+    </div>
+
+    <table class="sigs" style="margin-top:10px; border: 1px solid #000; border-collapse: collapse;">
         <tr>
-            <td style="width: 45%; padding: 0;">
-                <div class="bold">สถิติการลาในปีงบประมาณนี้</div>
-                <table class="stats-table">
-                    <thead>
-                        <tr>
-                            <th>ประเภทลา</th>
-                            <th>ป่วย (วัน)</th>
-                            <th>กิจส่วนตัว (วัน)</th>
-                            <th>คลอดบุตร</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>ลาครั้งนี้</td>
-                            <td>{{ $type === 'sick_leave' ? 1 : 0 }}</td>
-                            <td>{{ $type === 'personal_leave' ? 1 : 0 }}</td>
-                            <td>{{ $type === 'maternity_leave' ? 1 : 0 }}</td>
-                        </tr>
-                        <tr>
-                            <td>ลามาแล้ว</td>
-                            <td>{{ $stats['table']['sick_leave'] ?? 0 }}</td>
-                            <td>{{ $stats['table']['personal_leave'] ?? 0 }}</td>
-                            <td>{{ $stats['table']['maternity_leave'] ?? 0 }}</td>
-                        </tr>
-                        <tr>
-                            <td>รวมเป็น</td>
-                            <td>{{ ($stats['table']['sick_leave'] ?? 0) + ($type === 'sick_leave' ? 1 : 0) }}</td>
-                            <td>{{ ($stats['table']['personal_leave'] ?? 0) + ($type === 'personal_leave' ? 1 : 0) }}</td>
-                            <td>{{ ($stats['table']['maternity_leave'] ?? 0) + ($type === 'maternity_leave' ? 1 : 0) }}</td>
-                        </tr>
-                    </tbody>
-                </table>
-                <br><br>
-                <div>(ลงชื่อ) ........................................................ ผู้ตรวจสอบ</div>
-                <div class="spacing-md">(........................................................)</div>
-                <div class="spacing-md">ตำแหน่ง ........................................................</div>
-                <div class="spacing-md">วันที่ ........../........../..........</div>
+            <td style="width:55%; border-right: 1px solid #000; padding:8px 12px; vertical-align:top;" class="sig-block">
+                <div class="bold center" style="margin-bottom:2px;">สถิติการลาในปีงบประมาณนี้</div>
+                <div style="border:1px solid #000; font-size:13px;">
+                    <div style="text-align:center; font-weight:bold; border-bottom:1px solid #000; padding:1px 0;">
+                        <span style="display:inline-block; width:25%;">ประเภทลา</span><span style="display:inline-block; width:23%;">ป่วย</span><span style="display:inline-block; width:25%;">กิจส่วนตัว</span><span style="display:inline-block; width:25%;">คลอดบุตร</span>
+                    </div>
+                    <div style="text-align:center; border-bottom:1px solid #000; padding:1px 0;">
+                        <span style="display:inline-block; width:25%;">ลาครั้งนี้</span><span style="display:inline-block; width:23%;">{{ $type === 'sick_leave' ? 1 : 0 }}</span><span style="display:inline-block; width:25%;">{{ $type === 'personal_leave' ? 1 : 0 }}</span><span style="display:inline-block; width:25%;">{{ $type === 'maternity_leave' ? 1 : 0 }}</span>
+                    </div>
+                    <div style="text-align:center; border-bottom:1px solid #000; padding:1px 0;">
+                        <span style="display:inline-block; width:25%;">ลามาแล้ว</span><span style="display:inline-block; width:23%;">{{ $sickPrior }}</span><span style="display:inline-block; width:25%;">{{ $perPrior }}</span><span style="display:inline-block; width:25%;">{{ $matPrior }}</span>
+                    </div>
+                    <div style="text-align:center; padding:1px 0;">
+                        <span style="display:inline-block; width:25%;">รวมเป็น</span><span style="display:inline-block; width:23%;">{{ $sickPrior + ($type === 'sick_leave' ? 1 : 0) }}</span><span style="display:inline-block; width:25%;">{{ $perPrior + ($type === 'personal_leave' ? 1 : 0) }}</span><span style="display:inline-block; width:25%;">{{ $matPrior + ($type === 'maternity_leave' ? 1 : 0) }}</span>
+                    </div>
+                </div>
+                <div style="margin-top:8px;">
+                    <div class="sig-line">(ลงชื่อ) ………………………………… ผู้ตรวจสอบ</div>
+                    <div>(…………………………………)</div>
+                    <div>ตำแหน่ง …………………………………</div>
+                    <div>วันที่ ……… / ……… / ………</div>
+                </div>
             </td>
-            <td style="width: 10%;"></td>
-            <td style="width: 45%; padding: 0;">
-                <div class="bold mb-4">ขอแสดงความนับถือ</div>
-                <br><br>
-                <div>(ลงชื่อ) ..............................................................</div>
-                <div class="spacing-md">({{ $employeeName }})</div>
-                
-                <div class="text-left" style="margin-top: 30px;">[ ] อนุญาต &nbsp;&nbsp; [ ] ไม่อนุญาต</div>
-                <div class="text-left spacing-lg">(ลงชื่อ) ........................................................ (ผู้อนุมัติ)</div>
-                <div class="spacing-md">(........................................................)</div>
-                <div class="text-left spacing-md">ตำแหน่ง ........................................................</div>
-                <div class="spacing-md">วันที่ ........../........../..........</div>
+            <td style="width:45%; padding:8px 12px; vertical-align:top;" class="sig-block">
+                <div class="bold center">ขอแสดงความนับถือ</div>
+                <div style="height:18px;"></div>
+                <div class="center sig-line">(ลงชื่อ) ……………………………………………</div>
+                <div class="center">({{ $employeeName }})</div>
+                <div class="center">ผู้ขออนุญาตลา</div>
+
+                <div style="margin-top:10px;">[ ] อนุญาต &nbsp;&nbsp; [ ] ไม่อนุญาต</div>
+                <div style="margin-top:4px;">
+                    <div class="sig-line">(ลงชื่อ) ………………………………… (ผู้อนุมัติ)</div>
+                    <div>(…………………………………)</div>
+                    <div>ตำแหน่ง …………………………………</div>
+                    <div>วันที่ ……… / ……… / ………</div>
+                </div>
             </td>
         </tr>
     </table>
 
-{{-- ========================================================= --}}
-{{-- 3. ลาพักผ่อน (Vacation Leave) --}}
-{{-- ========================================================= --}}
+{{-- ════════════════════════════════════════════════════════════════ --}}
+{{-- 4. ลาไม่รับค่าจ้าง (LWOP) --}}
+{{-- ════════════════════════════════════════════════════════════════ --}}
+@elseif($type === 'lwop')
+
+    <div class="title">แบบฟอร์มขอลาไม่รับค่าจ้าง (Leave Without Pay)</div>
+
+    <div class="header-meta">
+        เขียนที่ <span class="bold">{{ $companyName }}</span><br>
+        วันที่ <span class="bold">{{ $cDay }}</span> / <span class="bold">{{ $cMonth }}</span> / พ.ศ. <span class="bold">{{ $cYearBE }}</span>
+    </div>
+
+    <div class="row"><span class="bold">เรื่อง</span>&nbsp;&nbsp;ขออนุญาตลาไม่รับค่าจ้าง</div>
+    <div class="row"><span class="bold">เรียน</span>&nbsp;&nbsp;คุณ สาระวิน ยาสาสันต์</div>
+
+    <div class="body indent row">
+        ข้าพเจ้า (ชื่อ-สกุล): <span class="bold">{{ $employeeName }}</span>&nbsp;&nbsp;&nbsp;
+        ตำแหน่ง: <span class="bold">{{ $position }}</span>
+    </div>
+    <div class="row">ภายใต้ : <span class="bold">{{ $companyName }}</span></div>
+
+    <div class="body row">
+        ด้วยข้าพเจ้ามีความจำเป็นต้องลาโดยไม่รับค่าจ้าง (Leave Without Pay)
+    </div>
+    <div class="row">
+        ตั้งแต่วันที่ <span class="bold">{{ $leaveDateTh }}</span>
+        ถึงวันที่ <span class="bold">{{ $leaveDateTh }}</span>
+        รวมกำหนด <span class="bold">1</span> วันทำการ
+    </div>
+    <div class="row">เนื่องจาก <span class="bold">{{ $reason }}</span></div>
+
+    <div class="body row" style="margin-top:8px;">
+        ข้าพเจ้าได้รับทราบและยอมรับเงื่อนไขการลาไม่รับค่าจ้างนี้ว่า:
+    </div>
+    <div class="indent row">• ค่าจ้างของวันที่ลาจะถูกหักจากเงินเดือนตามจำนวนวันที่ลา</div>
+    <div class="indent row">• ไม่นับเป็นวันลาในระบบสิทธิประโยชน์ (ลาพักร้อน/ลาป่วย/ลากิจ)</div>
+    <div class="indent row">• สวัสดิการอื่น ๆ เช่น ประกันสังคม จะยังคงดำเนินการตามปกติ</div>
+
+    <table class="sigs" style="margin-top:14px; border: 1px solid #000; border-collapse: collapse;">
+        <tr>
+            <td style="width:50%; border-right: 1px solid #000; padding:10px 14px; vertical-align:top;" class="sig-block center">
+                <div class="bold">ขอแสดงความนับถือ</div>
+                <div style="height:28px;"></div>
+                <div class="sig-line">(ลงชื่อ) ……………………………………</div>
+                <div>({{ $employeeName }})</div>
+                <div>ผู้ขออนุญาตลา</div>
+                <div style="margin-top:8px;">วันที่ ……… / ……………… / ………</div>
+            </td>
+            <td style="width:50%; padding:10px 14px; vertical-align:top;" class="sig-block center">
+                <div>[ &nbsp; ] อนุญาต &nbsp;&nbsp;&nbsp;&nbsp; [ &nbsp; ] ไม่อนุญาต</div>
+                <div style="height:14px;"></div>
+                <div class="sig-line">(ลงชื่อ) ………………………………… ผู้อนุมัติ</div>
+                <div>(…………………………………)</div>
+                <div>ตำแหน่ง …………………………………</div>
+                <div>วันที่ ……… / ……………… / ………</div>
+            </td>
+        </tr>
+    </table>
+
+{{-- ════════════════════════════════════════════════════════════════ --}}
+{{-- 5. ลาพักผ่อน (Vacation) --}}
+{{-- ════════════════════════════════════════════════════════════════ --}}
 @elseif($type === 'vacation_leave')
 
+    @php
+        $bal = $stats['balance'] ?? null;
+        $fmtDays = fn($n) => rtrim(rtrim(number_format((float) $n, 2), '0'), '.');
+        $carryover = $bal ? $fmtDays($bal['carryover']) : '—';
+        $annual    = $bal ? $fmtDays($bal['annual'])    : '—';
+        $total     = $bal ? $fmtDays($bal['total'])     : '—';
+        $usedBefore = $stats['used_before'] ?? 0;
+        $totalWithCurrent = $stats['total'] ?? 1;
+    @endphp
+
     <div class="title">แบบฟอร์มขออนุญาตลาพักผ่อน</div>
-    <div class="text-right">เขียนที่ {{ $companyName }}</div>
-    <div class="text-right spacing-md">วันที่ {{ $d }} เดือน {{ $m }} พ.ศ. {{ $y }}</div>
-    
-    <div class="spacing-lg"><span class="bold">เรื่อง</span> ขออนุญาตลา</div>
-    <div class="spacing-md"><span class="bold">เรียน</span> คุณ สาระวิน ยาสาสันต์</div>
-    
-    <div class="indent spacing-lg">
-        ข้าพเจ้า (ชื่อ-สกุล): {{ $employeeName }} ตำแหน่ง: {{ $position }}
-    </div>
-    <div class="spacing-md">ภายใต้: {{ $companyName }}</div>
-    
-    <div class="spacing-lg">
-        มีสิทธิลาพักผ่อนสะสม ................ วัน ลาประจำปีนี้ ................ วัน รวมมีสิทธิลาพักผ่อนทั้งสิ้น ................ วัน<br><br>
-        ขออนุญาตลาพักผ่อนตั้งแต่วันที่ {{ $ld }} {{ $lm }} {{ $ly }} ถึงวันที่ {{ $ld }} {{ $lm }} {{ $ly }}<br><br>
-        รวมกำหนดเวลา 1 วันทำการ
+
+    <div class="header-meta">
+        เขียนที่ <span class="bold">{{ $companyName }}</span><br>
+        วันที่ <span class="bold">{{ $cDay }}</span> / <span class="bold">{{ $cMonth }}</span> / พ.ศ. <span class="bold">{{ $cYearBE }}</span>
     </div>
 
-    <table class="sig-table" style="border: 1px solid #000; margin-top: 50px;">
+    <div class="row"><span class="bold">เรื่อง</span>&nbsp;&nbsp;ขออนุญาตลา</div>
+    <div class="row"><span class="bold">เรียน</span>&nbsp;&nbsp;คุณ สาระวิน ยาสาสันต์</div>
+
+    <div class="body indent row">
+        ข้าพเจ้า (ชื่อ-สกุล): <span class="bold">{{ $employeeName }}</span>&nbsp;&nbsp;&nbsp;
+        ตำแหน่ง: <span class="bold">{{ $position }}</span>
+    </div>
+    <div class="row">ภายใต้ : <span class="bold">{{ $companyName }}</span></div>
+
+    <div class="body row">
+        มีสิทธิลาพักผ่อนสะสม <span class="bold">{{ $carryover }}</span> วัน
+        ลาประจำปีนี้ <span class="bold">{{ $annual }}</span> วัน
+        รวมมีสิทธิลาพักผ่อนทั้งสิ้น <span class="bold">{{ $total }}</span> วัน
+    </div>
+    <div class="row">
+        ขออนุญาตลาพักผ่อนตั้งแต่วันที่ <span class="bold">{{ $leaveDateTh }}</span>
+        ถึงวันที่ <span class="bold">{{ $leaveDateTh }}</span>
+    </div>
+    <div class="row">รวมกำหนดเวลา <span class="bold">1</span> วันทำการ</div>
+
+    <table class="sigs" style="margin-top:14px; border: 1px solid #000; border-collapse: collapse;">
         <tr>
-            <td style="width: 50%; border-right: 1px solid #000; padding: 20px;">
-                <div class="bold">สถิติการลาในปีงบประมาณนี้</div>
-                <table class="stats-table">
+            <td style="width:55%; border-right: 1px solid #000; padding:10px 14px;" class="sig-block">
+                <div class="bold center" style="margin-bottom:4px;">สถิติการลาในปีงบประมาณนี้</div>
+                <table class="stats">
                     <thead>
                         <tr>
                             <th>ลามาแล้ว (วัน)</th>
@@ -281,24 +396,25 @@
                     </thead>
                     <tbody>
                         <tr>
-                            <td>{{ $stats['used_before'] ?? 0 }}</td>
-                            <td>{{ $stats['current'] ?? 1 }}</td>
-                            <td>{{ $stats['total'] ?? 1 }}</td>
+                            <td>{{ $usedBefore }}</td>
+                            <td>1</td>
+                            <td>{{ $totalWithCurrent }}</td>
                         </tr>
                     </tbody>
                 </table>
-                <br><br>
-                <div class="spacing-lg">(ลงชื่อ) ........................................................ ผู้ตรวจสอบ</div>
-                <div class="spacing-md">(........................................................)</div>
-                <div class="spacing-md">ตำแหน่ง ........................................................</div>
-                <div class="spacing-md">วันที่ ........../........../..........</div>
+                <div style="margin-top:12px;">
+                    <div class="sig-line">(ลงชื่อ) ………………………………… ผู้ตรวจสอบ</div>
+                    <div>(…………………………………)</div>
+                    <div>ตำแหน่ง …………………………………</div>
+                    <div>วันที่ ……… / ……… / ………</div>
+                </div>
             </td>
-            <td style="width: 50%; padding: 20px;">
+            <td style="width:45%; padding:10px 14px;" class="sig-block center">
                 <div class="bold">ขอแสดงความนับถือ</div>
-                <br><br><br>
-                <div>(ลงชื่อ) ..............................................................</div>
-                <div class="spacing-md">({{ $employeeName }})</div>
-                <div class="spacing-md">ผู้ขออนุญาตลา</div>
+                <div style="height:34px;"></div>
+                <div class="sig-line">(ลงชื่อ) ……………………………………………</div>
+                <div>({{ $employeeName }})</div>
+                <div>ผู้ขออนุญาตลา</div>
             </td>
         </tr>
     </table>
@@ -306,7 +422,7 @@
 @endif
 
 @if($doc->attachments && $doc->attachments->isNotEmpty())
-    <div style="margin-top: 30px; font-size: 18px; color: #666;">
+    <div style="margin-top: 14px; font-size: 14px; color: #666;">
         📎 มีไฟล์แนบ {{ $doc->attachments->count() }} ไฟล์ (ตรวจสอบในระบบ)
     </div>
 @endif

@@ -5,9 +5,10 @@
 @section('content')
 @php
     $statusMeta = [
-        'pending'  => ['label' => 'รออนุมัติ',   'class' => 'bg-amber-50 text-amber-700 border-amber-200'],
-        'approved' => ['label' => 'อนุมัติแล้ว', 'class' => 'bg-emerald-50 text-emerald-700 border-emerald-200'],
-        'rejected' => ['label' => 'ไม่อนุมัติ',   'class' => 'bg-rose-50 text-rose-700 border-rose-200'],
+        'pending'   => ['label' => 'รออนุมัติ',   'class' => 'bg-amber-50 text-amber-700 border-amber-200'],
+        'approved'  => ['label' => 'อนุมัติแล้ว', 'class' => 'bg-emerald-50 text-emerald-700 border-emerald-200'],
+        'rejected'  => ['label' => 'ไม่อนุมัติ',   'class' => 'bg-rose-50 text-rose-700 border-rose-200'],
+        'cancelled' => ['label' => 'ยกเลิกแล้ว',   'class' => 'bg-gray-100 text-gray-600 border-gray-300'],
     ];
     $st = $statusMeta[$doc->status] ?? ['label' => $doc->status, 'class' => 'bg-gray-50 text-gray-700 border-gray-200'];
 
@@ -153,6 +154,38 @@
                     ไม่อนุมัติ
                 </button>
             </form>
+        @endif
+
+        @php
+            $canCancelLeave = $type === 'leave'
+                && !in_array($doc->status, ['cancelled', 'rejected'])
+                && ($isAdmin || ($doc->status === 'pending' && (int) $doc->requested_by === (int) auth()->id()));
+            $canCancelSwap = $type === 'swap'
+                && !in_array($doc->status, ['cancelled', 'rejected'])
+                && ($isAdmin || ($doc->status === 'pending' && (int) $doc->requested_by === (int) auth()->id()));
+        @endphp
+        @if($canCancelLeave)
+            <form action="{{ route('leave.cancel', $doc->id) }}" method="POST" class="inline-flex">
+                @csrf
+                <button type="submit"
+                        onclick="return confirm('ยกเลิกคำขอลานี้? หากอนุมัติแล้วระบบจะคืนสิทธิให้พนักงาน')"
+                        class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg text-sm font-semibold hover:bg-gray-300">
+                    ยกเลิกการลา
+                </button>
+            </form>
+        @elseif($canCancelSwap)
+            <form action="{{ route('leave.swap.cancel', $doc->id) }}" method="POST" class="inline-flex">
+                @csrf
+                <button type="submit"
+                        onclick="return confirm('ยกเลิกคำขอสลับวันนี้?')"
+                        class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg text-sm font-semibold hover:bg-gray-300">
+                    ยกเลิกการสลับวัน
+                </button>
+            </form>
+        @endif
+
+        @if($type === 'leave' && $doc->status === 'cancelled')
+            <span class="px-3 py-1.5 text-xs text-gray-500 bg-gray-100 rounded-lg">เอกสารนี้ถูกยกเลิกแล้ว — สามารถพิมพ์ใบยกเลิกได้</span>
         @endif
     </div>
 

@@ -174,6 +174,19 @@
                                         </div>
                                     </div>
                                 </a>
+
+                                <!-- Document Templates -->
+                                <a href="{{ route('document-templates.index') }}" class="block p-4 hover:bg-slate-50 transition-colors group">
+                                    <div class="flex items-start gap-3">
+                                        <div class="p-2 bg-indigo-50 text-indigo-600 rounded-lg group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                                        </div>
+                                        <div>
+                                            <div class="text-sm font-bold text-gray-800 group-hover:text-indigo-700">แม่แบบเอกสาร</div>
+                                            <div class="text-[11px] text-gray-500 mt-0.5">อัปโหลดภาพฟอร์ม & กำหนดตำแหน่งฟิลด์สำหรับการพิมพ์</div>
+                                        </div>
+                                    </div>
+                                </a>
                             </div>
                         </div>
                     @endif

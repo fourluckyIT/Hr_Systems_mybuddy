@@ -5,9 +5,10 @@
 @section('content')
 @php
     $statusMeta = [
-        'pending'  => ['label' => 'รออนุมัติ',  'class' => 'bg-amber-50 text-amber-700 border-amber-200'],
-        'approved' => ['label' => 'อนุมัติแล้ว', 'class' => 'bg-emerald-50 text-emerald-700 border-emerald-200'],
-        'rejected' => ['label' => 'ไม่อนุมัติ',  'class' => 'bg-rose-50 text-rose-700 border-rose-200'],
+        'pending'   => ['label' => 'รออนุมัติ',  'class' => 'bg-amber-50 text-amber-700 border-amber-200'],
+        'approved'  => ['label' => 'อนุมัติแล้ว', 'class' => 'bg-emerald-50 text-emerald-700 border-emerald-200'],
+        'rejected'  => ['label' => 'ไม่อนุมัติ',  'class' => 'bg-rose-50 text-rose-700 border-rose-200'],
+        'cancelled' => ['label' => 'ยกเลิกแล้ว',  'class' => 'bg-gray-100 text-gray-600 border-gray-300'],
     ];
 @endphp
 
@@ -150,14 +151,23 @@
     @endif
 
     {{-- Stats (neutral, restrained) --}}
-    <div class="bg-white border border-gray-200 rounded-lg px-5 py-3 mb-3 flex items-center gap-6 text-sm">
-        <div><span class="text-gray-500">ทั้งหมด:</span> <strong class="text-gray-900">{{ $stats['total'] }}</strong></div>
-        <div class="text-gray-300">·</div>
-        <div><span class="text-gray-500">รออนุมัติ:</span> <strong class="text-amber-700">{{ $stats['pending'] }}</strong></div>
-        <div class="text-gray-300">·</div>
-        <div><span class="text-gray-500">อนุมัติแล้ว:</span> <strong class="text-emerald-700">{{ $stats['approved'] }}</strong></div>
-        <div class="text-gray-300">·</div>
-        <div><span class="text-gray-500">ไม่อนุมัติ:</span> <strong class="text-rose-700">{{ $stats['rejected'] }}</strong></div>
+    <div class="bg-white border border-gray-200 rounded-lg mb-3 grid grid-cols-2 sm:grid-cols-4 divide-x divide-gray-100 text-sm overflow-hidden">
+        <div class="px-5 py-3 flex items-baseline gap-2">
+            <span class="text-gray-500">ทั้งหมด</span>
+            <strong class="text-gray-900 text-base">{{ $stats['total'] }}</strong>
+        </div>
+        <div class="px-5 py-3 flex items-baseline gap-2">
+            <span class="text-gray-500">รออนุมัติ</span>
+            <strong class="text-amber-700 text-base">{{ $stats['pending'] }}</strong>
+        </div>
+        <div class="px-5 py-3 flex items-baseline gap-2">
+            <span class="text-gray-500">อนุมัติแล้ว</span>
+            <strong class="text-emerald-700 text-base">{{ $stats['approved'] }}</strong>
+        </div>
+        <div class="px-5 py-3 flex items-baseline gap-2">
+            <span class="text-gray-500">ไม่อนุมัติ</span>
+            <strong class="text-rose-700 text-base">{{ $stats['rejected'] }}</strong>
+        </div>
     </div>
 
     {{-- Filters --}}
@@ -176,9 +186,10 @@
             <label class="block text-xs font-semibold text-gray-600 mb-1">สถานะ</label>
             <select name="status" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-50 focus:bg-white transition-colors">
                 <option value="all">ทั้งหมด</option>
-                <option value="pending"  @selected($filters['statusFilter'] === 'pending')>รออนุมัติ</option>
-                <option value="approved" @selected($filters['statusFilter'] === 'approved')>อนุมัติแล้ว</option>
-                <option value="rejected" @selected($filters['statusFilter'] === 'rejected')>ไม่อนุมัติ</option>
+                <option value="pending"   @selected($filters['statusFilter'] === 'pending')>รออนุมัติ</option>
+                <option value="approved"  @selected($filters['statusFilter'] === 'approved')>อนุมัติแล้ว</option>
+                <option value="rejected"  @selected($filters['statusFilter'] === 'rejected')>ไม่อนุมัติ</option>
+                <option value="cancelled" @selected($filters['statusFilter'] === 'cancelled')>ยกเลิกแล้ว</option>
             </select>
         </div>
         @if($isAdmin)
@@ -251,18 +262,28 @@
             <p class="text-xs text-gray-400 mt-1">ลองปรับตัวกรอง หรือสร้างคำขอใหม่</p>
         </div>
     @else
-        <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
-            <table class="w-full text-sm">
+        <div class="bg-white border border-gray-200 rounded-lg overflow-x-auto">
+            <table class="w-full text-sm table-fixed">
+                <colgroup>
+                    @if($isAdmin)<col class="w-10">@endif
+                    <col class="w-32">
+                    <col class="w-28">
+                    <col class="w-48">
+                    <col class="w-28">
+                    <col>
+                    <col class="w-28">
+                    <col class="w-28">
+                </colgroup>
                 <thead class="bg-gray-50 text-xs text-gray-500 border-b border-gray-200">
                     <tr>
-                        @if($isAdmin)<th class="px-3 py-2.5 w-8"></th>@endif
-                        <th class="px-3 py-2.5 text-left font-semibold">เอกสาร</th>
-                        <th class="px-3 py-2.5 text-left font-semibold">ประเภท</th>
-                        <th class="px-3 py-2.5 text-left font-semibold">พนักงาน</th>
-                        <th class="px-3 py-2.5 text-left font-semibold">วันที่</th>
-                        <th class="px-3 py-2.5 text-left font-semibold">รายละเอียด</th>
-                        <th class="px-3 py-2.5 text-center font-semibold">สถานะ</th>
-                        <th class="px-3 py-2.5 text-right font-semibold">การดำเนินการ</th>
+                        @if($isAdmin)<th class="px-3 py-3"></th>@endif
+                        <th class="px-3 py-3 text-left font-semibold">เอกสาร</th>
+                        <th class="px-3 py-3 text-left font-semibold">ประเภท</th>
+                        <th class="px-3 py-3 text-left font-semibold">พนักงาน</th>
+                        <th class="px-3 py-3 text-left font-semibold">วันที่</th>
+                        <th class="px-3 py-3 text-left font-semibold">รายละเอียด</th>
+                        <th class="px-3 py-3 text-center font-semibold">สถานะ</th>
+                        <th class="px-3 py-3 text-right font-semibold">การดำเนินการ</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
@@ -271,36 +292,38 @@
                             $key = $d['type'] . ':' . $d['id'];
                             $st = $statusMeta[$d['status']] ?? ['label' => $d['status'], 'class' => 'bg-gray-50 text-gray-700 border-gray-200'];
                         @endphp
-                        <tr class="hover:bg-gray-50">
+                        <tr class="hover:bg-gray-50/70 align-middle">
                             @if($isAdmin)
-                                <td class="px-3 py-2.5">
+                                <td class="px-3 py-3">
                                     <input type="checkbox" :checked="selected.includes('{{ $key }}')" @change="toggle('{{ $key }}')"
                                            class="rounded border-gray-300">
                                 </td>
                             @endif
-                            <td class="px-3 py-2.5 font-mono text-xs text-gray-700">{{ $d['doc_number'] }}</td>
-                            <td class="px-3 py-2.5 text-gray-700">{{ $d['meta']['label'] }}</td>
-                            <td class="px-3 py-2.5">
-                                <div class="text-gray-800">{{ $d['employee']?->first_name }} {{ $d['employee']?->last_name }}</div>
-                                <div class="text-xs text-gray-400">{{ $d['employee']?->position?->name ?? '—' }}</div>
+                            <td class="px-3 py-3 font-mono text-xs text-gray-700 truncate">{{ $d['doc_number'] }}</td>
+                            <td class="px-3 py-3 text-gray-700 truncate">{{ $d['meta']['label'] }}</td>
+                            <td class="px-3 py-3 min-w-0">
+                                <div class="text-gray-800 truncate">{{ $d['employee']?->first_name }} {{ $d['employee']?->last_name }}</div>
+                                <div class="text-xs text-gray-400 truncate">{{ $d['employee']?->position?->name ?? '—' }}</div>
                             </td>
-                            <td class="px-3 py-2.5 text-gray-700 whitespace-nowrap">{{ optional($d['date'])->format('d/m/Y') ?? '—' }}</td>
-                            <td class="px-3 py-2.5 max-w-xs">
+                            <td class="px-3 py-3 text-gray-700 whitespace-nowrap tabular-nums">{{ optional($d['date'])->format('d/m/Y') ?? '—' }}</td>
+                            <td class="px-3 py-3 min-w-0">
                                 <p class="text-gray-700 truncate" title="{{ $d['summary'] }}">{{ $d['summary'] }}</p>
                                 @if($d['attachments_count'] > 0)
                                     <p class="text-xs text-gray-400 mt-0.5">ไฟล์แนบ {{ $d['attachments_count'] }}</p>
                                 @endif
                             </td>
-                            <td class="px-3 py-2.5 text-center">
-                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border {{ $st['class'] }}">
+                            <td class="px-3 py-3 text-center">
+                                <span class="inline-flex items-center justify-center px-2 py-0.5 rounded-full text-xs font-medium border whitespace-nowrap min-w-[78px] {{ $st['class'] }}">
                                     {{ $st['label'] }}
                                 </span>
                             </td>
-                            <td class="px-3 py-2.5 text-right whitespace-nowrap">
-                                <a href="{{ route('portal.show', [$d['type'], $d['id']]) }}"
-                                   class="px-2 py-1 text-xs text-gray-700 hover:bg-gray-100 rounded">ดู</a>
-                                <a href="{{ route('portal.print', [$d['type'], $d['id']]) }}" target="_blank"
-                                   class="px-2 py-1 text-xs text-gray-700 hover:bg-gray-100 rounded">พิมพ์</a>
+                            <td class="px-3 py-3 text-right whitespace-nowrap">
+                                <div class="inline-flex items-center gap-1">
+                                    <a href="{{ route('portal.show', [$d['type'], $d['id']]) }}"
+                                       class="px-2 py-1 text-xs text-gray-700 border border-gray-200 hover:bg-gray-100 rounded">ดู</a>
+                                    <a href="{{ route('portal.print', [$d['type'], $d['id']]) }}" target="_blank"
+                                       class="px-2 py-1 text-xs text-gray-700 border border-gray-200 hover:bg-gray-100 rounded">พิมพ์</a>
+                                </div>
                             </td>
                         </tr>
                     @endforeach

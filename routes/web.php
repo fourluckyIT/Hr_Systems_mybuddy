@@ -15,6 +15,7 @@ use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\LeaveRequestController;
 use App\Http\Controllers\WorkCommandController;
 use App\Http\Controllers\PayrollBatchController;
+use App\Http\Controllers\DocumentTemplateController;
 use App\Http\Controllers\OtRequestController;
 use App\Http\Controllers\ExpenseTrackerController;
 use App\Http\Controllers\ExtraIncomeController;
@@ -138,6 +139,16 @@ Route::prefix('leave-balance')->name('leave-balance.')->middleware('role:admin')
     Route::delete('/carryover/{carryover}', [LeaveBalanceController::class, 'deleteCarryover'])->name('carryover.delete');
     Route::post('/{employee}/encash', [LeaveBalanceController::class, 'encash'])->name('encash');
     Route::delete('/encashment/{encashment}', [LeaveBalanceController::class, 'deleteEncashment'])->name('encashment.delete');
+});
+
+// Document templates — admin can upload form images and place dynamic fields visually
+Route::prefix('document-templates')->name('document-templates.')->middleware('role:admin')->group(function () {
+    Route::get('/', [DocumentTemplateController::class, 'index'])->name('index');
+    Route::get('/create', [DocumentTemplateController::class, 'create'])->name('create');
+    Route::post('/', [DocumentTemplateController::class, 'store'])->name('store');
+    Route::get('/{documentTemplate}/edit', [DocumentTemplateController::class, 'edit'])->name('edit');
+    Route::put('/{documentTemplate}', [DocumentTemplateController::class, 'update'])->name('update');
+    Route::delete('/{documentTemplate}', [DocumentTemplateController::class, 'destroy'])->name('destroy');
 });
 
 // Centralized leave management dashboard (admin)
