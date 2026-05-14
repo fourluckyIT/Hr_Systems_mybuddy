@@ -5,8 +5,6 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
-use Illuminate\Support\Facades\Storage;
-
 class DocumentAttachment extends Model
 {
     protected $fillable = [
@@ -36,7 +34,8 @@ class DocumentAttachment extends Model
 
     public function getUrlAttribute(): string
     {
-        return Storage::disk('public')->url($this->file_path);
+        // Always go through the auth-gated route — never expose /storage/* directly.
+        return route('attachments.show', $this);
     }
 
     public function getIsImageAttribute(): bool

@@ -120,7 +120,9 @@ class RoleAccessFlowTest extends TestCase
         $this->actingAs($this->adminUser)->get('/welcome')->assertOk();
         $this->actingAs($this->adminUser)->get('/employees')->assertOk();
         $this->actingAs($this->adminUser)->get('/calendar')->assertOk();
-        $this->actingAs($this->adminUser)->get('/leave')->assertOk();
+        // /leave is a legacy redirect to /portal in v1.3
+$this->actingAs($this->adminUser)->get('/leave')->assertRedirect('/portal');
+$this->actingAs($this->adminUser)->get('/portal')->assertOk();
         $this->actingAs($this->adminUser)->get('/company/finance')->assertOk();
         $this->actingAs($this->adminUser)->get('/annual')->assertOk();
         $this->actingAs($this->adminUser)->get('/work')->assertOk();
@@ -140,7 +142,8 @@ class RoleAccessFlowTest extends TestCase
         $this->actingAs($this->ownerUser)->get('/my/workspace')->assertRedirect('/workspace/' . $this->ownerEmployee->id . '/' . now()->month . '/' . now()->year);
         $this->actingAs($this->ownerUser)->get('/workspace/' . $this->ownerEmployee->id . '/4/2026')->assertOk();
         $this->actingAs($this->ownerUser)->get('/calendar')->assertOk();
-        $this->actingAs($this->ownerUser)->get('/leave')->assertOk();
+        $this->actingAs($this->ownerUser)->get('/leave')->assertRedirect('/portal');
+$this->actingAs($this->ownerUser)->get('/portal')->assertOk();
         $this->actingAs($this->ownerUser)->get('/payslip/' . $this->ownerEmployee->id . '/4/2026/preview')->assertOk();
 
         $this->actingAs($this->ownerUser)->get('/employees')->assertForbidden();

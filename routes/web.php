@@ -23,6 +23,7 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PortalController;
 use App\Http\Controllers\LeaveBalanceController;
 use App\Http\Controllers\LeaveManagementController;
+use App\Http\Controllers\AttachmentController;
 
 // Auth
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
@@ -41,6 +42,10 @@ Route::middleware('auth')->group(function () {
 
 Route::get('/welcome', [\App\Http\Controllers\WelcomeController::class, 'index'])->name('welcome');
 
+// Authenticated, gated file streaming for uploaded attachments.
+// Files live on the private (`local`) disk so they're NOT reachable via /storage/*.
+Route::get('/attachments/{attachment}', [AttachmentController::class, 'show'])->name('attachments.show');
+
 Route::get('/my/workspace/{month?}/{year?}', [WorkspaceController::class, 'myWorkspace'])
     ->middleware('role:admin,owner')
     ->name('workspace.my');
@@ -55,7 +60,11 @@ Route::prefix('employees')->name('employees.')->middleware('role:admin')->group(
 });
 
 // Employees CRUD
-Route::resource('employees', EmployeeController::class)->middleware('role:admin');
+// EmployeeController doesn't implement show() or destroy() — we use edit() for viewing
+// and toggle-status for soft-deactivation, so skip those resource routes.
+Route::resource('employees', EmployeeController::class)
+    ->except(['show', 'destroy'])
+    ->middleware('role:admin');
 
 // Workspace
 Route::prefix('workspace')->name('workspace.')->group(function () {

@@ -709,7 +709,9 @@ class FullSystemTest extends TestCase
 
     public function test_settings_company_loads(): void
     {
-        $response = $this->actingAs($this->user)->get('/settings/company');
+        // `/settings/company` was rolled into `/settings/master-data` in v1.3.
+        // Keep the test pinned to the new path so the smoke check still runs.
+        $response = $this->actingAs($this->user)->get('/settings/master-data');
         $response->assertStatus(200);
     }
 

@@ -102,14 +102,15 @@ class BonusCalculationServiceTest extends TestCase
 
     public function test_unlock_december_6_months_with_june_paid(): void
     {
-        // 6/12 = 0.5 - 0.2 (partial June) = 0.3
-        $this->assertEquals(0.3, $this->service->calculateUnlockPercentage(6, 'december', 0.2));
+        // 2-phase curve: phase1 = 6/6 * 0.4 = 0.4 (June cap hit), phase2 = 0
+        // total = 0.4, minus prev 0.2 = 0.2
+        $this->assertEquals(0.2, $this->service->calculateUnlockPercentage(6, 'december', 0.2));
     }
 
     public function test_unlock_december_3_months_no_previous(): void
     {
-        // 3/12 = 0.25
-        $this->assertEquals(0.25, $this->service->calculateUnlockPercentage(3, 'december', 0.0));
+        // 2-phase curve: phase1 = 3/6 * 0.4 = 0.2, phase2 = 0
+        $this->assertEquals(0.2, $this->service->calculateUnlockPercentage(3, 'december', 0.0));
     }
 
     public function test_unlock_december_does_not_go_negative(): void
@@ -136,13 +137,15 @@ class BonusCalculationServiceTest extends TestCase
 
     public function test_annual_cap_partial_employee(): void
     {
-        // Employee with 3 months in June, 9 months by December
-        $juneUnlock = $this->service->calculateUnlockPercentage(3, 'june');  // 0.2
-        $decUnlock  = $this->service->calculateUnlockPercentage(9, 'december', $juneUnlock); // 9/12 - 0.2 = 0.55
+        // Employee with 3 months in June, 9 months by December.
+        // 2-phase curve at 9 months: phase1 = 6/6 * 0.4 = 0.4, phase2 = 3/6 * 0.6 = 0.3
+        // total = 0.7, minus prev 0.2 = 0.5
+        $juneUnlock = $this->service->calculateUnlockPercentage(3, 'june');  // 3/6 * 0.4 = 0.2
+        $decUnlock  = $this->service->calculateUnlockPercentage(9, 'december', $juneUnlock);
 
         $this->assertLessThanOrEqual(1.0, $juneUnlock + $decUnlock);
         $this->assertEquals(0.2, $juneUnlock);
-        $this->assertEquals(0.55, $decUnlock);
+        $this->assertEquals(0.5, $decUnlock);
     }
 
     // ─── Edge Cases ──────────────────────────────────────────────────────
