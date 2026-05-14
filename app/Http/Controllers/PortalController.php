@@ -92,6 +92,7 @@ class PortalController extends Controller
         $employeeFilter = $request->integer('employee_id') ?: null;
         $year = $request->integer('year') ?: (int) now()->year;
         $month = $request->integer('month') ?: null;
+        $hidePast = (bool) $request->boolean('hide_past');
 
         $documents = collect();
         foreach (self::TYPES as $slug => $meta) {
@@ -123,9 +124,7 @@ class PortalController extends Controller
             }
         }
 
-        $documents = $documents->sortByDesc('date_sortable')->values();
-
-        // Stats for header strip
+        // Stats for header strip (computed BEFORE bucketing, so totals are honest)
         $stats = [
             'total'    => $documents->count(),
             'pending'  => $documents->where('status', 'pending')->count(),
@@ -133,15 +132,55 @@ class PortalController extends Controller
             'rejected' => $documents->where('status', 'rejected')->count(),
         ];
 
+        // Split into 3 buckets: pending → upcoming → past
+        $today = now()->startOfDay()->timestamp;
+        $pending  = $documents->where('status', 'pending')->sortBy('date_sortable')->values();
+        $upcoming = $documents->filter(fn($d) => $d['status'] !== 'pending' && ($d['date_sortable'] ?? 0) >= $today)
+                              ->sortBy('date_sortable')->values();
+        $past     = $documents->filter(fn($d) => $d['status'] !== 'pending' && ($d['date_sortable'] ?? 0) < $today)
+                              ->sortByDesc('date_sortable')->values();
+
+        $pastCount = $past->count();
+
+        $buckets = [
+            'pending'  => [
+                'label'      => 'รออนุมัติ',
+                'sublabel'   => 'ต้องการการตัดสินใจของผู้อนุมัติ',
+                'docs'       => $pending,
+                'headerCls'  => 'bg-amber-50 border-amber-200 text-amber-900',
+                'badgeCls'   => 'bg-amber-100 text-amber-800',
+                'icon'       => '⏳',
+            ],
+            'upcoming' => [
+                'label'      => 'กำลังจะถึง',
+                'sublabel'   => 'อนุมัติแล้ว/ปฏิเสธแล้ว และยังไม่ถึงวันที่กำหนด',
+                'docs'       => $upcoming,
+                'headerCls'  => 'bg-sky-50 border-sky-200 text-sky-900',
+                'badgeCls'   => 'bg-sky-100 text-sky-800',
+                'icon'       => '📅',
+            ],
+            'past'     => [
+                'label'      => 'ผ่านวันไปแล้ว',
+                'sublabel'   => 'ประวัติ — อ้างอิงย้อนหลัง',
+                'docs'       => $hidePast ? collect() : $past,
+                'headerCls'  => 'bg-gray-50 border-gray-200 text-gray-700',
+                'badgeCls'   => 'bg-gray-200 text-gray-700',
+                'icon'       => '🗄',
+                'collapsible'=> true,
+            ],
+        ];
+
         $employees = $isAdmin
             ? Employee::orderBy('first_name')->get(['id', 'first_name', 'last_name', 'employee_code'])
             : collect();
 
         return view('portal.index', [
-            'documents' => $documents,
+            'buckets'   => $buckets,
+            'documents' => $documents,  // kept for legacy / empty-state checks
             'stats'     => $stats,
             'types'     => self::TYPES,
-            'filters'   => compact('statusFilter', 'typeFilter', 'employeeFilter', 'year', 'month'),
+            'filters'   => compact('statusFilter', 'typeFilter', 'employeeFilter', 'year', 'month', 'hidePast'),
+            'pastCount' => $pastCount,
             'employees' => $employees,
             'isAdmin'   => $isAdmin,
             'leaveTypes' => \App\Models\Employee::LEAVE_TYPE_LABELS,

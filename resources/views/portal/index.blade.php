@@ -222,7 +222,31 @@
             <button type="submit" class="px-5 py-2 bg-gray-800 text-white rounded-lg text-sm font-semibold hover:bg-gray-900 shadow-sm transition-colors">กรอง</button>
             <a href="{{ route('portal.index') }}" class="px-5 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-200 transition-colors">ล้าง</a>
         </div>
+        <input type="hidden" name="hide_past" value="{{ $filters['hidePast'] ? '1' : '0' }}">
     </form>
+
+    {{-- Smart-sort hint + archive toggle --}}
+    <div class="mb-3 flex items-center justify-between gap-3 px-1 text-xs text-gray-500">
+        <div>
+            เรียง: <span class="font-medium text-gray-700">รออนุมัติ → กำลังจะถึง → ที่ผ่านไปแล้ว</span>
+            @if($pastCount > 0 && !$filters['hidePast'])
+                <span class="ml-2 text-gray-400">· มีเอกสารที่ผ่านวันไปแล้ว {{ $pastCount }} รายการ</span>
+            @endif
+        </div>
+        @if($pastCount > 0 || $filters['hidePast'])
+            @php
+                $qs = array_filter(array_merge(request()->query(), ['hide_past' => $filters['hidePast'] ? '0' : '1']), fn($v) => $v !== null && $v !== '');
+            @endphp
+            <a href="{{ route('portal.index') }}?{{ http_build_query($qs) }}"
+               class="inline-flex items-center gap-1 px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-700 font-medium">
+                @if($filters['hidePast'])
+                    👁 แสดงเอกสารที่ผ่านวันไปแล้ว
+                @else
+                    🗄 ซ่อนเอกสารที่ผ่านวันไปแล้ว
+                @endif
+            </a>
+        @endif
+    </div>
 
     {{-- Bulk export bar (admin only) --}}
     @if($isAdmin)
@@ -255,80 +279,121 @@
         </div>
     @endif
 
-    {{-- Document list --}}
+    {{-- Document buckets --}}
     @if($documents->isEmpty())
         <div class="py-16 text-center bg-white border border-gray-200 rounded-lg">
             <p class="text-sm text-gray-500">ไม่พบเอกสาร</p>
             <p class="text-xs text-gray-400 mt-1">ลองปรับตัวกรอง หรือสร้างคำขอใหม่</p>
         </div>
     @else
-        <div class="bg-white border border-gray-200 rounded-lg overflow-x-auto">
-            <table class="w-full text-sm table-fixed">
-                <colgroup>
-                    @if($isAdmin)<col class="w-10">@endif
-                    <col class="w-32">
-                    <col class="w-28">
-                    <col class="w-48">
-                    <col class="w-28">
-                    <col>
-                    <col class="w-28">
-                    <col class="w-28">
-                </colgroup>
-                <thead class="bg-gray-50 text-xs text-gray-500 border-b border-gray-200">
-                    <tr>
-                        @if($isAdmin)<th class="px-3 py-3"></th>@endif
-                        <th class="px-3 py-3 text-left font-semibold">เอกสาร</th>
-                        <th class="px-3 py-3 text-left font-semibold">ประเภท</th>
-                        <th class="px-3 py-3 text-left font-semibold">พนักงาน</th>
-                        <th class="px-3 py-3 text-left font-semibold">วันที่</th>
-                        <th class="px-3 py-3 text-left font-semibold">รายละเอียด</th>
-                        <th class="px-3 py-3 text-center font-semibold">สถานะ</th>
-                        <th class="px-3 py-3 text-right font-semibold">การดำเนินการ</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-100">
-                    @foreach($documents as $d)
-                        @php
-                            $key = $d['type'] . ':' . $d['id'];
-                            $st = $statusMeta[$d['status']] ?? ['label' => $d['status'], 'class' => 'bg-gray-50 text-gray-700 border-gray-200'];
-                        @endphp
-                        <tr class="hover:bg-gray-50/70 align-middle">
-                            @if($isAdmin)
-                                <td class="px-3 py-3">
-                                    <input type="checkbox" :checked="selected.includes('{{ $key }}')" @change="toggle('{{ $key }}')"
-                                           class="rounded border-gray-300">
-                                </td>
-                            @endif
-                            <td class="px-3 py-3 font-mono text-xs text-gray-700 truncate">{{ $d['doc_number'] }}</td>
-                            <td class="px-3 py-3 text-gray-700 truncate">{{ $d['meta']['label'] }}</td>
-                            <td class="px-3 py-3 min-w-0">
-                                <div class="text-gray-800 truncate">{{ $d['employee']?->first_name }} {{ $d['employee']?->last_name }}</div>
-                                <div class="text-xs text-gray-400 truncate">{{ $d['employee']?->position?->name ?? '—' }}</div>
-                            </td>
-                            <td class="px-3 py-3 text-gray-700 whitespace-nowrap tabular-nums">{{ optional($d['date'])->format('d/m/Y') ?? '—' }}</td>
-                            <td class="px-3 py-3 min-w-0">
-                                <p class="text-gray-700 truncate" title="{{ $d['summary'] }}">{{ $d['summary'] }}</p>
-                                @if($d['attachments_count'] > 0)
-                                    <p class="text-xs text-gray-400 mt-0.5">ไฟล์แนบ {{ $d['attachments_count'] }}</p>
-                                @endif
-                            </td>
-                            <td class="px-3 py-3 text-center">
-                                <span class="inline-flex items-center justify-center px-2 py-0.5 rounded-full text-xs font-medium border whitespace-nowrap min-w-[78px] {{ $st['class'] }}">
-                                    {{ $st['label'] }}
-                                </span>
-                            </td>
-                            <td class="px-3 py-3 text-right whitespace-nowrap">
-                                <div class="inline-flex items-center gap-1">
-                                    <a href="{{ route('portal.show', [$d['type'], $d['id']]) }}"
-                                       class="px-2 py-1 text-xs text-gray-700 border border-gray-200 hover:bg-gray-100 rounded">ดู</a>
-                                    <a href="{{ route('portal.print', [$d['type'], $d['id']]) }}" target="_blank"
-                                       class="px-2 py-1 text-xs text-gray-700 border border-gray-200 hover:bg-gray-100 rounded">พิมพ์</a>
-                                </div>
-                            </td>
-                        </tr>
-                    @endforeach
-                </tbody>
-            </table>
+        <div class="space-y-4">
+            @foreach($buckets as $key => $bucket)
+                @php
+                    $isPast = $key === 'past';
+                    $bucketEmpty = $bucket['docs']->isEmpty();
+                    // Hide past bucket entirely if it has nothing AND user clicked hide_past
+                    if ($isPast && $filters['hidePast'] && $pastCount > 0) continue;
+                    if ($bucketEmpty && !$isPast) continue;
+                    if ($bucketEmpty && $isPast && $pastCount === 0) continue;
+                @endphp
+
+                <section x-data="{ open: {{ $isPast && $pastCount > 12 ? 'false' : 'true' }} }"
+                         class="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                    {{-- Header --}}
+                    <header class="flex items-center justify-between px-4 py-3 border-b {{ $bucket['headerCls'] }}">
+                        <div class="flex items-center gap-2">
+                            <span class="text-base">{{ $bucket['icon'] }}</span>
+                            <h2 class="text-sm font-bold">{{ $bucket['label'] }}</h2>
+                            <span class="inline-flex items-center justify-center px-2 py-0.5 rounded-full text-xs font-semibold {{ $bucket['badgeCls'] }} min-w-[24px]">
+                                {{ $bucket['docs']->count() }}
+                            </span>
+                            <span class="hidden md:inline text-xs opacity-70 ml-1">{{ $bucket['sublabel'] }}</span>
+                        </div>
+                        @if(!empty($bucket['collapsible']) && $bucket['docs']->isNotEmpty())
+                            <button type="button" @click="open = !open" class="text-xs px-2 py-1 rounded hover:bg-white/60 font-medium">
+                                <span x-show="open">ย่อ ▲</span>
+                                <span x-show="!open" x-cloak>ขยาย ▼</span>
+                            </button>
+                        @endif
+                    </header>
+
+                    {{-- Body --}}
+                    <div x-show="open" x-cloak>
+                        @if($bucket['docs']->isEmpty())
+                            <div class="py-8 text-center text-sm text-gray-400 italic">ไม่มีรายการ</div>
+                        @else
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-sm table-fixed">
+                                    <colgroup>
+                                        @if($isAdmin)<col class="w-10">@endif
+                                        <col class="w-32">
+                                        <col class="w-28">
+                                        <col class="w-48">
+                                        <col class="w-28">
+                                        <col>
+                                        <col class="w-28">
+                                        <col class="w-28">
+                                    </colgroup>
+                                    <thead class="bg-gray-50 text-xs text-gray-500 border-b border-gray-200">
+                                        <tr>
+                                            @if($isAdmin)<th class="px-3 py-2.5"></th>@endif
+                                            <th class="px-3 py-2.5 text-left font-semibold">เอกสาร</th>
+                                            <th class="px-3 py-2.5 text-left font-semibold">ประเภท</th>
+                                            <th class="px-3 py-2.5 text-left font-semibold">พนักงาน</th>
+                                            <th class="px-3 py-2.5 text-left font-semibold">วันที่</th>
+                                            <th class="px-3 py-2.5 text-left font-semibold">รายละเอียด</th>
+                                            <th class="px-3 py-2.5 text-center font-semibold">สถานะ</th>
+                                            <th class="px-3 py-2.5 text-right font-semibold">การดำเนินการ</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-gray-100">
+                                        @foreach($bucket['docs'] as $d)
+                                            @php
+                                                $dkey = $d['type'] . ':' . $d['id'];
+                                                $st = $statusMeta[$d['status']] ?? ['label' => $d['status'], 'class' => 'bg-gray-50 text-gray-700 border-gray-200'];
+                                            @endphp
+                                            <tr class="hover:bg-gray-50/70 align-middle {{ $isPast ? 'opacity-70' : '' }}">
+                                                @if($isAdmin)
+                                                    <td class="px-3 py-3">
+                                                        <input type="checkbox" :checked="selected.includes('{{ $dkey }}')" @change="toggle('{{ $dkey }}')"
+                                                               class="rounded border-gray-300">
+                                                    </td>
+                                                @endif
+                                                <td class="px-3 py-3 font-mono text-xs text-gray-700 truncate">{{ $d['doc_number'] }}</td>
+                                                <td class="px-3 py-3 text-gray-700 truncate">{{ $d['meta']['label'] }}</td>
+                                                <td class="px-3 py-3 min-w-0">
+                                                    <div class="text-gray-800 truncate">{{ $d['employee']?->first_name }} {{ $d['employee']?->last_name }}</div>
+                                                    <div class="text-xs text-gray-400 truncate">{{ $d['employee']?->position?->name ?? '—' }}</div>
+                                                </td>
+                                                <td class="px-3 py-3 text-gray-700 whitespace-nowrap tabular-nums">{{ optional($d['date'])->format('d/m/Y') ?? '—' }}</td>
+                                                <td class="px-3 py-3 min-w-0">
+                                                    <p class="text-gray-700 truncate" title="{{ $d['summary'] }}">{{ $d['summary'] }}</p>
+                                                    @if($d['attachments_count'] > 0)
+                                                        <p class="text-xs text-gray-400 mt-0.5">ไฟล์แนบ {{ $d['attachments_count'] }}</p>
+                                                    @endif
+                                                </td>
+                                                <td class="px-3 py-3 text-center">
+                                                    <span class="inline-flex items-center justify-center px-2 py-0.5 rounded-full text-xs font-medium border whitespace-nowrap min-w-[78px] {{ $st['class'] }}">
+                                                        {{ $st['label'] }}
+                                                    </span>
+                                                </td>
+                                                <td class="px-3 py-3 text-right whitespace-nowrap">
+                                                    <div class="inline-flex items-center gap-1">
+                                                        <a href="{{ route('portal.show', [$d['type'], $d['id']]) }}"
+                                                           class="px-2 py-1 text-xs text-gray-700 border border-gray-200 hover:bg-gray-100 rounded">ดู</a>
+                                                        <a href="{{ route('portal.print', [$d['type'], $d['id']]) }}" target="_blank"
+                                                           class="px-2 py-1 text-xs text-gray-700 border border-gray-200 hover:bg-gray-100 rounded">พิมพ์</a>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        @endif
+                    </div>
+                </section>
+            @endforeach
         </div>
     @endif
 </div>

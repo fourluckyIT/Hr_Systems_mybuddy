@@ -116,9 +116,22 @@ class CalendarController extends Controller
             ];
         }
 
+        // Build dedup index: any (employee, date, day_type) already represented by an
+        // approved leave_request — we'll skip the matching attendance_log below since
+        // a leave-request entry will be added later with richer info (status badge + portal link).
+        $leaveCoveredKeys = [];
+        foreach ($leaveRequests as $lr) {
+            if ($lr->status !== 'approved') continue;
+            $key = $lr->employee_id . '|' . Carbon::parse($lr->leave_date)->format('Y-m-d') . '|' . $lr->leave_type;
+            $leaveCoveredKeys[$key] = true;
+        }
+
         // Add Logs to events (All day)
         foreach ($logs as $log) {
             $dateStr = Carbon::parse($log->log_date)->format('Y-m-d');
+            $dedupKey = $log->employee_id . '|' . $dateStr . '|' . $log->day_type;
+            if (isset($leaveCoveredKeys[$dedupKey])) continue;  // skip — leave_request will represent this
+
             $label = $this->getLogLabel($log);
             $color = $this->getLogColor($log->day_type);
 

@@ -28,7 +28,10 @@
 
             <div class="flex justify-between h-14">
                 <div class="flex items-center space-x-6">
-                    <a href="{{ route('welcome') }}" class="text-lg font-bold text-indigo-600">xHR Payroll</a>
+                    <a href="{{ route('welcome') }}" class="text-lg font-bold text-indigo-600 inline-flex items-center gap-1.5">
+                        xHR Payroll
+                        <span class="text-[10px] font-semibold px-1.5 py-0.5 bg-amber-100 text-amber-700 border border-amber-200 rounded uppercase tracking-wide">v1.3 beta</span>
+                    </a>
 
                     @php
                         $navLink = 'text-sm text-gray-600 hover:text-indigo-600';
@@ -287,7 +290,7 @@
     <footer class="mt-auto border-t border-gray-200 bg-white shadow-sm print:hidden">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex justify-between items-center text-[11px] text-gray-500">
             <div class="font-medium">
-                xHR Payroll System &copy; {{ date('Y') }}
+                xHR Payroll System v1.3 beta &copy; {{ date('Y') }}
             </div>
             <div class="flex items-center gap-3">
                 <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> System Active</span>
