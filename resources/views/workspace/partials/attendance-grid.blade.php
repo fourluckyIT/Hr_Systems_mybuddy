@@ -86,19 +86,43 @@
                         @endforeach
                     </td>
                     <td class="px-2 py-1 text-center">
-                        <input type="time" data-field="check_in"
-                            value="{{ $log->check_in ? \Carbon\Carbon::parse($log->check_in)->format('H:i') : '' }}"
-                            {{ !$showTimeInputs ? 'disabled' : '' }}
-                            class="check-in-input px-1 py-0.5 border rounded text-xs w-20 text-center {{ !$showTimeInputs ? 'bg-gray-100 text-gray-400' : '' }}">
+                        @php
+                            $ciH = $log->check_in ? \Carbon\Carbon::parse($log->check_in)->format('H') : '';
+                            $ciM = $log->check_in ? \Carbon\Carbon::parse($log->check_in)->format('i') : '';
+                            $ciV = ($ciH !== '' && $ciM !== '') ? ($ciH . ':' . $ciM) : '';
+                            $dis = !$showTimeInputs ? 'disabled' : '';
+                            $bg  = !$showTimeInputs ? 'bg-gray-100 text-gray-400' : 'bg-white';
+                        @endphp
+                        <span class="time-pair inline-flex items-center border rounded text-xs {{ $bg }}" data-field="check_in">
+                            <input type="number" min="0" max="23" maxlength="2" {{ $dis }}
+                                class="hh-seg w-7 px-1 py-0.5 text-center bg-transparent border-0 outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:hidden [&::-webkit-outer-spin-button]:hidden"
+                                value="{{ $ciH }}" placeholder="--">
+                            <span class="px-0.5 text-gray-400">:</span>
+                            <input type="number" min="0" max="59" maxlength="2" {{ $dis }}
+                                class="mm-seg w-7 px-1 py-0.5 text-center bg-transparent border-0 outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:hidden [&::-webkit-outer-spin-button]:hidden"
+                                value="{{ $ciM }}" placeholder="--">
+                            <input type="hidden" class="check-in-input" value="{{ $ciV }}">
+                        </span>
                     </td>
                     <td class="px-2 py-1 text-center text-red-500 font-bold text-xs">
                         <span class="late-preview">{{ $log->late_minutes > 0 ? $log->late_minutes : '' }}</span>
                     </td>
                     <td class="px-2 py-1 text-center">
-                        <input type="time" data-field="check_out"
-                            value="{{ $log->check_out ? \Carbon\Carbon::parse($log->check_out)->format('H:i') : '' }}"
-                            {{ !$showTimeInputs ? 'disabled' : '' }}
-                            class="check-out-input px-1 py-0.5 border rounded text-xs w-20 text-center {{ !$showTimeInputs ? 'bg-gray-100 text-gray-400' : '' }}">
+                        @php
+                            $coH = $log->check_out ? \Carbon\Carbon::parse($log->check_out)->format('H') : '';
+                            $coM = $log->check_out ? \Carbon\Carbon::parse($log->check_out)->format('i') : '';
+                            $coV = ($coH !== '' && $coM !== '') ? ($coH . ':' . $coM) : '';
+                        @endphp
+                        <span class="time-pair inline-flex items-center border rounded text-xs {{ $bg }}" data-field="check_out">
+                            <input type="number" min="0" max="23" maxlength="2" {{ $dis }}
+                                class="hh-seg w-7 px-1 py-0.5 text-center bg-transparent border-0 outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:hidden [&::-webkit-outer-spin-button]:hidden"
+                                value="{{ $coH }}" placeholder="--">
+                            <span class="px-0.5 text-gray-400">:</span>
+                            <input type="number" min="0" max="59" maxlength="2" {{ $dis }}
+                                class="mm-seg w-7 px-1 py-0.5 text-center bg-transparent border-0 outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:hidden [&::-webkit-outer-spin-button]:hidden"
+                                value="{{ $coM }}" placeholder="--">
+                            <input type="hidden" class="check-out-input" value="{{ $coV }}">
+                        </span>
                     </td>
                     <td class="px-2 py-1 text-center">
                         <input type="number" data-field="late_minutes"
@@ -153,6 +177,57 @@
 (() => {
     const SAVE_URL = @json($saveRowUrl);
     const CSRF = document.querySelector('meta[name="csrf-token"]')?.content;
+
+    // ─── Time-pair widget (HH:MM as 2 number inputs) ─────────────────────
+    // Sync hh-seg + mm-seg → hidden combined value (".check-in-input" / ".check-out-input")
+    // and fire input/change so existing auto-save & late-preview run.
+    function syncTimePair(wrap) {
+        if (!wrap) return;
+        const hh = wrap.querySelector('.hh-seg');
+        const mm = wrap.querySelector('.mm-seg');
+        const out = wrap.querySelector('input[type="hidden"]');
+        if (!hh || !mm || !out) return;
+        const h = parseInt(hh.value, 10);
+        const m = parseInt(mm.value, 10);
+        const valid = !Number.isNaN(h) && !Number.isNaN(m) && h >= 0 && h <= 23 && m >= 0 && m <= 59;
+        const next = valid ? String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') : '';
+        if (out.value !== next) {
+            out.value = next;
+            out.dispatchEvent(new Event('input',  { bubbles: true }));
+            out.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+    }
+    function clampSeg(input) {
+        const max = parseInt(input.max, 10);
+        let v = parseInt(input.value, 10);
+        if (Number.isNaN(v)) return;
+        if (v < 0)   { input.value = '00'; }
+        else if (v > max) { input.value = String(max).padStart(2, '0'); }
+        else if (input.value.length === 1) { /* keep single-digit while typing */ }
+    }
+    document.addEventListener('input', (e) => {
+        const t = e.target;
+        if (!(t instanceof HTMLInputElement)) return;
+        if (!(t.classList.contains('hh-seg') || t.classList.contains('mm-seg'))) return;
+        clampSeg(t);
+        // Auto-advance: when 2 digits in HH, jump to MM
+        if (t.classList.contains('hh-seg') && (t.value.length >= 2 || parseInt(t.value, 10) > 2)) {
+            const mm = t.closest('.time-pair')?.querySelector('.mm-seg');
+            if (mm && document.activeElement === t) { mm.focus(); mm.select(); }
+        }
+        syncTimePair(t.closest('.time-pair'));
+    });
+    document.addEventListener('blur', (e) => {
+        const t = e.target;
+        if (!(t instanceof HTMLInputElement)) return;
+        if (!(t.classList.contains('hh-seg') || t.classList.contains('mm-seg'))) return;
+        // Pad to 2 digits on blur
+        if (t.value !== '' && !Number.isNaN(parseInt(t.value, 10))) {
+            t.value = String(parseInt(t.value, 10)).padStart(2, '0');
+        }
+        syncTimePair(t.closest('.time-pair'));
+    }, true);
+
     const canManageWorkspace = {{ $canManageWorkspace ? 'true' : 'false' }};
     const targetCheckIn = "{{ $attendanceMeta['target_check_in'] ?? '09:30' }}";
     const targetCheckOut = "{{ $attendanceMeta['target_check_out'] ?? '18:30' }}";
