@@ -291,7 +291,7 @@
             </div>
             <div class="flex items-center gap-3">
                 <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> System Active</span>
-                <span class="font-bold text-gray-700 bg-gray-100 px-2 py-0.5 rounded border border-gray-200">v1.2.0 (Stable)</span>
+                <span class="font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">v1.3.0 (beta)</span>
             </div>
         </div>
     </footer>
