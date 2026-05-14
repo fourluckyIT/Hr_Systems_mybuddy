@@ -376,6 +376,26 @@
                 const btn = document.querySelector('[data-shortcut-recalculate]');
                 if (btn) { e.preventDefault(); btn.click(); }
             }
+
+            // Time-input arrow nudge: Up/Right = +1 min, Down/Left = -1 min, Shift = ±15 min
+            // (Native time inputs split focus into HH/MM segments and let arrows jump to the
+            //  next field; we override so users can scrub minutes without clicking.)
+            if (t && t.tagName === 'INPUT' && t.type === 'time') {
+                const dir = (e.key === 'ArrowUp' || e.key === 'ArrowRight') ? 1
+                          : (e.key === 'ArrowDown' || e.key === 'ArrowLeft') ? -1 : 0;
+                if (dir !== 0) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const step = e.shiftKey ? 15 : 1;
+                    const [hh, mm] = (t.value || '00:00').split(':').map(n => parseInt(n, 10) || 0);
+                    const dayMins = 24 * 60;
+                    let total = (hh * 60 + mm + dir * step + dayMins) % dayMins;
+                    const nh = Math.floor(total / 60), nm = total % 60;
+                    t.value = String(nh).padStart(2, '0') + ':' + String(nm).padStart(2, '0');
+                    t.dispatchEvent(new Event('input',  { bubbles: true }));
+                    t.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+            }
         });
     </script>
 
