@@ -45,35 +45,45 @@
 
     .payslip-container {
         background: white;
-        border: 1px solid #ccc;
-        padding: 16px;
+        border: 1px solid #e5e7eb;
+        border-radius: 10px;
+        padding: 20px 24px;
         font-size: 13px;
-        line-height: 1.4;
+        line-height: 1.45;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
     }
 
     .payslip-header {
         text-align: left;
-        margin-bottom: 12px;
+        margin-bottom: 14px;
+        padding-bottom: 12px;
         border-bottom: 2px solid;
-        padding-bottom: 8px;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        gap: 16px;
     }
 
-    .payslip-header h1 {
-        font-size: 16px;
-        font-weight: bold;
+    .payslip-header .brand h1 {
+        font-size: 17px;
+        font-weight: 800;
         margin: 0;
         padding: 0;
+        letter-spacing: -0.2px;
     }
 
     .payslip-header .tagline {
         font-size: 11px;
-        color: #666;
-        margin: 2px 0;
+        color: #6b7280;
+        margin: 2px 0 0 0;
     }
 
     .payslip-header .descriptor {
         font-size: 10px;
-        color: #999;
+        color: #9ca3af;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        white-space: nowrap;
     }
 
     .info-row {
@@ -166,30 +176,33 @@
     .income-table,
     .deduction-table {
         border: 1px solid;
-        border-radius: 6px;
+        border-radius: 8px;
         overflow: hidden;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.03);
     }
 
     .table-header {
         background-color: #4f46e5;
         color: white;
-        padding: 8px 12px;
-        font-weight: bold;
+        padding: 9px 14px;
+        font-weight: 700;
         font-size: 12px;
-        margin-bottom: 0;
+        letter-spacing: 0.2px;
     }
 
     .table-body {
-        padding: 8px 12px;
+        padding: 6px 14px 10px;
         background: #fff;
     }
 
     .table-row {
-        display: flex;
-        justify-content: space-between;
-        padding: 6px 0;
+        display: grid;
+        grid-template-columns: 1fr auto;
+        column-gap: 16px;
+        align-items: baseline;
+        padding: 7px 0;
         border-bottom: 1px dashed #f0f0f0;
-        font-size: 11px;
+        font-size: 11.5px;
     }
 
     .table-row:last-child:not(.total) {
@@ -198,43 +211,47 @@
 
     .table-row.total {
         border-top: 1.5px solid #e5e7eb;
-        margin-top: 6px;
-        padding-top: 8px;
-        font-weight: bold;
+        margin-top: 4px;
+        padding-top: 9px;
+        font-weight: 800;
         border-bottom: none;
-        font-size: 12px;
+        font-size: 12.5px;
     }
 
-    .table-row span:first-child {
-        flex: 1;
-    }
-
-    .table-row span:last-child {
+    .table-row > span:first-child { color: #374151; }
+    .table-row > span:last-child {
         text-align: right;
-        min-width: 60px;
+        min-width: 70px;
+        font-variant-numeric: tabular-nums;
+        font-weight: 600;
+        color: #111827;
     }
+    .table-row.is-zero > span { color: #c0c4cc; font-weight: 400; }
 
     .net-pay-box {
         border: 2px solid #4f46e5;
-        background: rgba(79, 70, 229, 0.05);
-        padding: 12px 16px;
-        margin-bottom: 12px;
+        background: linear-gradient(135deg, rgba(79, 70, 229, 0.06), rgba(79, 70, 229, 0.02));
+        padding: 14px 20px;
+        margin-bottom: 14px;
         display: flex;
         justify-content: space-between;
         align-items: center;
-        border-radius: 6px;
+        border-radius: 10px;
+        box-shadow: 0 2px 6px rgba(79, 70, 229, 0.08);
     }
 
     .net-pay-box .label {
         font-size: 14px;
-        font-weight: bold;
-        color: #333;
+        font-weight: 700;
+        color: #1f2937;
     }
 
     .net-pay-box .amount {
-        font-size: 18px;
-        font-weight: bold;
+        font-size: 22px;
+        font-weight: 800;
         color: #4f46e5;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: -0.3px;
     }
 
     .summary-boxes {
@@ -246,10 +263,11 @@
 
     .summary-box {
         border: 1px solid;
-        padding: 10px;
+        padding: 12px;
         text-align: center;
         font-size: 10px;
-        border-radius: 6px;
+        border-radius: 8px;
+        background: #fff;
     }
 
     .summary-box.income {
@@ -275,9 +293,10 @@
     }
 
     .summary-box .amount {
-        font-weight: bold;
-        font-size: 13px;
+        font-weight: 800;
+        font-size: 14px;
         color: #333;
+        font-variant-numeric: tabular-nums;
     }
 
     .summary-box.income .amount {
@@ -401,31 +420,33 @@
 
         <!-- Header -->
         <div class="payslip-header" style="border-color: {{ $primaryColor }};">
-            <h1 style="color: {{ $primaryColor }}">{{ $company?->name ?? 'Pro One IT Co., Ltd.' }}
-                @if($company?->payslip_header_subtitle)
-                / {{ $company->payslip_header_subtitle }}
+            <div class="brand">
+                <h1 style="color: {{ $primaryColor }}">{{ $company?->name ?? 'Pro One IT Co., Ltd.' }}@if($company?->payslip_header_subtitle) <span style="font-weight:500;color:#6b7280;font-size:13px;"> / {{ $company->payslip_header_subtitle }}</span>@endif</h1>
+                @if($company?->tagline)
+                    <div class="tagline">{{ $company->tagline }}</div>
                 @endif
-            </h1>
-            <div class="tagline">{{ $company?->tagline ?? 'LowGrade โดย นิติบุคคล นายสรรวิน สาสาสันต์' }}</div>
-            <div class="descriptor">สลิปเงินเดือน / Payslip</div>
+            </div>
+            <div class="descriptor">สลิปเงินเดือน · Payslip</div>
         </div>
 
         <!-- Info Row -->
         <div class="info-row">
+            @if($company?->tax_id)
             <div class="item">
-                <label>เลขประจำตัวผู้เสียภาษี:</label>
-                <value>{{ $company?->tax_id ?? '-' }}</value>
+                <label>เลขประจำตัวผู้เสียภาษี</label>
+                <value>{{ $company->tax_id }}</value>
             </div>
+            @endif
             <div class="item">
-                <label>ประจำเดือน:</label>
+                <label>ประจำเดือน</label>
                 <value>{{ $monthNames[$month] }} {{ $year + 543 }}</value>
             </div>
             <div class="item">
-                <label>วันที่พิมพ์:</label>
+                <label>วันที่พิมพ์</label>
                 <value>{{ now()->format('d/m/') . (now()->year + 543) }}</value>
             </div>
             <div class="item">
-                <label>วันจ่ายเงิน:</label>
+                <label>วันจ่ายเงิน</label>
                 <value>{{ $payslip && $payslip->payment_date
                     ? \Carbon\Carbon::parse($payslip->payment_date)->format('d/m/') . (\Carbon\Carbon::parse($payslip->payment_date)->year + 543)
                     : \Carbon\Carbon::create($year, $month)->endOfMonth()->format('d/m/') . ($year + 543) }}</value>
@@ -464,9 +485,10 @@
                         @php
                             $itemLabel = is_array($item) ? $item['label'] : $item->label;
                             $itemAmount = (float) (is_array($item) ? $item['amount'] : $item->amount);
+                            // ค่าทำงานวันหยุด = 0 → ซ่อนไปเลย (ไม่ใช่ทุกเดือนมี)
+                            if ($itemLabel === 'ค่าทำงานวันหยุด' && $itemAmount == 0) continue;
                         @endphp
-                        @if($itemLabel === 'ค่าทำงานวันหยุด' && $itemAmount == 0) @continue @endif
-                    <div class="table-row">
+                    <div class="table-row {{ $itemAmount == 0 ? 'is-zero' : '' }}">
                         <span>
                             {{ $itemLabel }}
                             @if($itemLabel === 'ค่าทำงานวันหยุด')
@@ -476,8 +498,8 @@
                         <span>{{ number_format($itemAmount, 2) }}</span>
                     </div>
                     @empty
-                    <div class="table-row" style="color: #999;">
-                        <span>ไม่มีรายการ</span>
+                    <div class="table-row is-zero">
+                        <span>ไม่มีรายการ</span><span>—</span>
                     </div>
                     @endforelse
                     <div class="table-row total" style="color: {{ $primaryColor }};">
@@ -493,13 +515,19 @@
                 <div class="table-header" style="background-color: {{ $deductionColor }};">รายการหัก</div>
                 <div class="table-body">
                     @forelse($deductionItems as $item)
-                    <div class="table-row">
-                        <span>{{ is_array($item) ? $item['label'] : $item->label }}</span>
-                        <span>{{ number_format(is_array($item) ? $item['amount'] : $item->amount, 2) }}</span>
+                        @php
+                            $dLabel  = is_array($item) ? $item['label']  : $item->label;
+                            $dAmount = (float) (is_array($item) ? $item['amount'] : $item->amount);
+                            $dNote   = is_array($item) ? ($item['note'] ?? null) : ($item->note ?? null);
+                        @endphp
+                    <div class="table-row {{ $dAmount == 0 ? 'is-zero' : '' }}"
+                         @if($dNote) title="{{ $dNote }}" style="cursor: help;" @endif>
+                        <span>{{ $dLabel }}</span>
+                        <span>{{ number_format($dAmount, 2) }}</span>
                     </div>
                     @empty
-                    <div class="table-row" style="color: #999;">
-                        <span>ไม่มีรายการ</span>
+                    <div class="table-row is-zero">
+                        <span>ไม่มีรายการ</span><span>—</span>
                     </div>
                     @endforelse
                     <div class="table-row total" style="color: {{ $deductionColor }};">
