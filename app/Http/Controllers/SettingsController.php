@@ -110,12 +110,12 @@ class SettingsController extends Controller
 
             $oldSso = $sso->getAttributes();
 
-            $sso->update([
+            $sso->fill([
                 'salary_ceiling' => $request->input('salary_ceiling'),
                 'employee_rate' => $request->input('employee_contribution_rate'),
                 'employer_rate' => $request->input('employer_contribution_rate'),
                 'max_contribution' => ($request->input('salary_ceiling') * $request->input('employee_contribution_rate')) / 100,
-            ]);
+            ])->save();
 
             AuditLogService::log($sso, 'updated', 'sso_config', $oldSso, $sso->getAttributes(), 'SSO config updated');
 

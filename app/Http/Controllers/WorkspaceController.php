@@ -476,6 +476,9 @@ class WorkspaceController extends Controller
 
                     $dayType = $data['day_type'] ?? 'workday';
                     $this->validateSwapPolicy($log, $dayType);
+                    if ($dayType !== $oldDayType) {
+                        $this->validateLeavePolicy($employee, $dayType, \Carbon\Carbon::parse($log->log_date));
+                    }
 
                     $isWorkday = in_array($dayType, ['workday', 'ot_full_day'], true);
                     $isHolidayOvertimeDay = in_array($dayType, ['holiday', 'company_holiday'], true);
@@ -631,6 +634,9 @@ class WorkspaceController extends Controller
                 $oldDayType = $log->day_type;
                 $dayType = $data['day_type'] ?? $log->day_type;
                 $this->validateSwapPolicy($log, $dayType);
+                if ($dayType !== $oldDayType) {
+                    $this->validateLeavePolicy($employee, $dayType, \Carbon\Carbon::parse($log->log_date));
+                }
 
                 $checkIn = $data['check_in'] ?? null;
                 $checkOut = $data['check_out'] ?? null;
@@ -1052,6 +1058,7 @@ class WorkspaceController extends Controller
             throw new \RuntimeException('ไม่สามารถสลับวันหยุดตามประเพณีเป็นวันทำงานได้: เปิดสิทธิ์เฉพาะกิจการที่กฎหมายยกเว้นในหน้า Rules ก่อน');
         }
 
+
         if ($this->wouldExceedSixConsecutiveWorkdays($log, $newDayType)) {
             throw new \RuntimeException('ไม่สามารถสลับวันได้: จะทำให้ทำงานติดต่อกันเกิน 6 วันโดยไม่มีวันหยุด');
         }
@@ -1061,6 +1068,40 @@ class WorkspaceController extends Controller
     {
         $workingHoursRule = AttendanceRule::getActiveRule('working_hours');
         return (bool) ($workingHoursRule?->config['allow_company_holiday_swap'] ?? false);
+    }
+
+    protected function validateLeavePolicy(Employee $emp, string $leaveType, Carbon $leaveDate): void
+    {
+        if (!in_array($leaveType, array_keys(Employee::LEAVE_TYPE_LABELS), true)) {
+            return;
+        }
+
+        $policy = $emp->effectivePolicy();
+
+        // 1. Probation check
+        if ($policy && !$policy->allowsDuringProbation($leaveType)) {
+            $probationEnd = $emp->probation_end_date;
+            if ($probationEnd && $leaveDate->lessThanOrEqualTo($probationEnd)) {
+                throw new \RuntimeException('ไม่สามารถลาประเภทนี้ระหว่างทดลองงานได้ (ถึง ' . $probationEnd->format('d/m/Y') . ')');
+            }
+        }
+
+        // 2. Eligibility check (vacation_leave)
+        if ($policy && $leaveType === 'vacation_leave' && $emp->start_date) {
+            $eligibleFrom = $emp->start_date->copy()->addMonths((int) ($policy->vacation_eligibility_months ?? 12));
+            if ($leaveDate->lt($eligibleFrom)) {
+                throw new \RuntimeException('ลาพักร้อนได้เมื่อทำงานครบสิทธิ์ (เริ่มลาได้ตั้งแต่ ' . $eligibleFrom->format('d/m/Y') . ')');
+            }
+        }
+
+        // 3. Quota check
+        if (in_array($leaveType, array_keys(Employee::LEAVE_TYPES_TRACKED), true)) {
+            $year = (int) $leaveDate->format('Y');
+            $balance = $emp->getLeaveBalance($leaveType, $year);
+            if ($balance['remaining'] < 1) {
+                throw new \RuntimeException("สิทธิ {$balance['label']} ปี {$year} หมดแล้ว");
+            }
+        }
     }
 
     protected function wouldExceedSixConsecutiveWorkdays(AttendanceLog $targetLog, string $overrideDayType): bool

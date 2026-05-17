@@ -85,43 +85,41 @@ class LeaveRequestController extends Controller
             abort(403, 'คุณสามารถขอลาเฉพาะสำหรับตัวเองเท่านั้น');
         }
 
-        // Probation gate (skip for admin who logs on behalf)
+        // Probation gate
         // Per Thai labor law: sick (ม.32) and personal (ม.34) ALLOWED during probation,
         // vacation (ม.30) NOT allowed (requires ≥ 1 year of service)
-        if (!$isAdmin) {
-            $emp = Employee::find($validated['employee_id']);
-            $policy = $emp?->effectivePolicy();
-            $leaveType = $validated['leave_type'];
-            if ($emp && $policy && !$policy->allowsDuringProbation($leaveType)) {
-                $probationEnd = $emp->probation_end_date;
-                $leaveDate = \Carbon\Carbon::parse($validated['leave_date']);
-                if ($probationEnd && $leaveDate->lessThanOrEqualTo($probationEnd)) {
-                    return back()->withErrors([
-                        'leave_date' => 'ไม่สามารถลาประเภทนี้ระหว่างทดลองงานได้ (ถึง ' . $probationEnd->format('d/m/Y') . ')',
-                    ])->withInput();
-                }
+        $emp = Employee::find($validated['employee_id']);
+        $policy = $emp?->effectivePolicy();
+        $leaveType = $validated['leave_type'];
+        if ($emp && $policy && !$policy->allowsDuringProbation($leaveType)) {
+            $probationEnd = $emp->probation_end_date;
+            $leaveDate = \Carbon\Carbon::parse($validated['leave_date']);
+            if ($probationEnd && $leaveDate->lessThanOrEqualTo($probationEnd)) {
+                return back()->withErrors([
+                    'leave_date' => 'ไม่สามารถลาประเภทนี้ระหว่างทดลองงานได้ (ถึง ' . $probationEnd->format('d/m/Y') . ')',
+                ])->withInput();
             }
+        }
 
-            // Vacation eligibility — must have served ≥ vacation_eligibility_months from start_date (default 12, ม.30)
-            if ($emp && $policy && $leaveType === 'vacation_leave' && $emp->start_date) {
-                $eligibleFrom = $emp->start_date->copy()->addMonths((int) ($policy->vacation_eligibility_months ?? 12));
-                $leaveDate = \Carbon\Carbon::parse($validated['leave_date']);
-                if ($leaveDate->lt($eligibleFrom)) {
-                    return back()->withErrors([
-                        'leave_date' => 'ลาพักร้อนได้เมื่อทำงานครบ ' . ($policy->vacation_eligibility_months ?? 12) . ' เดือน (เริ่มลาพักร้อนได้ตั้งแต่ ' . $eligibleFrom->format('d/m/Y') . ' — ม.30 พรบ.คุ้มครองแรงงาน)',
-                    ])->withInput();
-                }
+        // Vacation eligibility — must have served ≥ vacation_eligibility_months from start_date (default 12, ม.30)
+        if ($emp && $policy && $leaveType === 'vacation_leave' && $emp->start_date) {
+            $eligibleFrom = $emp->start_date->copy()->addMonths((int) ($policy->vacation_eligibility_months ?? 12));
+            $leaveDate = \Carbon\Carbon::parse($validated['leave_date']);
+            if ($leaveDate->lt($eligibleFrom)) {
+                return back()->withErrors([
+                    'leave_date' => 'ลาพักร้อนได้เมื่อทำงานครบ ' . ($policy->vacation_eligibility_months ?? 12) . ' เดือน (เริ่มลาพักร้อนได้ตั้งแต่ ' . $eligibleFrom->format('d/m/Y') . ' — ม.30 พรบ.คุ้มครองแรงงาน)',
+                ])->withInput();
             }
+        }
 
-            // Quota check — กันส่งคำขอลาที่เกินสิทธิ
-            if ($emp && in_array($validated['leave_type'], array_keys(Employee::LEAVE_TYPES_TRACKED), true)) {
-                $year = (int) \Carbon\Carbon::parse($validated['leave_date'])->format('Y');
-                $balance = $emp->getLeaveBalance($validated['leave_type'], $year);
-                if ($balance['remaining'] <= 0) {
-                    return back()->withErrors([
-                        'leave_type' => "สิทธิ {$balance['label']} ปี {$year} หมดแล้ว (ใช้ไป {$balance['used']}/{" . rtrim(rtrim(number_format($balance['total_available'], 1), '0'), '.') . "})",
-                    ])->withInput();
-                }
+        // Quota check — กันส่งคำขอลาที่เกินสิทธิ
+        if ($emp && in_array($validated['leave_type'], array_keys(Employee::LEAVE_TYPES_TRACKED), true)) {
+            $year = (int) \Carbon\Carbon::parse($validated['leave_date'])->format('Y');
+            $balance = $emp->getLeaveBalance($validated['leave_type'], $year);
+            if ($balance['remaining'] <= 0) {
+                return back()->withErrors([
+                    'leave_type' => "สิทธิ {$balance['label']} ปี {$year} หมดแล้ว (ใช้ไป {$balance['used']}/" . rtrim(rtrim(number_format($balance['total_available'], 1), '0'), '.') . ")",
+                ])->withInput();
             }
         }
 
