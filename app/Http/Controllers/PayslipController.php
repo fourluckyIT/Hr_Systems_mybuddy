@@ -283,13 +283,16 @@ class PayslipController extends Controller
         $totalDeduction = 0.0;
         $netPay = 0.0;
 
-        // Respect start_date – do not accumulate months before the employee joined
+        // Per-line YTD: ['ฐานเงินเดือน' => 90000, 'ค่าล่วงเวลา' => 4250, ...]
+        // Sums every finalized payslip-item's amount from start_date through $month,
+        // grouped by label so the preview can show YTD next to each row Zoho-style.
+        $perLineYtd = [];
+
         $startDate    = $employee->start_date;
         $startYear    = $startDate ? (int) $startDate->format('Y') : 0;
         $startMonth   = $startDate ? (int) $startDate->format('n') : 1;
 
         for ($runningMonth = 1; $runningMonth <= $month; $runningMonth++) {
-            // Skip months before start_date
             if ($startDate) {
                 if ($year < $startYear) break;
                 if ($year === $startYear && $runningMonth < $startMonth) continue;
@@ -298,16 +301,19 @@ class PayslipController extends Controller
             $monthlyPayslip = Payslip::where('employee_id', $employee->id)
                 ->where('month', $runningMonth)
                 ->where('year', $year)
+                ->with('items')
                 ->first();
 
             if ($monthlyPayslip && $monthlyPayslip->status === 'finalized') {
-                $monthlyIncome    = (float) $monthlyPayslip->total_income;
-                $monthlyDeduction = (float) $monthlyPayslip->total_deduction;
-                $monthlyNet       = (float) $monthlyPayslip->net_pay;
+                $totalIncome    += (float) $monthlyPayslip->total_income;
+                $totalDeduction += (float) $monthlyPayslip->total_deduction;
+                $netPay         += (float) $monthlyPayslip->net_pay;
 
-                $totalIncome    += $monthlyIncome;
-                $totalDeduction += $monthlyDeduction;
-                $netPay         += $monthlyNet;
+                foreach ($monthlyPayslip->items ?? [] as $it) {
+                    $label = $it->label;
+                    if (!isset($perLineYtd[$label])) $perLineYtd[$label] = 0.0;
+                    $perLineYtd[$label] += (float) $it->amount;
+                }
             }
         }
 
@@ -315,6 +321,7 @@ class PayslipController extends Controller
             'total_income'    => $totalIncome,
             'total_deduction' => $totalDeduction,
             'net_pay'         => $netPay,
+            'per_line'        => $perLineYtd,
         ];
     }
 
@@ -323,12 +330,30 @@ class PayslipController extends Controller
         $calculated = $result ?? $this->payrollService->calculateForEmployee($employee, $month, $year);
         $summary = $calculated['summary'] ?? [];
 
+        // Total weekday slots in the month (Mon-Fri) — same denominator the payroll calc uses
+        $workDays = $this->countWeekdays($month, $year);
+        $lwopDays = (int) ($summary['lwop_days'] ?? 0);
+        $paidDays = max(0, $workDays - $lwopDays);
+
         return [
             'total_work_hours' => (float) ($summary['total_work_hours'] ?? 0),
             'total_ot_hours' => (float) ($summary['total_ot_hours'] ?? 0),
             'late_count' => (int) ($summary['late_count'] ?? 0),
             'late_minutes' => (int) ($summary['late_minutes'] ?? 0),
-            'lwop_days' => (int) ($summary['lwop_days'] ?? 0),
+            'lwop_days' => $lwopDays,
+            'work_days' => $workDays,   // Mon-Fri count
+            'paid_days' => $paidDays,   // work_days minus lwop_days
         ];
+    }
+
+    protected function countWeekdays(int $month, int $year): int
+    {
+        $start = \Carbon\Carbon::create($year, $month, 1)->startOfMonth();
+        $end   = $start->copy()->endOfMonth();
+        $count = 0;
+        for ($d = $start->copy(); $d->lte($end); $d->addDay()) {
+            if (!$d->isWeekend()) $count++;
+        }
+        return $count;
     }
 }

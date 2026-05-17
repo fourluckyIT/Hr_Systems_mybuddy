@@ -47,10 +47,240 @@
         background: white;
         border: 1px solid #e5e7eb;
         border-radius: 10px;
-        padding: 20px 24px;
+        padding: 24px 28px;
         font-size: 13px;
         line-height: 1.45;
         box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+
+    /* ─── Zoho-style header ─────────────────────────────── */
+    .zoho-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        padding-bottom: 14px;
+        margin-bottom: 18px;
+        border-bottom: 2px solid;
+    }
+    .zoho-header .brand h1 {
+        font-size: 22px;
+        font-weight: 800;
+        margin: 0;
+        letter-spacing: -0.3px;
+    }
+    .zoho-header .brand .subline {
+        font-size: 11px;
+        color: #6b7280;
+        margin-top: 2px;
+    }
+    .zoho-header .caption {
+        text-align: right;
+    }
+    .zoho-header .caption-line {
+        font-size: 11px;
+        color: #6b7280;
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+    }
+    .zoho-header .caption-month {
+        font-size: 16px;
+        font-weight: 700;
+        color: #111827;
+        margin-top: 2px;
+    }
+
+    /* ─── Employee block + Net Pay card ────────────────── */
+    .employee-and-net {
+        display: grid;
+        grid-template-columns: 1fr 280px;
+        gap: 24px;
+        margin-bottom: 16px;
+    }
+    .block-title {
+        font-size: 10px;
+        font-weight: 700;
+        color: #6b7280;
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+        margin-bottom: 8px;
+    }
+    .kv {
+        display: grid;
+        grid-template-columns: 100px 12px 1fr;
+        column-gap: 4px;
+        align-items: baseline;
+        padding: 3px 0;
+        font-size: 12px;
+    }
+    .kv > span:first-child { color: #6b7280; }
+    .kv > b { color: #9ca3af; font-weight: normal; }
+    .kv > value { color: #1f2937; font-weight: 600; }
+    .kv.inline { display: inline-grid; grid-template-columns: auto 12px auto; margin-right: 24px; }
+    .netpay-card {
+        border: 1.5px solid;
+        border-radius: 10px;
+        padding: 14px 18px;
+        background: rgba(79, 70, 229, 0.04);
+    }
+    .netpay-amount {
+        font-size: 26px;
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: -0.5px;
+        line-height: 1.1;
+    }
+    .netpay-label {
+        font-size: 11px;
+        color: #6b7280;
+        margin-top: 2px;
+    }
+    .netpay-divider {
+        border-top: 1px dashed #d1d5db;
+        margin: 10px 0;
+    }
+    .netpay-stat {
+        display: grid;
+        grid-template-columns: 1fr 12px auto;
+        column-gap: 4px;
+        align-items: baseline;
+        font-size: 11.5px;
+        padding: 2px 0;
+    }
+    .netpay-stat > span:first-child { color: #6b7280; }
+    .netpay-stat > b { color: #9ca3af; font-weight: normal; }
+    .netpay-stat > value { color: #1f2937; font-weight: 700; }
+
+    /* ─── Bank strip ───────────────────────────────────── */
+    .bank-strip {
+        padding: 10px 0;
+        border-top: 1px dashed #e5e7eb;
+        border-bottom: 1px dashed #e5e7eb;
+        margin-bottom: 16px;
+        font-size: 11.5px;
+    }
+
+    /* ─── Earnings / Deductions side-by-side tables ─── */
+    .zoho-tables {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        margin-bottom: 14px;
+    }
+    .ztable {
+        background: #fff;
+    }
+    .ztable-head {
+        display: grid;
+        grid-template-columns: 1fr 90px 90px;
+        column-gap: 8px;
+        align-items: center;
+        padding: 8px 0;
+        border-bottom: 1.5px solid #d1d5db;
+        font-size: 10.5px;
+        font-weight: 700;
+        color: #6b7280;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+    }
+    .ztable-head .col-amt,
+    .ztable-head .col-ytd { text-align: right; }
+    .ztable-row {
+        display: grid;
+        grid-template-columns: 1fr 90px 90px;
+        column-gap: 8px;
+        align-items: baseline;
+        padding: 8px 0;
+        border-bottom: 1px dashed #f0f0f0;
+        font-size: 12px;
+    }
+    .ztable-row .col-label { color: #1f2937; }
+    .ztable-row .col-amt {
+        text-align: right;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+        color: #111827;
+    }
+    .ztable-row .col-ytd {
+        text-align: right;
+        color: #6b7280;
+        font-variant-numeric: tabular-nums;
+    }
+    .ztable-row.is-zero .col-label,
+    .ztable-row.is-zero .col-amt,
+    .ztable-row.is-zero .col-ytd { color: #c0c4cc; font-weight: 400; }
+    .ztable-subtotal {
+        display: grid;
+        grid-template-columns: 1fr 90px 90px;
+        column-gap: 8px;
+        align-items: baseline;
+        padding: 10px 0 4px;
+        border-top: 1px solid #e5e7eb;
+        font-size: 12.5px;
+        font-weight: 800;
+    }
+    .ztable-subtotal .col-amt,
+    .ztable-subtotal .col-ytd {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+    }
+    .legal-tag {
+        display: inline-block;
+        margin-left: 4px;
+        padding: 1px 5px;
+        background: #f3f4f6;
+        color: #9ca3af;
+        font-size: 9px;
+        border-radius: 3px;
+        font-weight: 600;
+    }
+
+    /* ─── Total payable bar + amount in words ─── */
+    .total-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: stretch;
+        border: 1.5px solid;
+        border-radius: 8px;
+        padding: 0;
+        overflow: hidden;
+        margin-bottom: 8px;
+    }
+    .total-bar-left {
+        padding: 12px 16px;
+        flex: 1;
+    }
+    .total-bar-title {
+        font-size: 11px;
+        font-weight: 700;
+        color: #1f2937;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+    }
+    .total-bar-formula {
+        font-size: 11px;
+        color: #6b7280;
+        margin-top: 2px;
+    }
+    .total-bar-amount {
+        padding: 14px 20px;
+        font-size: 18px;
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+        display: flex;
+        align-items: center;
+        min-width: 180px;
+        justify-content: flex-end;
+    }
+    .amount-in-words {
+        text-align: right;
+        font-size: 11px;
+        color: #6b7280;
+        margin-bottom: 18px;
+    }
+    .amount-in-words .aiw-text {
+        color: #1f2937;
+        font-weight: 600;
+        margin-left: 4px;
     }
 
     .payslip-header {
@@ -418,146 +648,143 @@
 <div class="max-w-5xl mx-auto mb-6">
     <div class="payslip-container">
 
-        <!-- Header -->
-        <div class="payslip-header" style="border-color: {{ $primaryColor }};">
+        @php
+            $perLineYtd = $yearToDate['per_line'] ?? [];
+            $payDateStr = $payslip && $payslip->payment_date
+                ? \Carbon\Carbon::parse($payslip->payment_date)->format('d/m/') . (\Carbon\Carbon::parse($payslip->payment_date)->year + 543)
+                : \Carbon\Carbon::create($year, $month)->endOfMonth()->format('d/m/') . ($year + 543);
+            $deductionColor = '#ef4444';
+        @endphp
+
+        <!-- Header: brand left, payslip caption right -->
+        <div class="zoho-header" style="border-color: {{ $primaryColor }};">
             <div class="brand">
-                <h1 style="color: {{ $primaryColor }}">{{ $company?->name ?? 'Pro One IT Co., Ltd.' }}@if($company?->payslip_header_subtitle) <span style="font-weight:500;color:#6b7280;font-size:13px;"> / {{ $company->payslip_header_subtitle }}</span>@endif</h1>
-                @if($company?->tagline)
-                    <div class="tagline">{{ $company->tagline }}</div>
+                <h1 style="color: {{ $primaryColor }}">{{ $company?->name ?? 'Pro One IT Co., Ltd.' }}</h1>
+                @if($company?->payslip_header_subtitle)
+                    <div class="subline">{{ $company->payslip_header_subtitle }}</div>
+                @elseif($company?->tagline)
+                    <div class="subline">{{ $company->tagline }}</div>
                 @endif
             </div>
-            <div class="descriptor">สลิปเงินเดือน · Payslip</div>
-        </div>
-
-        <!-- Info Row -->
-        <div class="info-row">
-            @if($company?->tax_id)
-            <div class="item">
-                <label>เลขประจำตัวผู้เสียภาษี</label>
-                <value>{{ $company->tax_id }}</value>
-            </div>
-            @endif
-            <div class="item">
-                <label>ประจำเดือน</label>
-                <value>{{ $monthNames[$month] }} {{ $year + 543 }}</value>
-            </div>
-            <div class="item">
-                <label>วันที่พิมพ์</label>
-                <value>{{ now()->format('d/m/') . (now()->year + 543) }}</value>
-            </div>
-            <div class="item">
-                <label>วันจ่ายเงิน</label>
-                <value>{{ $payslip && $payslip->payment_date
-                    ? \Carbon\Carbon::parse($payslip->payment_date)->format('d/m/') . (\Carbon\Carbon::parse($payslip->payment_date)->year + 543)
-                    : \Carbon\Carbon::create($year, $month)->endOfMonth()->format('d/m/') . ($year + 543) }}</value>
+            <div class="caption">
+                <div class="caption-line">สลิปเงินเดือน</div>
+                <div class="caption-month">{{ $monthNames[$month] }} {{ $year + 543 }}</div>
             </div>
         </div>
 
-        <!-- Employee Info -->
-        <div class="employee-info">
-            <div class="item">
-                <label>ชื่อพนักงาน:</label>
-                <value>{{ $employee->full_name }}</value>
+        <!-- Employee Summary (left) + Net Pay Card (right) -->
+        <div class="employee-and-net">
+            <div class="employee-block">
+                <div class="block-title">ข้อมูลพนักงาน</div>
+                <div class="kv"><span>ชื่อพนักงาน</span><b>:</b><value>{{ $employee->full_name }}</value></div>
+                <div class="kv"><span>ตำแหน่ง</span><b>:</b><value>{{ $employee->position?->name ?? '—' }}</value></div>
+                <div class="kv"><span>รหัสพนักงาน</span><b>:</b><value>{{ $employee->employee_code ?? '—' }}</value></div>
+                @if($employee->start_date)
+                    <div class="kv"><span>วันเริ่มงาน</span><b>:</b><value>{{ $employee->start_date->format('d/m/') . ($employee->start_date->year + 543) }}</value></div>
+                @endif
+                <div class="kv"><span>ประจำเดือน</span><b>:</b><value>{{ $monthNames[$month] }} {{ $year + 543 }}</value></div>
+                <div class="kv"><span>วันจ่ายเงิน</span><b>:</b><value>{{ $payDateStr }}</value></div>
             </div>
-            <div class="item">
-                <label>ตำแหน่ง:</label>
-                <value>{{ $employee->position?->name ?? '-' }}</value>
-            </div>
-            <div class="item">
-                <label>ธนาคาร:</label>
-                <value>{{ $employee->bankAccount?->bank_name ?? '-' }}</value>
-            </div>
-            <div class="item" style="grid-column: span 2;">
-                <label>เลขที่บัญชีเงินเดือน:</label>
-                <value>{{ $employee->bankAccount?->account_number ?? '-' }}</value>
+            <div class="netpay-card" style="border-color: {{ $primaryColor }};">
+                <div class="netpay-amount" style="color: {{ $primaryColor }};">฿{{ number_format($netPay, 2) }}</div>
+                <div class="netpay-label">รายได้สุทธิ (Net Pay)</div>
+                <div class="netpay-divider"></div>
+                <div class="netpay-stat"><span>วันที่จ่าย</span><b>:</b><value>{{ $monthlyStats['paid_days'] ?? 0 }}</value></div>
+                <div class="netpay-stat"><span>วันลา/ขาด (LOP)</span><b>:</b><value>{{ $monthlyStats['lwop_days'] ?? 0 }}</value></div>
             </div>
         </div>
 
+        <!-- Bank info strip -->
+        @if($employee->bankAccount)
+            <div class="bank-strip">
+                <div class="kv inline"><span>ธนาคาร</span><b>:</b><value>{{ $employee->bankAccount->bank_name ?? '—' }}</value></div>
+                <div class="kv inline"><span>เลขที่บัญชี</span><b>:</b><value>{{ $employee->bankAccount->account_number ?? '—' }}</value></div>
+                @if($company?->tax_id)
+                    <div class="kv inline"><span>เลขผู้เสียภาษี (บริษัท)</span><b>:</b><value>{{ $company->tax_id }}</value></div>
+                @endif
+            </div>
+        @endif
 
-
-        <!-- Income & Deduction Tables -->
-        <div class="tables-row">
-            <!-- Income Table -->
-            <div class="income-table" style="border-color: {{ $primaryColor }};">
-                <div class="table-header" style="background-color: {{ $primaryColor }};">รายการได้</div>
-                <div class="table-body">
-                    @forelse($incomeItems as $item)
-                        @php
-                            $itemLabel = is_array($item) ? $item['label'] : $item->label;
-                            $itemAmount = (float) (is_array($item) ? $item['amount'] : $item->amount);
-                            // ค่าทำงานวันหยุด = 0 → ซ่อนไปเลย (ไม่ใช่ทุกเดือนมี)
-                            if ($itemLabel === 'ค่าทำงานวันหยุด' && $itemAmount == 0) continue;
-                        @endphp
-                    <div class="table-row {{ $itemAmount == 0 ? 'is-zero' : '' }}">
-                        <span>
+        <!-- Earnings / Deductions: side by side, each with AMOUNT + YTD columns -->
+        <div class="zoho-tables">
+            <div class="ztable">
+                <div class="ztable-head ztable-head-income">
+                    <span class="col-label">รายการได้ (EARNINGS)</span>
+                    <span class="col-amt">จำนวน</span>
+                    <span class="col-ytd">YTD</span>
+                </div>
+                @forelse($incomeItems as $item)
+                    @php
+                        $itemLabel = is_array($item) ? $item['label'] : $item->label;
+                        $itemAmount = (float) (is_array($item) ? $item['amount'] : $item->amount);
+                        if ($itemLabel === 'ค่าทำงานวันหยุด' && $itemAmount == 0) continue;
+                        $ytd = (float) ($perLineYtd[$itemLabel] ?? 0);
+                    @endphp
+                    <div class="ztable-row {{ $itemAmount == 0 ? 'is-zero' : '' }}">
+                        <span class="col-label">
                             {{ $itemLabel }}
                             @if($itemLabel === 'ค่าทำงานวันหยุด')
-                                <span style="color:#9ca3af; font-size:9px;" title="พรบ.คุ้มครองแรงงาน 2541 ม.62 — พนักงานรายเดือนทำงานในวันหยุดชั่วโมงปกติ ได้รับเพิ่ม 1× ของอัตรา/ชม.">(ม.62)</span>
+                                <span class="legal-tag" title="พรบ.คุ้มครองแรงงาน 2541 ม.62 — พนักงานรายเดือนทำงานในวันหยุดชั่วโมงปกติ ได้รับเพิ่ม 1× ของอัตรา/ชม.">ม.62</span>
                             @endif
                         </span>
-                        <span>{{ number_format($itemAmount, 2) }}</span>
+                        <span class="col-amt">{{ number_format($itemAmount, 2) }}</span>
+                        <span class="col-ytd">{{ $ytd > 0 ? number_format($ytd, 2) : '—' }}</span>
                     </div>
-                    @empty
-                    <div class="table-row is-zero">
-                        <span>ไม่มีรายการ</span><span>—</span>
-                    </div>
-                    @endforelse
-                    <div class="table-row total" style="color: {{ $primaryColor }};">
-                        <span>รวมเงินได้</span>
-                        <span>{{ number_format($totalIncome, 2) }}</span>
-                    </div>
+                @empty
+                    <div class="ztable-row is-zero"><span class="col-label">ไม่มีรายการ</span><span class="col-amt">—</span><span class="col-ytd">—</span></div>
+                @endforelse
+                <div class="ztable-subtotal" style="color: {{ $primaryColor }};">
+                    <span class="col-label">รวมเงินได้</span>
+                    <span class="col-amt">{{ number_format($totalIncome, 2) }}</span>
+                    <span class="col-ytd">{{ number_format($yearToDate['total_income'], 2) }}</span>
                 </div>
             </div>
 
-            <!-- Deduction Table -->
-            @php $deductionColor = '#ef4444'; @endphp
-            <div class="deduction-table" style="border-color: {{ $deductionColor }};">
-                <div class="table-header" style="background-color: {{ $deductionColor }};">รายการหัก</div>
-                <div class="table-body">
-                    @forelse($deductionItems as $item)
-                        @php
-                            $dLabel  = is_array($item) ? $item['label']  : $item->label;
-                            $dAmount = (float) (is_array($item) ? $item['amount'] : $item->amount);
-                            $dNote   = is_array($item) ? ($item['note'] ?? null) : ($item->note ?? null);
-                        @endphp
-                    <div class="table-row {{ $dAmount == 0 ? 'is-zero' : '' }}"
+            <div class="ztable">
+                <div class="ztable-head ztable-head-deduction">
+                    <span class="col-label">รายการหัก (DEDUCTIONS)</span>
+                    <span class="col-amt">จำนวน</span>
+                    <span class="col-ytd">YTD</span>
+                </div>
+                @forelse($deductionItems as $item)
+                    @php
+                        $dLabel  = is_array($item) ? $item['label']  : $item->label;
+                        $dAmount = (float) (is_array($item) ? $item['amount'] : $item->amount);
+                        $dNote   = is_array($item) ? ($item['note'] ?? null) : ($item->note ?? null);
+                        $dYtd    = (float) ($perLineYtd[$dLabel] ?? 0);
+                    @endphp
+                    <div class="ztable-row {{ $dAmount == 0 ? 'is-zero' : '' }}"
                          @if($dNote) title="{{ $dNote }}" style="cursor: help;" @endif>
-                        <span>{{ $dLabel }}</span>
-                        <span>{{ number_format($dAmount, 2) }}</span>
+                        <span class="col-label">{{ $dLabel }}</span>
+                        <span class="col-amt">{{ number_format($dAmount, 2) }}</span>
+                        <span class="col-ytd">{{ $dYtd > 0 ? number_format($dYtd, 2) : '—' }}</span>
                     </div>
-                    @empty
-                    <div class="table-row is-zero">
-                        <span>ไม่มีรายการ</span><span>—</span>
-                    </div>
-                    @endforelse
-                    <div class="table-row total" style="color: {{ $deductionColor }};">
-                        <span>รวมรายการหัก</span>
-                        <span>{{ number_format($totalDeduction, 2) }}</span>
-                    </div>
+                @empty
+                    <div class="ztable-row is-zero"><span class="col-label">ไม่มีรายการ</span><span class="col-amt">—</span><span class="col-ytd">—</span></div>
+                @endforelse
+                <div class="ztable-subtotal" style="color: {{ $deductionColor }};">
+                    <span class="col-label">รวมรายการหัก</span>
+                    <span class="col-amt">{{ number_format($totalDeduction, 2) }}</span>
+                    <span class="col-ytd">{{ number_format($yearToDate['total_deduction'], 2) }}</span>
                 </div>
             </div>
         </div>
 
-        <!-- Net Pay Box -->
-        <div class="net-pay-box" style="border-color: {{ $primaryColor }};">
-            <div class="label">รายได้สุทธิ (ที่จ่ายจริง)</div>
-            <div class="amount" style="color: {{ $primaryColor }};">{{ number_format($netPay, 2) }}</div>
+        <!-- TOTAL NET PAYABLE bar with formula -->
+        <div class="total-bar" style="border-color: {{ $primaryColor }};">
+            <div class="total-bar-left">
+                <div class="total-bar-title">รายได้สุทธิที่ต้องจ่าย</div>
+                <div class="total-bar-formula">รวมเงินได้ − รวมรายการหัก</div>
+            </div>
+            <div class="total-bar-amount" style="background: rgba(79,70,229,0.08); color: {{ $primaryColor }};">
+                ฿{{ number_format($netPay, 2) }}
+            </div>
         </div>
 
-        <!-- Summary Boxes -->
-        <div class="summary-boxes">
-            <div class="summary-box income">
-                <label>สะสมเงินได้</label>
-                <div class="amount">{{ number_format($yearToDate['total_income'], 2) }}</div>
-            </div>
-            <div class="summary-box deduction">
-                <label>สะสมรายการหัก</label>
-                <div class="amount">{{ number_format($yearToDate['total_deduction'], 2) }}</div>
-            </div>
-            <div class="summary-box net">
-                <label>สะสมสุทธิ</label>
-                <div class="amount">{{ number_format($yearToDate['net_pay'], 2) }}</div>
-            </div>
+        <!-- Amount in Thai words -->
+        <div class="amount-in-words">
+            <span class="aiw-label">จำนวนเงิน (ตัวอักษร):</span>
+            <span class="aiw-text">{{ \App\Support\ThaiBaht::inWords($netPay) }}</span>
         </div>
 
         <!-- Signatures -->
