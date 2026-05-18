@@ -1304,8 +1304,8 @@
 
                             <fieldset class="border border-gray-200 rounded-lg p-3">
                                 <legend class="px-2 text-xs font-bold text-gray-600">🚫 สิทธิระหว่างทดลองงาน</legend>
-                                <p class="text-[10px] text-gray-500 mb-2">⚖️ กฎหมายไทย: ป่วย (ม.32) + กิจ (ม.34) ลาได้ตั้งแต่วันแรก · พักร้อน (ม.30) เมื่อทำงานครบ 1 ปี</p>
-                                <div class="grid grid-cols-3 gap-2 text-sm">
+                                <p class="text-[10px] text-gray-500 mb-2">⚖️ กฎหมายไทย: ป่วย (ม.32) + กิจ (ม.34) + คลอด (ม.41) ลาได้ตั้งแต่วันแรก · พักร้อน (ม.30) เมื่อทำงานครบ 1 ปี</p>
+                                <div class="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
                                     <label class="flex items-center gap-1.5 p-2 border rounded-lg cursor-pointer hover:bg-gray-50">
                                         <input type="hidden" name="sick_during_probation" value="0">
                                         <input type="checkbox" name="sick_during_probation" value="1" :checked="editing?.sick_during_probation ?? true">
@@ -1320,6 +1320,21 @@
                                         <input type="hidden" name="vacation_during_probation" value="0">
                                         <input type="checkbox" name="vacation_during_probation" value="1" :checked="editing?.vacation_during_probation ?? false">
                                         <span>🏖️ พักร้อน</span>
+                                    </label>
+                                    <label class="flex items-center gap-1.5 p-2 border rounded-lg cursor-pointer hover:bg-gray-50"
+                                           title="ลาคลอด (ม.41) อนุญาตเสมอ — ไม่สามารถปิดได้">
+                                        <input type="checkbox" checked disabled>
+                                        <span class="text-gray-500">🤰 ลาคลอด <span class="text-[9px] text-emerald-600">(บังคับ ม.41)</span></span>
+                                    </label>
+                                    <label class="flex items-center gap-1.5 p-2 border rounded-lg cursor-pointer hover:bg-gray-50">
+                                        <input type="hidden" name="available_during_probation" value="0">
+                                        <input type="checkbox" name="available_during_probation" value="1" :checked="editing?.available_during_probation ?? false">
+                                        <span>👨 ลาช่วยภริยาคลอด <span class="text-[9px] text-gray-400">(paternity)</span></span>
+                                    </label>
+                                    <label class="flex items-center gap-1.5 p-2 border rounded-lg cursor-pointer hover:bg-gray-50"
+                                           title="ลาไม่รับค่าจ้าง — อนุญาตเสมอ ไม่กินโควต้า">
+                                        <input type="checkbox" checked disabled>
+                                        <span class="text-gray-500">💸 ลาไม่รับค่าจ้าง <span class="text-[9px] text-emerald-600">(บังคับ)</span></span>
                                     </label>
                                 </div>
                             </fieldset>
