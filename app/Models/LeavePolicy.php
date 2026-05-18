@@ -32,13 +32,25 @@ class LeavePolicy extends Model
         ];
     }
 
-    /** Returns true if the policy allows the given leave type during probation. */
+    /**
+     * Returns true if the policy allows the given leave type during probation.
+     *
+     * Thai labor law baseline:
+     *   - sick_leave (ม.32) — allowed from day 1 (toggleable via policy)
+     *   - personal_leave (ม.34) — allowed from day 1 (toggleable via policy)
+     *   - vacation_leave (ม.30) — NOT allowed during probation (toggleable)
+     *   - maternity_leave (ม.41) — allowed regardless of probation (statutory right)
+     *   - paternity_leave — company discretion → falls back to `available_during_probation`
+     *   - lwop — unpaid leave, doesn't draw quota → allowed regardless
+     */
     public function allowsDuringProbation(string $leaveType): bool
     {
         return match ($leaveType) {
             'sick_leave'     => (bool) $this->sick_during_probation,
             'personal_leave' => (bool) $this->personal_during_probation,
             'vacation_leave' => (bool) $this->vacation_during_probation,
+            'maternity_leave' => true,   // statutory — cannot be restricted
+            'lwop'            => true,   // unpaid leave, never restricted
             default          => (bool) $this->available_during_probation,
         };
     }

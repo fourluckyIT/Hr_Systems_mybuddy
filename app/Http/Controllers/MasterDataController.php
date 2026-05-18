@@ -151,16 +151,28 @@ class MasterDataController extends Controller
             'max_encash_days_per_year' => 'nullable|integer|min:0|max:365',
             'encash_rate_formula' => 'required|in:salary_div_30,salary_div_22,manual',
             'available_during_probation' => 'sometimes|boolean',
+            // Per-type probation gates (Thai labor law: ม.30 / ม.32 / ม.34)
+            'sick_during_probation'     => 'sometimes|boolean',
+            'personal_during_probation' => 'sometimes|boolean',
+            'vacation_during_probation' => 'sometimes|boolean',
+            'vacation_eligibility_months' => 'nullable|integer|min:0|max:60',
             'apply_to_payroll_modes' => 'nullable|array',
             'apply_to_payroll_modes.*' => 'string|in:monthly_staff,office_staff,freelance_layer,youtuber_salary,youtuber_settlement,custom_hybrid',
             'note' => 'nullable|string|max:500',
         ];
 
         $data = $request->validate($rules);
-        // Default booleans
-        foreach (['is_default','is_active','allow_carryover','allow_encashment','available_during_probation'] as $b) {
+        // Default booleans — unticked checkboxes from <input type="hidden" name=… value="0"> already deliver "0",
+        // but if the field wasn't present at all (admin-edited from API/curl etc.) we still need a defined value.
+        foreach ([
+            'is_default','is_active','allow_carryover','allow_encashment',
+            'available_during_probation',
+            'sick_during_probation','personal_during_probation','vacation_during_probation',
+        ] as $b) {
             $data[$b] = (bool) ($data[$b] ?? false);
         }
+        // Vacation eligibility default — per ม.30
+        $data['vacation_eligibility_months'] = (int) ($data['vacation_eligibility_months'] ?? 12);
         return $data;
     }
 
