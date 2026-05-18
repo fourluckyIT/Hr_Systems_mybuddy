@@ -28,10 +28,10 @@
     $description = $doc->description ?: str_repeat('.', 50);
 
     $statusLabel = match($doc->status) {
-        'approved'  => '✓ อนุมัติแล้ว',
-        'rejected'  => '✗ ไม่อนุมัติ',
-        'cancelled' => '— ยกเลิกแล้ว',
-        default     => '⏳ รออนุมัติ',
+        'approved'  => 'อนุมัติแล้ว',
+        'rejected'  => 'ไม่อนุมัติ',
+        'cancelled' => 'ยกเลิกแล้ว',
+        default     => 'รออนุมัติ',
     };
 @endphp
 
@@ -99,30 +99,30 @@
     @endif
 </div>
 
-<table class="sigs">
+<table class="sigs" style="margin-top:14px; border: 1px solid #000; border-collapse: collapse;">
     <tr>
-        <td style="width:50%; padding:10px 14px; vertical-align:top;" class="sig-block center">
+        <td style="width:50%; border-right: 1px solid #000; padding:10px 14px; vertical-align:top;" class="sig-block center">
             <div class="bold">ขอแสดงความนับถือ</div>
-            <div style="height:34px;"></div>
+            <div style="height:24px;"></div>
             <div class="sig-line">(ลงชื่อ) ……………………………………</div>
             <div>({{ $employeeName }})</div>
             <div>ผู้ขอเบิก</div>
-            <div style="margin-top:8px;" class="muted">วันที่ ……… / ……………… / ………</div>
+            <div style="margin-top:8px;">วันที่ ……… / ……………… / ………</div>
         </td>
         <td style="width:50%; padding:10px 14px; vertical-align:top;" class="sig-block center">
             <div>[ &nbsp; ] อนุมัติ &nbsp;&nbsp;&nbsp;&nbsp; [ &nbsp; ] ไม่อนุมัติ</div>
-            <div style="height:18px;"></div>
+            <div style="height:14px;"></div>
             <div class="sig-line">(ลงชื่อ) ………………………………… ผู้อนุมัติ</div>
             <div>(…………………………………)</div>
             <div>ตำแหน่ง …………………………………</div>
-            <div class="muted">วันที่ ……… / ……………… / ………</div>
+            <div>วันที่ ……… / ……………… / ………</div>
         </td>
     </tr>
 </table>
 
 @if($doc->attachments && $doc->attachments->isNotEmpty())
     <div style="margin-top: 12px; font-size: 13px; color: #666;">
-        📎 มีไฟล์แนบ {{ $doc->attachments->count() }} ไฟล์ (ตรวจสอบในระบบ)
+        มีไฟล์แนบ {{ $doc->attachments->count() }} ไฟล์ (ตรวจสอบในระบบ)
     </div>
 @endif
 

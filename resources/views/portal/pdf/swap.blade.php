@@ -25,10 +25,10 @@
     $reason = $doc->reason ?: str_repeat('.', 60);
 
     $statusLabel = match($doc->status) {
-        'approved'  => '✓ อนุมัติแล้ว',
-        'rejected'  => '✗ ไม่อนุมัติ',
-        'cancelled' => '— ยกเลิกแล้ว',
-        default     => '⏳ รออนุมัติ',
+        'approved'  => 'อนุมัติแล้ว',
+        'rejected'  => 'ไม่อนุมัติ',
+        'cancelled' => 'ยกเลิกแล้ว',
+        default     => 'รออนุมัติ',
     };
 @endphp
 
@@ -56,15 +56,15 @@
 
 <div class="detail-box">
     <div class="detail-row">
-        <div class="label">📅 วันที่จะมาทำงาน</div>
+        <div class="label">วันที่จะมาทำงาน</div>
         <div class="value"><span class="bold">{{ $workDateTh }}</span> @if($workWeekday)<span class="muted"> · {{ $workWeekday }}</span>@endif</div>
     </div>
     <div class="detail-row">
-        <div class="label">🏖️ วันที่จะหยุดทดแทน</div>
+        <div class="label">วันที่จะหยุดทดแทน</div>
         <div class="value"><span class="bold">{{ $offDateTh }}</span> @if($offWeekday)<span class="muted"> · {{ $offWeekday }}</span>@endif</div>
     </div>
     <div class="detail-row">
-        <div class="label">📝 เหตุผล</div>
+        <div class="label">เหตุผล</div>
         <div class="value">{{ $reason }}</div>
     </div>
     <div class="detail-row">
@@ -83,30 +83,30 @@
     @endif
 </div>
 
-<table class="sigs">
+<table class="sigs" style="margin-top:14px; border: 1px solid #000; border-collapse: collapse;">
     <tr>
-        <td style="width:50%; padding:10px 14px; vertical-align:top;" class="sig-block center">
+        <td style="width:50%; border-right: 1px solid #000; padding:10px 14px; vertical-align:top;" class="sig-block center">
             <div class="bold">ขอแสดงความนับถือ</div>
-            <div style="height:34px;"></div>
+            <div style="height:24px;"></div>
             <div class="sig-line">(ลงชื่อ) ……………………………………</div>
             <div>({{ $employeeName }})</div>
             <div>ผู้ขอสลับวัน</div>
-            <div style="margin-top:8px;" class="muted">วันที่ ……… / ……………… / ………</div>
+            <div style="margin-top:8px;">วันที่ ……… / ……………… / ………</div>
         </td>
         <td style="width:50%; padding:10px 14px; vertical-align:top;" class="sig-block center">
             <div>[ &nbsp; ] อนุญาต &nbsp;&nbsp;&nbsp;&nbsp; [ &nbsp; ] ไม่อนุญาต</div>
-            <div style="height:18px;"></div>
+            <div style="height:14px;"></div>
             <div class="sig-line">(ลงชื่อ) ………………………………… ผู้อนุมัติ</div>
             <div>(…………………………………)</div>
             <div>ตำแหน่ง …………………………………</div>
-            <div class="muted">วันที่ ……… / ……………… / ………</div>
+            <div>วันที่ ……… / ……………… / ………</div>
         </td>
     </tr>
 </table>
 
 @if($doc->attachments && $doc->attachments->isNotEmpty())
     <div style="margin-top: 14px; font-size: 13px; color: #666;">
-        📎 มีไฟล์แนบ {{ $doc->attachments->count() }} ไฟล์ (ตรวจสอบในระบบ)
+        มีไฟล์แนบ {{ $doc->attachments->count() }} ไฟล์ (ตรวจสอบในระบบ)
     </div>
 @endif
 

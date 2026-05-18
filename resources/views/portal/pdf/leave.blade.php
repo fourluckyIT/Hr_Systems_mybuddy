@@ -423,7 +423,7 @@
 
 @if($doc->attachments && $doc->attachments->isNotEmpty())
     <div style="margin-top: 14px; font-size: 14px; color: #666;">
-        📎 มีไฟล์แนบ {{ $doc->attachments->count() }} ไฟล์ (ตรวจสอบในระบบ)
+        มีไฟล์แนบ {{ $doc->attachments->count() }} ไฟล์ (ตรวจสอบในระบบ)
     </div>
 @endif
 

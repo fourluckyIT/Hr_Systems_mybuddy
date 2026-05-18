@@ -20,10 +20,10 @@
     $note = $doc->note ?: str_repeat('.', 60);
 
     $statusLabel = match($doc->status) {
-        'approved'  => '✓ อนุมัติแล้ว',
-        'rejected'  => '✗ ไม่อนุมัติ',
-        'cancelled' => '— ยกเลิกแล้ว',
-        default     => '⏳ รออนุมัติ',
+        'approved'  => 'อนุมัติแล้ว',
+        'rejected'  => 'ไม่อนุมัติ',
+        'cancelled' => 'ยกเลิกแล้ว',
+        default     => 'รออนุมัติ',
     };
 @endphp
 
@@ -51,23 +51,23 @@
 
 <div class="detail-box">
     <div class="detail-row">
-        <div class="label">🏖️ ประเภทวันลา</div>
+        <div class="label">ประเภทวันลา</div>
         <div class="value"><span class="bold">{{ $leaveTypeLabel }}</span></div>
     </div>
     <div class="detail-row">
-        <div class="label">📊 จำนวนวันที่ยกยอด</div>
+        <div class="label">จำนวนวันที่ยกยอด</div>
         <div class="value"><span class="bold">{{ $days }}</span> วัน</div>
     </div>
     <div class="detail-row">
-        <div class="label">📤 ยกยอดจากปี</div>
+        <div class="label">ยกยอดจากปี</div>
         <div class="value"><span class="bold">{{ $doc->source_year ?? '—' }}</span> @if($doc->source_year)<span class="muted"> · พ.ศ. {{ $doc->source_year + 543 }}</span>@endif</div>
     </div>
     <div class="detail-row">
-        <div class="label">📥 ไปใช้ในปี</div>
+        <div class="label">ไปใช้ในปี</div>
         <div class="value"><span class="bold">{{ $doc->year }}</span> <span class="muted"> · พ.ศ. {{ $doc->year + 543 }}</span></div>
     </div>
     <div class="detail-row">
-        <div class="label">📝 หมายเหตุ</div>
+        <div class="label">หมายเหตุ</div>
         <div class="value">{{ $note }}</div>
     </div>
     <div class="detail-row">
@@ -86,23 +86,23 @@
     @endif
 </div>
 
-<table class="sigs">
+<table class="sigs" style="margin-top:14px; border: 1px solid #000; border-collapse: collapse;">
     <tr>
-        <td style="width:50%; padding:10px 14px; vertical-align:top;" class="sig-block center">
+        <td style="width:50%; border-right: 1px solid #000; padding:10px 14px; vertical-align:top;" class="sig-block center">
             <div class="bold">ขอแสดงความนับถือ</div>
-            <div style="height:34px;"></div>
+            <div style="height:24px;"></div>
             <div class="sig-line">(ลงชื่อ) ……………………………………</div>
             <div>({{ $employeeName }})</div>
             <div>ผู้ขอยกยอด</div>
-            <div style="margin-top:8px;" class="muted">วันที่ ……… / ……………… / ………</div>
+            <div style="margin-top:8px;">วันที่ ……… / ……………… / ………</div>
         </td>
         <td style="width:50%; padding:10px 14px; vertical-align:top;" class="sig-block center">
             <div>[ &nbsp; ] อนุมัติ &nbsp;&nbsp;&nbsp;&nbsp; [ &nbsp; ] ไม่อนุมัติ</div>
-            <div style="height:18px;"></div>
+            <div style="height:14px;"></div>
             <div class="sig-line">(ลงชื่อ) ………………………………… ผู้อนุมัติ</div>
             <div>(…………………………………)</div>
             <div>ตำแหน่ง …………………………………</div>
-            <div class="muted">วันที่ ……… / ……………… / ………</div>
+            <div>วันที่ ……… / ……………… / ………</div>
         </td>
     </tr>
 </table>
