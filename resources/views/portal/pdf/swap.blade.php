@@ -1,57 +1,6 @@
 <!DOCTYPE html>
 <html>
-<head>
-    <meta charset="UTF-8">
-    <title>{{ $doc->document_number }}</title>
-    <style>
-        @page { margin: 24px 36px; }
-        * { box-sizing: border-box; }
-        body { font-family: 'thsarabun', sans-serif; font-size: 15px; line-height: 1.3; color: #000; margin: 0; padding: 0; }
-
-        .title { font-size: 20px; font-weight: bold; text-align: center; margin: 0 0 4px 0; }
-        .subtitle { font-size: 13px; text-align: center; color: #555; margin: 0 0 12px 0; }
-        .right { text-align: right; }
-        .center { text-align: center; }
-        .bold { font-weight: bold; }
-        .muted { color: #6b7280; }
-
-        .header-meta { text-align: right; margin-bottom: 8px; line-height: 1.4; }
-
-        .row { margin-bottom: 3px; }
-        .indent { padding-left: 24px; }
-        .body { margin-top: 8px; }
-
-        /* Detail box (looks like Thai gov form) */
-        .swap-detail {
-            border: 1px solid #000;
-            margin-top: 10px;
-        }
-        .swap-detail .detail-row {
-            display: table;
-            width: 100%;
-            border-bottom: 1px solid #000;
-        }
-        .swap-detail .detail-row:last-child { border-bottom: none; }
-        .swap-detail .detail-row > .label,
-        .swap-detail .detail-row > .value {
-            display: table-cell;
-            padding: 6px 12px;
-            vertical-align: middle;
-        }
-        .swap-detail .detail-row > .label {
-            width: 35%;
-            font-weight: bold;
-            background: #f9f9f9;
-            border-right: 1px solid #000;
-        }
-
-        /* Signature blocks */
-        table.sigs { width: 100%; border-collapse: collapse; margin-top: 14px; }
-        table.sigs td { vertical-align: top; padding: 0 6px; }
-        .sig-block { line-height: 1.4; }
-        .sig-line { letter-spacing: 0.5px; }
-    </style>
-</head>
+@include('portal.pdf._thai_form_head', ['docNumber' => $doc->document_number])
 <body>
 
 @php
@@ -105,7 +54,7 @@
     จึงเรียนมาเพื่อโปรดพิจารณาอนุญาต
 </div>
 
-<div class="swap-detail">
+<div class="detail-box">
     <div class="detail-row">
         <div class="label">📅 วันที่จะมาทำงาน</div>
         <div class="value"><span class="bold">{{ $workDateTh }}</span> @if($workWeekday)<span class="muted"> · {{ $workWeekday }}</span>@endif</div>
