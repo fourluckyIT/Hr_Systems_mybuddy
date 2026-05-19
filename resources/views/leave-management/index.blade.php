@@ -34,7 +34,7 @@
                 </select>
             </form>
             <button onclick="window.location.reload()" class="px-3 py-1.5 bg-white border border-gray-200 text-gray-700 rounded-lg text-xs font-bold hover:bg-gray-50" title="คำนวณยอดใหม่ (Recompute)">🔄 โหลดใหม่</button>
-            <a :href="'{{ route('leave-management.export-csv') }}?year=' + year" class="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700">⬇️ Export CSV</a>
+            <a href="{{ route('portal.index') }}" class="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 flex items-center gap-1">📄 ส่วนเอกสาร</a>
             <a href="{{ route('settings.master-data') }}?tab=leave_holidays" class="px-3 py-1.5 bg-white border border-gray-200 text-gray-700 rounded-lg text-xs font-bold hover:bg-gray-50">⚙️ จัดการนโยบาย</a>
         </div>
     </div>
