@@ -44,13 +44,13 @@
                         {{-- Primary (daily use) --}}
                         <a href="{{ route('employees.index') }}" class="{{ $navLink }} {{ request()->routeIs('employees.*') ? $navActive : '' }}">พนักงาน</a>
                         <a href="{{ route('work.index') }}" class="{{ $navLink }} {{ request()->routeIs('work.*') ? $navActive : '' }}">WORK Center</a>
-                        <a href="{{ route('leave-management.index') }}" class="{{ $navLink }} {{ request()->routeIs('leave-management.*') ? $navActive : '' }}">สิทธิวันลา (Batch)</a>
+
                         <a href="{{ route('payroll-batches.index') }}" class="{{ $navLink }} {{ request()->routeIs('payroll-batches.*') ? $navActive : '' }}">รอบบิลเงินเดือน</a>
                         <a href="{{ route('portal.index') }}" class="{{ $navLink }} {{ request()->routeIs('portal.*') || request()->routeIs('leave.*') ? $navActive : '' }}">📄 ศูนย์เอกสาร</a>
                         <a href="{{ route('company.finance') }}" class="{{ $navLink }} {{ request()->routeIs('company.*') || request()->routeIs('expense-tracker.*') ? $navActive : '' }}">การเงิน</a>
 
                         {{-- รายงาน dropdown (ERP Style) --}}
-                        @php $reportsActive = request()->routeIs('calendar.*') || request()->routeIs('annual.*') || request()->routeIs('audit-logs.*') || request()->routeIs('leave-management.*') || request()->routeIs('expense-tracker.*'); @endphp
+                        @php $reportsActive = request()->routeIs('calendar.*') || request()->routeIs('annual.*') || request()->routeIs('audit-logs.*') || request()->routeIs('expense-tracker.*'); @endphp
                         <div x-data="{ open: false }" class="relative" @click.outside="open = false">
                             <button @click="open = !open" class="{{ $navLink }} flex items-center gap-1 {{ $reportsActive ? $navActive : '' }}">
                                 รายงาน
@@ -85,15 +85,15 @@
                                     </div>
                                 </a>
 
-                                <!-- จัดการวันลา -->
-                                <a href="{{ route('leave-management.index') }}" class="block p-4 hover:bg-slate-50 transition-colors group">
+                                <!-- สิทธิวันลา → Portal tab -->
+                                <a href="{{ route('portal.index', ['tab' => 'leave']) }}" class="block p-4 hover:bg-slate-50 transition-colors group">
                                     <div class="flex items-start gap-3">
                                         <div class="p-2 bg-teal-50 text-teal-600 rounded-lg group-hover:bg-teal-600 group-hover:text-white transition-colors">
                                             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
                                         </div>
                                         <div>
-                                            <div class="text-sm font-bold text-gray-800 group-hover:text-teal-700">จัดการวันลา (Batch)</div>
-                                            <div class="text-[11px] text-gray-500 mt-0.5">อนุมัติ/ปรับยอด/ดูสิทธิวันลาคงเหลือรายคน</div>
+                                            <div class="text-sm font-bold text-gray-800 group-hover:text-teal-700">สิทธิวันลา</div>
+                                            <div class="text-[11px] text-gray-500 mt-0.5">ดูยอดวันลาคงเหลือ/ยกยอด/แลกเงิน/ปรับสิทธิ</div>
                                         </div>
                                     </div>
                                 </a>

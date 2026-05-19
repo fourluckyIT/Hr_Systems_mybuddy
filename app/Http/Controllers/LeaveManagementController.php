@@ -16,93 +16,8 @@ use Illuminate\Support\Facades\DB;
 
 class LeaveManagementController extends Controller
 {
-    public function index(Request $request)
-    {
-        $year = (int) $request->get('year', now()->year);
-        $today = now();
+    // index() moved to PortalController::loadLeaveTabData() — portal?tab=leave
 
-        $employees = Employee::with([
-            'department', 'position', 'leavePolicy',
-            'leaveCarryovers' => fn($q) => $q->where('year', $year),
-            'leaveEncashments' => fn($q) => $q->where('year', $year),
-        ])
-            ->where('is_active', true)
-            ->whereIn('payroll_mode', ['monthly_staff', 'office_staff', 'youtuber_salary'])
-            ->orderBy('first_name')
-            ->orderBy('last_name')
-            ->get();
-
-        $policies = LeavePolicy::where('is_active', true)->orderByDesc('is_default')->orderBy('name')->get();
-        $departments = \App\Models\Department::where('is_active', true)->orderBy('name')->get();
-
-        $rowsArr = $employees->map(function (Employee $emp) use ($year, $today) {
-            $balances = $emp->getAllLeaveBalances($year);
-            $policy = $emp->effectivePolicy();
-
-            $isProbation = $emp->probation_end_date && $emp->probation_end_date->isFuture();
-            $hasNoPolicy = !$policy;
-
-            // Carryover expiry: if vacation has carryover_expires_months and start of $year + months is within 60 days from today
-            $vac = $balances['vacation_leave'] ?? null;
-            $expiresMonths = $vac['carryover_expires_months'] ?? null;
-            $carryIn = (float) ($vac['carryover'] ?? 0);
-            $expiringSoon = false;
-            $expiresAt = null;
-            if ($expiresMonths !== null && $carryIn > 0) {
-                $expiresAt = \Carbon\Carbon::create($year, 1, 1)->addMonths($expiresMonths);
-                $expiringSoon = $expiresAt->diffInDays($today, false) >= -60 && $expiresAt->isAfter($today);
-            }
-
-            $totalRemaining = 0;
-            foreach ($balances as $b) $totalRemaining += (float) ($b['remaining'] ?? 0);
-            $lowVacation = ($vac['remaining'] ?? 0) < 5 && ($vac['limit'] ?? 0) > 0;
-
-            return [
-                'id'          => $emp->id,
-                'code'        => $emp->employee_code,
-                'name'        => $emp->display_name,
-                'dept_id'     => $emp->department_id,
-                'dept_name'   => $emp->department?->name ?? '—',
-                'pos_name'    => $emp->position?->name,
-                'policy_id'   => $policy?->id,
-                'policy_name' => $policy?->name,
-                'policy_is_default' => (bool) $policy?->is_default,
-                'is_probation' => $isProbation,
-                'has_no_policy' => $hasNoPolicy,
-                'expiring_soon' => $expiringSoon,
-                'expires_at'  => $expiresAt?->toDateString(),
-                'low_vacation' => $lowVacation,
-                'total_remaining' => $totalRemaining,
-                'balances' => $balances,
-            ];
-        })->values()->toArray();
-
-        // Year-end nudge: show banner Oct-Dec, count employees with carryover-eligible unused vacation
-        $isYearEndPeriod = (int) $today->month >= 10;
-        $expiringCount = collect($rowsArr)->where('expiring_soon', true)->count();
-        $unusedVacationCount = collect($rowsArr)
-            ->filter(fn($r) => ($r['balances']['vacation_leave']['remaining'] ?? 0) > 0 && ($r['balances']['vacation_leave']['allow_carryover'] ?? false))
-            ->count();
-
-        $stats = [
-            'total_employees'      => $employees->count(),
-            'total_policies'       => $policies->count(),
-            'total_carryover_days' => LeaveCarryover::whereIn('employee_id', $employees->pluck('id'))
-                                        ->where('year', $year)->sum('days'),
-            'total_encash_days'    => \App\Models\LeaveEncashment::whereIn('employee_id', $employees->pluck('id'))
-                                        ->where('year', $year)->sum('days'),
-            'total_encash_amount'  => \App\Models\LeaveEncashment::whereIn('employee_id', $employees->pluck('id'))
-                                        ->where('year', $year)->sum('amount'),
-            'no_policy_count'      => collect($rowsArr)->where('has_no_policy', true)->count(),
-            'probation_count'      => collect($rowsArr)->where('is_probation', true)->count(),
-            'expiring_count'       => $expiringCount,
-            'low_vacation_count'   => collect($rowsArr)->where('low_vacation', true)->count(),
-        ];
-
-        return view('leave-management.index', compact(
-            'rowsArr', 'policies', 'departments', 'year', 'stats', 'isYearEndPeriod', 'unusedVacationCount'
-        ));
-    }
 
     /** Batch carryover — admin select multiple employees + ระบบคำนวณยอดที่ยกได้ */
     public function batchCarryover(Request $request)
@@ -479,54 +394,5 @@ class LeaveManagementController extends Controller
         }
 
         return back()->with('success', "ปรับสิทธิวันลาของ {$employee->display_name} สำเร็จ");
-    }
-
-    /** Export leave balances as CSV */
-    public function exportCsv(Request $request)
-    {
-        abort_unless(Auth::user()?->hasRole('admin'), 403);
-        $year = (int) $request->get('year', now()->year);
-
-        $employees = Employee::with(['department', 'position', 'leavePolicy'])
-            ->where('is_active', true)
-            ->whereIn('payroll_mode', ['monthly_staff', 'office_staff', 'youtuber_salary'])
-            ->orderBy('first_name')
-            ->get();
-
-        $filename = "leave_balances_{$year}.csv";
-        $headers = [
-            "Content-type"        => "text/csv; charset=UTF-8",
-            "Content-Disposition" => "attachment; filename=$filename",
-            "Pragma"              => "no-cache",
-            "Cache-Control"       => "must-revalidate, post-check=0, pre-check=0",
-            "Expires"             => "0"
-        ];
-
-        $callback = function () use ($employees, $year) {
-            $file = fopen('php://output', 'w');
-            fputs($file, "\xEF\xBB\xBF"); // UTF-8 BOM
-            fputcsv($file, ['Employee Code', 'Name', 'Department', 'Position', 'Policy', 'Leave Type', 'Total Entitlement', 'Used', 'Remaining']);
-
-            foreach ($employees as $emp) {
-                $balances = $emp->getAllLeaveBalances($year);
-                foreach ($balances as $type => $b) {
-                    $label = Employee::LEAVE_TYPES_TRACKED[$type]['label'] ?? $type;
-                    fputcsv($file, [
-                        $emp->employee_code,
-                        $emp->display_name,
-                        $emp->department?->name ?? '—',
-                        $emp->position?->name ?? '—',
-                        $emp->effectivePolicy()?->name ?? '—',
-                        $label,
-                        $b['entitlement'],
-                        $b['used'],
-                        $b['remaining']
-                    ]);
-                }
-            }
-            fclose($file);
-        };
-
-        return response()->stream($callback, 200, $headers);
     }
 }

@@ -174,9 +174,17 @@ class PortalController extends Controller
             ? Employee::orderBy('first_name')->get(['id', 'first_name', 'last_name', 'employee_code'])
             : collect();
 
-        return view('portal.index', [
+        // ── Tab routing ──
+        $activeTab = ($isAdmin && $request->get('tab') === 'leave') ? 'leave' : 'docs';
+
+        $leaveData = [];
+        if ($activeTab === 'leave') {
+            $leaveData = $this->loadLeaveTabData($request);
+        }
+
+        return view('portal.index', array_merge([
             'buckets'   => $buckets,
-            'documents' => $documents,  // kept for legacy / empty-state checks
+            'documents' => $documents,
             'stats'     => $stats,
             'types'     => self::TYPES,
             'filters'   => compact('statusFilter', 'typeFilter', 'employeeFilter', 'year', 'month', 'hidePast'),
@@ -184,7 +192,75 @@ class PortalController extends Controller
             'employees' => $employees,
             'isAdmin'   => $isAdmin,
             'leaveTypes' => \App\Models\Employee::LEAVE_TYPE_LABELS,
-        ]);
+            'activeTab' => $activeTab,
+        ], $leaveData));
+    }
+
+    /**
+     * Load leave management data for the "สิทธิวันลา" tab.
+     */
+    private function loadLeaveTabData(Request $request): array
+    {
+        $leaveYear = (int) $request->get('leave_year', now()->year);
+        $today = now();
+
+        $emps = Employee::with([
+            'department', 'position', 'leavePolicy',
+            'leaveCarryovers' => fn($q) => $q->where('year', $leaveYear),
+            'leaveEncashments' => fn($q) => $q->where('year', $leaveYear),
+        ])
+            ->where('is_active', true)
+            ->whereIn('payroll_mode', ['monthly_staff', 'office_staff', 'youtuber_salary'])
+            ->orderBy('first_name')->orderBy('last_name')
+            ->get();
+
+        $leavePolicies = \App\Models\LeavePolicy::where('is_active', true)->orderByDesc('is_default')->orderBy('name')->get();
+        $leaveDepartments = \App\Models\Department::where('is_active', true)->orderBy('name')->get();
+
+        $leaveRowsArr = $emps->map(function (Employee $emp) use ($leaveYear, $today) {
+            $balances = $emp->getAllLeaveBalances($leaveYear);
+            $policy = $emp->effectivePolicy();
+            $isProbation = $emp->probation_end_date && $emp->probation_end_date->isFuture();
+            $hasNoPolicy = !$policy;
+            $vac = $balances['vacation_leave'] ?? null;
+            $expiresMonths = $vac['carryover_expires_months'] ?? null;
+            $carryIn = (float) ($vac['carryover'] ?? 0);
+            $expiringSoon = false;
+            $expiresAt = null;
+            if ($expiresMonths !== null && $carryIn > 0) {
+                $expiresAt = \Carbon\Carbon::create($leaveYear, 1, 1)->addMonths($expiresMonths);
+                $expiringSoon = $expiresAt->diffInDays($today, false) >= -60 && $expiresAt->isAfter($today);
+            }
+            $lowVacation = ($vac['remaining'] ?? 0) < 5 && ($vac['limit'] ?? 0) > 0;
+
+            return [
+                'id' => $emp->id, 'code' => $emp->employee_code, 'name' => $emp->display_name,
+                'dept_id' => $emp->department_id, 'dept_name' => $emp->department?->name ?? '—',
+                'policy_id' => $policy?->id, 'policy_name' => $policy?->name,
+                'policy_is_default' => (bool) $policy?->is_default,
+                'is_probation' => $isProbation, 'has_no_policy' => $hasNoPolicy,
+                'expiring_soon' => $expiringSoon, 'expires_at' => $expiresAt?->toDateString(),
+                'low_vacation' => $lowVacation, 'balances' => $balances,
+            ];
+        })->values()->toArray();
+
+        $leaveUnusedVacationCount = collect($leaveRowsArr)
+            ->filter(fn($r) => ($r['balances']['vacation_leave']['remaining'] ?? 0) > 0 && ($r['balances']['vacation_leave']['allow_carryover'] ?? false))
+            ->count();
+
+        $leaveStats = [
+            'total_employees'      => $emps->count(),
+            'total_policies'       => $leavePolicies->count(),
+            'total_carryover_days' => LeaveCarryover::whereIn('employee_id', $emps->pluck('id'))->where('year', $leaveYear)->sum('days'),
+            'total_encash_days'    => LeaveEncashment::whereIn('employee_id', $emps->pluck('id'))->where('year', $leaveYear)->sum('days'),
+            'total_encash_amount'  => LeaveEncashment::whereIn('employee_id', $emps->pluck('id'))->where('year', $leaveYear)->sum('amount'),
+            'no_policy_count'      => collect($leaveRowsArr)->where('has_no_policy', true)->count(),
+            'probation_count'      => collect($leaveRowsArr)->where('is_probation', true)->count(),
+            'expiring_count'       => collect($leaveRowsArr)->where('expiring_soon', true)->count(),
+            'low_vacation_count'   => collect($leaveRowsArr)->where('low_vacation', true)->count(),
+        ];
+
+        return compact('leaveRowsArr', 'leavePolicies', 'leaveDepartments', 'leaveYear', 'leaveStats', 'leaveUnusedVacationCount');
     }
 
     // ─── Show: detail page for a single document ────────────────────────────
