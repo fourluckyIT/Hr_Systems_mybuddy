@@ -106,7 +106,7 @@
     </div>
 
     {{-- Batch action bar --}}
-    <div class="flex items-center justify-between mb-3 p-3 bg-indigo-50 border border-indigo-100 rounded-xl">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-3 p-3 bg-indigo-50 border border-indigo-100 rounded-xl gap-3">
         <div class="text-sm">
             <span class="font-bold text-indigo-700">เลือก: <span x-text="selected.length"></span> คน</span>
             <span class="text-gray-500 ml-2 text-xs">(<span x-text="filteredRows.length"></span> คนหลังกรอง)</span>
@@ -133,7 +133,7 @@
     {{-- Table --}}
     <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div class="overflow-x-auto">
-            <table class="w-full text-sm">
+            <table class="w-full text-sm min-w-[1000px]">
                 <thead class="bg-gray-50 border-b border-gray-100">
                     <tr>
                         <th class="px-3 py-2 text-left w-8">

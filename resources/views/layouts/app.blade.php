@@ -23,12 +23,21 @@
     @endphp
 
     <!-- Navigation -->
-    <nav class="bg-white shadow-sm border-b border-gray-200">
+    <nav class="bg-white shadow-sm border-b border-gray-200" x-data="{ mobileMenuOpen: false }">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
             <div class="flex justify-between h-14">
-                <div class="flex items-center space-x-6">
-                    <a href="{{ route('welcome') }}" class="text-lg font-bold text-indigo-600">xHR Payroll</a>
+                <div class="flex items-center gap-4">
+                    <!-- Hamburger -->
+                    <div class="flex items-center md:hidden">
+                        <button type="button" @click="mobileMenuOpen = !mobileMenuOpen" class="text-gray-500 hover:text-indigo-600 focus:outline-none">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+                        </button>
+                    </div>
+                    
+                    <a href="{{ route('welcome') }}" class="text-lg font-bold text-indigo-600 shrink-0">xHR Payroll</a>
+
+                    <div class="hidden md:flex items-center space-x-6">
 
                     @php
                         $navLink = 'text-sm text-gray-600 hover:text-indigo-600';
@@ -189,9 +198,11 @@
                                 </a>
                             </div>
                         </div>
+                        </div>
                     @endif
+                    </div> <!-- End of Desktop Nav -->
                 </div>
-                <div class="flex items-center space-x-3">
+                <div class="flex items-center space-x-3 shrink-0">
                     {{-- OT Request quick link --}}
                     @if($authUser)
                         @if($isAdmin)
@@ -231,6 +242,39 @@
                         <button type="submit" class="text-sm text-red-500 hover:text-red-700">ออกจากระบบ</button>
                     </form>
                 </div>
+            </div>
+            </div>
+        </div>
+
+        <!-- Mobile Menu Dropdown -->
+        <div x-show="mobileMenuOpen" class="md:hidden" x-cloak x-transition>
+            <div class="px-2 pt-2 pb-3 space-y-1 border-t border-gray-200 bg-gray-50 shadow-inner">
+                @if($isOwnerOnly)
+                    <a href="{{ route('workspace.my') }}" class="{{ $dropItem }}">My Workspace</a>
+                    <a href="{{ route('portal.index') }}" class="{{ $dropItem }}">📄 ศูนย์เอกสาร</a>
+                    <a href="{{ route('calendar.index') }}" class="{{ $dropItem }}">ปฏิทินบริษัท</a>
+                @elseif($isAdmin)
+                    <a href="{{ route('employees.index') }}" class="{{ $dropItem }}">พนักงาน</a>
+                    <a href="{{ route('work.index') }}" class="{{ $dropItem }}">WORK Center</a>
+                    <a href="{{ route('payroll-batches.index') }}" class="{{ $dropItem }}">รอบบิลเงินเดือน</a>
+                    <a href="{{ route('portal.index') }}" class="{{ $dropItem }}">📄 ศูนย์เอกสาร</a>
+                    <a href="{{ route('company.finance') }}" class="{{ $dropItem }}">การเงิน</a>
+                    
+                    <div class="border-t border-gray-200 my-2"></div>
+                    <div class="px-4 py-1 text-xs font-bold text-gray-400 uppercase tracking-wider">รายงาน</div>
+                    <a href="{{ route('calendar.index') }}" class="{{ $dropItem }}">ปฏิทินบริษัท</a>
+                    <a href="{{ route('annual.index') }}" class="{{ $dropItem }}">สรุปรายปี</a>
+                    <a href="{{ route('portal.index', ['tab' => 'leave']) }}" class="{{ $dropItem }}">สิทธิวันลา</a>
+                    <a href="{{ route('expense-tracker.index') }}" class="{{ $dropItem }}">รายรับ-จ่าย (Tracker)</a>
+                    <a href="{{ route('audit-logs.index') }}" class="{{ $dropItem }}">Audit Log</a>
+                    
+                    <div class="border-t border-gray-200 my-2"></div>
+                    <div class="px-4 py-1 text-xs font-bold text-gray-400 uppercase tracking-wider">ตั้งค่า</div>
+                    <a href="{{ route('settings.master-data') }}" class="{{ $dropItem }}">Master Data</a>
+                    <a href="{{ route('settings.rules') }}" class="{{ $dropItem }}">กติกาคำนวณ (Rules)</a>
+                    <a href="{{ route('settings.bonus.index') }}" class="{{ $dropItem }}">Bonus Manager</a>
+                    <a href="{{ route('document-templates.index') }}" class="{{ $dropItem }}">แม่แบบเอกสาร</a>
+                @endif
             </div>
         </div>
     </nav>

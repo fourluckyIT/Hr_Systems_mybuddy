@@ -152,15 +152,17 @@
 
     {{-- Tab Navigation (Admin sees both, Employee sees only Documents) --}}
     @if($isAdmin)
-    <div class="flex gap-1 mb-4 border-b border-gray-200">
-        <a href="{{ route('portal.index') }}"
-           class="px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors {{ ($activeTab ?? 'docs') === 'docs' ? 'border-gray-800 text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' }}">
-            📄 เอกสาร
-        </a>
-        <a href="{{ route('portal.index', ['tab' => 'leave']) }}"
-           class="px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors {{ ($activeTab ?? 'docs') === 'leave' ? 'border-gray-800 text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' }}">
-            🏖️ สิทธิวันลา
-        </a>
+    <div class="mb-4 border-b border-gray-200">
+        <div class="flex gap-1 overflow-x-auto whitespace-nowrap hide-scrollbar">
+            <a href="{{ route('portal.index') }}"
+               class="px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors {{ ($activeTab ?? 'docs') === 'docs' ? 'border-gray-800 text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' }}">
+                📄 เอกสาร
+            </a>
+            <a href="{{ route('portal.index', ['tab' => 'leave']) }}"
+               class="px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors {{ ($activeTab ?? 'docs') === 'leave' ? 'border-gray-800 text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' }}">
+                🏖️ สิทธิวันลา
+            </a>
+        </div>
     </div>
     @endif
 
@@ -170,22 +172,22 @@
     @else
 
     {{-- Stats (neutral, restrained) --}}
-    <div class="bg-white border border-gray-200 rounded-lg mb-3 grid grid-cols-2 sm:grid-cols-4 divide-x divide-gray-100 text-sm overflow-hidden">
-        <div class="px-5 py-3 flex items-baseline gap-2">
-            <span class="text-gray-500">ทั้งหมด</span>
-            <strong class="text-gray-900 text-base">{{ $stats['total'] }}</strong>
+    <div class="bg-gray-200 border border-gray-200 rounded-lg mb-3 grid grid-cols-2 sm:grid-cols-4 gap-px text-sm overflow-hidden">
+        <div class="bg-white px-4 sm:px-5 py-3 flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-2">
+            <span class="text-gray-500 text-xs sm:text-sm">ทั้งหมด</span>
+            <strong class="text-gray-900 text-base sm:text-lg">{{ $stats['total'] }}</strong>
         </div>
-        <div class="px-5 py-3 flex items-baseline gap-2">
-            <span class="text-gray-500">รออนุมัติ</span>
-            <strong class="text-amber-700 text-base">{{ $stats['pending'] }}</strong>
+        <div class="bg-white px-4 sm:px-5 py-3 flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-2">
+            <span class="text-gray-500 text-xs sm:text-sm">รออนุมัติ</span>
+            <strong class="text-amber-700 text-base sm:text-lg">{{ $stats['pending'] }}</strong>
         </div>
-        <div class="px-5 py-3 flex items-baseline gap-2">
-            <span class="text-gray-500">อนุมัติแล้ว</span>
-            <strong class="text-emerald-700 text-base">{{ $stats['approved'] }}</strong>
+        <div class="bg-white px-4 sm:px-5 py-3 flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-2">
+            <span class="text-gray-500 text-xs sm:text-sm">อนุมัติแล้ว</span>
+            <strong class="text-emerald-700 text-base sm:text-lg">{{ $stats['approved'] }}</strong>
         </div>
-        <div class="px-5 py-3 flex items-baseline gap-2">
-            <span class="text-gray-500">ไม่อนุมัติ</span>
-            <strong class="text-rose-700 text-base">{{ $stats['rejected'] }}</strong>
+        <div class="bg-white px-4 sm:px-5 py-3 flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-2">
+            <span class="text-gray-500 text-xs sm:text-sm">ไม่อนุมัติ</span>
+            <strong class="text-rose-700 text-base sm:text-lg">{{ $stats['rejected'] }}</strong>
         </div>
     </div>
 
@@ -342,7 +344,7 @@
                             <div class="py-8 text-center text-sm text-gray-400 italic">ไม่มีรายการ</div>
                         @else
                             <div class="overflow-x-auto">
-                                <table class="w-full text-sm table-fixed">
+                                <table class="w-full text-sm table-fixed min-w-[800px]">
                                     <colgroup>
                                         @if($isAdmin)<col class="w-10">@endif
                                         <col class="w-32">
