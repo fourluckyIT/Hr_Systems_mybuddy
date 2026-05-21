@@ -281,21 +281,21 @@
 </div>
 
 <!-- Summary Cards -->
-<div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-    <div class="bg-green-50 border border-green-200 rounded-xl p-4">
+<div class="flex overflow-x-auto md:grid md:grid-cols-5 gap-3 md:gap-4 mb-6 pb-2 md:pb-0 snap-x">
+    <div class="min-w-[140px] shrink-0 bg-green-50 border border-green-200 rounded-xl p-4 snap-start">
         <p class="text-xs text-green-600 font-medium">รายรับ</p>
         <p id="summary-total-income" class="text-2xl font-bold text-green-700 transition-all">{{ number_format($summary['total_income'] ?? 0, 2) }}</p>
     </div>
-    <div class="bg-red-50 border border-red-200 rounded-xl p-4">
+    <div class="min-w-[140px] shrink-0 bg-red-50 border border-red-200 rounded-xl p-4 snap-start">
         <p class="text-xs text-red-600 font-medium">รายหัก</p>
         <p id="summary-total-deduction" class="text-2xl font-bold text-red-700 transition-all">{{ number_format($summary['total_deduction'] ?? 0, 2) }}</p>
     </div>
-    <div id="summary-net-pay-card" class="bg-indigo-50 border border-indigo-200 rounded-xl p-4 transition-colors" x-data>
+    <div id="summary-net-pay-card" class="min-w-[140px] shrink-0 bg-indigo-50 border border-indigo-200 rounded-xl p-4 transition-colors snap-start" x-data>
         <p class="text-xs text-indigo-600 font-medium">รายได้สุทธิ</p>
         <p id="summary-net-pay" class="text-2xl font-bold text-indigo-700 transition-all">{{ number_format($summary['net_pay'] ?? 0, 2) }}</p>
         <p id="summary-stale-flag" class="hidden mt-1 text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded">⚠ ยังไม่ได้คำนวณใหม่</p>
     </div>
-    <div class="bg-teal-50 border border-teal-200 rounded-xl p-4 relative group">
+    <div class="min-w-[140px] shrink-0 bg-teal-50 border border-teal-200 rounded-xl p-4 relative group snap-start">
         <p class="text-xs text-teal-600 font-medium">ลาพักร้อน (ปีนี้)</p>
         <div class="flex items-baseline gap-1">
             <p class="text-2xl font-bold text-teal-700" x-text="vacationBalance.used"></p>
@@ -306,15 +306,15 @@
         </div>
     </div>
     @if($employee->payroll_mode !== 'youtuber_salary' && $employee->payroll_mode !== 'youtuber_settlement')
-    <div class="bg-amber-50 border border-amber-200 rounded-xl p-4">
-        <p class="text-xs text-amber-600 font-medium">ระยะเวลารวม (เดือนนี้)</p>
+    <div class="min-w-[140px] shrink-0 bg-amber-50 border border-amber-200 rounded-xl p-4 snap-start">
+        <p class="text-xs text-amber-600 font-medium">เวลา (เดือนนี้)</p>
         <p class="text-2xl font-bold text-amber-700">{{ $performanceSummary['total_duration_hms'] ?? '00:00:00' }}</p>
     </div>
     @else
-    <div class="bg-indigo-50 border border-indigo-200 rounded-xl p-4">
+    <div class="min-w-[140px] shrink-0 bg-indigo-50 border border-indigo-200 rounded-xl p-4 snap-start">
         <p class="text-xs text-indigo-600 font-medium">{{ $performanceSummary['revenue_label'] ?? 'รายได้สะสม' }}</p>
         <p class="text-2xl font-bold text-indigo-700">{{ number_format($performanceSummary['ytd_income'] ?? 0, 2) }}</p>
-        <p class="text-[10px] text-indigo-400 font-bold uppercase mt-1">สรุปรายได้ที่ปิดยอดแล้ว</p>
+        <p class="text-[10px] text-indigo-400 font-bold uppercase mt-1">ปิดยอดแล้ว</p>
     </div>
     @endif
 </div>
@@ -507,7 +507,7 @@
     <!-- Right Panel (1/3) -->
     <div class="space-y-4">
         <!-- Payroll Summary Panel -->
-        <div class="bg-white rounded-xl shadow-sm border p-4">
+        <div class="bg-white rounded-xl shadow-sm border p-4" x-data="{ expanded: window.innerWidth >= 1024 }">
                 @php
                     $panelTitle = match($employee->payroll_mode) {
                         'monthly_staff'         => 'สรุปเงินเดือน',
@@ -518,87 +518,92 @@
                         default                 => 'สรุปรายได้',
                     };
                 @endphp
-                <h3 class="font-semibold text-sm mb-3">{{ $panelTitle }}</h3>
+                <div class="flex justify-between items-center cursor-pointer lg:cursor-auto" @click="if(window.innerWidth < 1024) expanded = !expanded">
+                    <h3 class="font-semibold text-sm">{{ $panelTitle }}</h3>
+                    <svg class="w-4 h-4 text-gray-400 lg:hidden transition-transform" :class="expanded ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </div>
 
-            @if(isset($summary['total_work_hours']) && in_array($employee->payroll_mode, ['monthly_staff', 'office_staff']))
-            <div class="space-y-2 mb-4 text-sm">
-                <div class="flex justify-between">
-                    <span class="text-gray-500">ชั่วโมงรวม</span>
-                    <span id="summary-work-hours" class="font-medium">{{ $formatHoursAsClock($summary['total_work_hours'] ?? 0) }} ชม.</span>
+            <div x-show="expanded" x-transition class="mt-3">
+                @if(isset($summary['total_work_hours']) && in_array($employee->payroll_mode, ['monthly_staff', 'office_staff']))
+                <div class="space-y-2 mb-4 text-sm">
+                    <div class="flex justify-between">
+                        <span class="text-gray-500">ชั่วโมงรวม</span>
+                        <span id="summary-work-hours" class="font-medium">{{ $formatHoursAsClock($summary['total_work_hours'] ?? 0) }} ชม.</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-500">OT</span>
+                        <span id="summary-ot-hours" class="font-medium">{{ $formatHoursAsClock($summary['total_ot_hours'] ?? 0) }} ชม.</span>
+                    </div>
+                    @if($employee->payroll_mode !== 'youtuber_salary')
+                    <div class="flex justify-between">
+                        <span class="text-gray-500">มาสาย</span>
+                        <span id="summary-late-info" class="font-medium">{{ $summary['late_count'] ?? 0 }} ครั้ง ({{ $summary['late_minutes'] ?? 0 }} นาที)</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-500">ขาดงาน</span>
+                        <span id="summary-lwop-days" class="font-medium">{{ $summary['lwop_days'] ?? 0 }} วัน</span>
+                    </div>
+                    @endif
                 </div>
-                <div class="flex justify-between">
-                    <span class="text-gray-500">OT</span>
-                    <span id="summary-ot-hours" class="font-medium">{{ $formatHoursAsClock($summary['total_ot_hours'] ?? 0) }} ชม.</span>
-                </div>
-                @if($employee->payroll_mode !== 'youtuber_salary')
-                <div class="flex justify-between">
-                    <span class="text-gray-500">มาสาย</span>
-                    <span id="summary-late-info" class="font-medium">{{ $summary['late_count'] ?? 0 }} ครั้ง ({{ $summary['late_minutes'] ?? 0 }} นาที)</span>
-                </div>
-                <div class="flex justify-between">
-                    <span class="text-gray-500">ขาดงาน</span>
-                    <span id="summary-lwop-days" class="font-medium">{{ $summary['lwop_days'] ?? 0 }} วัน</span>
-                </div>
+                <hr class="my-3">
                 @endif
-            </div>
-            <hr class="my-3">
-            @endif
 
-            @if(isset($summary['total_minutes']) && $employee->payroll_mode === 'freelance_layer')
-            @php
-                $fl_total_sec = ($summary['total_minutes'] * 60) + ($summary['total_seconds'] ?? 0);
-                $fl_h = intdiv((int)$fl_total_sec, 3600);
-                $fl_m = intdiv((int)$fl_total_sec % 3600, 60);
-                $fl_s = (int)$fl_total_sec % 60;
-            @endphp
-            <div class="space-y-2 mb-4 text-sm">
-                <div class="flex justify-between">
-                    <span class="text-gray-500">เวลารวม</span>
-                    <span class="font-medium">{{ sprintf('%d:%02d:%02d', $fl_h, $fl_m, $fl_s) }}</span>
-                </div>
-                <div class="flex justify-between">
-                    <span class="text-gray-500">จำนวนรายการ</span>
-                    <span class="font-medium">{{ $summary['work_log_count'] ?? 0 }} รายการ</span>
-                </div>
-            </div>
-            <hr class="my-3">
-            @endif
-
-            <h4 class="text-xs font-semibold text-green-600 mb-2 flex items-center gap-1">
-                เงินได้
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-gray-300 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor" title="รายการรายรับทั้งหมด (แสดงผลจากการคำนวณ)"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-            </h4>
-            <div id="payroll-income-items">
-            @foreach(($result['items'] ?? []) as $item)
-                @if($item['category'] === 'income')
+                @if(isset($summary['total_minutes']) && $employee->payroll_mode === 'freelance_layer')
                 @php
-                    $isManual = in_array($item['source_flag'], ['manual', 'override']);
+                    $fl_total_sec = ($summary['total_minutes'] * 60) + ($summary['total_seconds'] ?? 0);
+                    $fl_h = intdiv((int)$fl_total_sec, 3600);
+                    $fl_m = intdiv((int)$fl_total_sec % 3600, 60);
+                    $fl_s = (int)$fl_total_sec % 60;
                 @endphp
-                @include('workspace.partials.line-item', ['item' => $item, 'isManual' => $isManual, 'canManageWorkspace' => $canManageWorkspace])
+                <div class="space-y-2 mb-4 text-sm">
+                    <div class="flex justify-between">
+                        <span class="text-gray-500">เวลารวม</span>
+                        <span class="font-medium">{{ sprintf('%d:%02d:%02d', $fl_h, $fl_m, $fl_s) }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-500">จำนวนรายการ</span>
+                        <span class="font-medium">{{ $summary['work_log_count'] ?? 0 }} รายการ</span>
+                    </div>
+                </div>
+                <hr class="my-3">
                 @endif
-            @endforeach
-            </div>
 
-            <hr class="my-3">
-            <h4 class="text-xs font-semibold text-red-600 mb-2 flex items-center gap-1">
-                รายหัก
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-gray-300 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor" title="รายการหักทั้งหมด (แสดงผลจากการคำนวณ)"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-            </h4>
-            <div id="payroll-deduction-items">
-            @foreach(($result['items'] ?? []) as $item)
-                @if($item['category'] === 'deduction')
-                @php
-                    $isManual = in_array($item['source_flag'], ['manual', 'override']);
-                @endphp
-                @include('workspace.partials.line-item', ['item' => $item, 'isManual' => $isManual, 'canManageWorkspace' => $canManageWorkspace])
-                @endif
-            @endforeach
-            </div>
+                <h4 class="text-xs font-semibold text-green-600 mb-2 flex items-center gap-1">
+                    เงินได้
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-gray-300 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor" title="รายการรายรับทั้งหมด (แสดงผลจากการคำนวณ)"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                </h4>
+                <div id="payroll-income-items">
+                @foreach(($result['items'] ?? []) as $item)
+                    @if($item['category'] === 'income')
+                    @php
+                        $isManual = in_array($item['source_flag'], ['manual', 'override']);
+                    @endphp
+                    @include('workspace.partials.line-item', ['item' => $item, 'isManual' => $isManual, 'canManageWorkspace' => $canManageWorkspace])
+                    @endif
+                @endforeach
+                </div>
 
-            <hr class="my-3">
-            <div class="flex justify-between font-bold text-base">
-                <span>รายได้สุทธิ</span>
-                <span id="summary-net-pay-bottom" class="text-indigo-600">{{ number_format($summary['net_pay'] ?? 0, 2) }}</span>
+                <hr class="my-3">
+                <h4 class="text-xs font-semibold text-red-600 mb-2 flex items-center gap-1">
+                    รายหัก
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-gray-300 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor" title="รายการหักทั้งหมด (แสดงผลจากการคำนวณ)"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                </h4>
+                <div id="payroll-deduction-items">
+                @foreach(($result['items'] ?? []) as $item)
+                    @if($item['category'] === 'deduction')
+                    @php
+                        $isManual = in_array($item['source_flag'], ['manual', 'override']);
+                    @endphp
+                    @include('workspace.partials.line-item', ['item' => $item, 'isManual' => $isManual, 'canManageWorkspace' => $canManageWorkspace])
+                    @endif
+                @endforeach
+                </div>
+
+                <hr class="my-3">
+                <div class="flex justify-between font-bold text-base">
+                    <span>รายได้สุทธิ</span>
+                    <span id="summary-net-pay-bottom" class="text-indigo-600">{{ number_format($summary['net_pay'] ?? 0, 2) }}</span>
+                </div>
             </div>
         </div>
 
