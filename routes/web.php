@@ -280,6 +280,7 @@ Route::prefix('work')->name('work.')->group(function () {
     Route::post('/job/{editingJob}/mark-ready', [WorkCommandController::class, 'markEditingJobReady'])->name('editing-job.mark-ready')->middleware('role:admin,owner,editor');
     Route::post('/job/{editingJob}/finalize', [WorkCommandController::class, 'finalizeEditingJob'])->name('editing-job.finalize')->middleware('role:admin,owner');
     Route::post('/job/{editingJob}/direct-finalize', [WorkCommandController::class, 'directFinalizeEditingJob'])->name('editing-job.direct-finalize')->middleware('role:admin,owner');
+    Route::post('/job/{editingJob}/reject', [WorkCommandController::class, 'rejectEditingJob'])->name('editing-job.reject')->middleware('role:admin,owner');
 });
 
 // Settings & Rules

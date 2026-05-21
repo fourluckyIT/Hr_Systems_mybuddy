@@ -311,6 +311,30 @@ class WorkCommandController extends Controller
         }
     }
 
+    public function rejectEditingJob(Request $request, EditingJob $editingJob)
+    {
+        if ($editingJob->status !== 'review_ready') {
+            return back()->withErrors(['error' => 'ตีกลับได้เฉพาะงานที่อยู่ในสถานะ "รอตรวจ" เท่านั้น']);
+        }
+
+        $validated = $request->validate([
+            'reject_note' => 'nullable|string|max:500',
+        ]);
+
+        $oldNotes = $editingJob->notes ?? '';
+        $rejectNote = $validated['reject_note'] ?? 'ตีกลับโดยแอดมิน';
+        $newNotes = trim($oldNotes . "\n[ตีกลับ " . now()->format('d/m/Y H:i') . '] ' . $rejectNote);
+
+        $editingJob->update([
+            'status' => 'in_progress',
+            'notes' => $newNotes,
+        ]);
+
+        AuditLogService::log($editingJob->fresh(), 'updated', 'status', 'review_ready', 'in_progress', 'Rejected: ' . $rejectNote);
+
+        return back()->with('success', 'ตีกลับงาน "' . $editingJob->job_name . '" ให้ Editor แก้ไขแล้ว');
+    }
+
     public function finalizeEditingJob(Request $request, EditingJob $editingJob)
     {
         $this->assertCanActOnEditingJob($editingJob);

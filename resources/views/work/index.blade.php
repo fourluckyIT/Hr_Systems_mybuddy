@@ -203,7 +203,8 @@
         <h2 class="text-lg font-bold text-gray-800 ml-1">งานทั้งหมดในระบบ</h2>
 
         <div class="bg-white shadow-sm rounded-2xl overflow-hidden border border-gray-200">
-            <table class="min-w-full divide-y divide-gray-100 text-sm">
+            <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-100 text-sm" style="min-width: 900px">
                 <thead class="bg-gray-50 border-b border-gray-200">
                     <tr>
                         <th class="px-6 py-4 text-left font-bold text-gray-500 text-[10px] uppercase tracking-widest">ชื่องาน</th>
@@ -313,6 +314,21 @@
                                             </button>
                                         </div>
                                     </form>
+                                    {{-- Reject Button --}}
+                                    @if(auth()->user()?->hasRole('admin'))
+                                    <form action="{{ route('work.editing-job.reject', $job) }}" method="POST" class="mt-1" x-data="{ showNote: false }">
+                                        @csrf
+                                        <div class="flex items-center gap-1">
+                                            <button type="button" @click="showNote = !showNote" class="text-xs text-rose-600 border border-rose-200 bg-rose-50 px-2 py-1 rounded hover:bg-rose-100 font-bold whitespace-nowrap shadow-sm transition-colors">
+                                                ✕ ตีกลับ
+                                            </button>
+                                        </div>
+                                        <div x-show="showNote" x-cloak class="mt-1 flex items-center gap-1">
+                                            <input type="text" name="reject_note" placeholder="เหตุผล..." class="border border-gray-200 rounded px-2 py-1 text-[10px] w-32">
+                                            <button type="submit" class="bg-rose-600 text-white px-2 py-1 rounded text-[10px] font-bold hover:bg-rose-700">ยืนยัน</button>
+                                        </div>
+                                    </form>
+                                    @endif
                                 @endif
                                 
                                 @if(auth()->user()?->hasRole('admin'))
@@ -337,6 +353,7 @@
                     @endforelse
                 </tbody>
             </table>
+            </div>
         </div>
     </div>
 
