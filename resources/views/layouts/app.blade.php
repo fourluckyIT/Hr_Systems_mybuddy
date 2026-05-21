@@ -198,7 +198,6 @@
                                 </a>
                             </div>
                         </div>
-                        </div>
                     @endif
                     </div> <!-- End of Desktop Nav -->
                 </div>
@@ -242,7 +241,6 @@
                         <button type="submit" class="text-sm text-red-500 hover:text-red-700">ออกจากระบบ</button>
                     </form>
                 </div>
-            </div>
             </div>
         </div>
 
