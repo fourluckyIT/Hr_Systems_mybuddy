@@ -645,8 +645,8 @@
 
 
 <!-- Payslip Container -->
-<div class="max-w-5xl mx-auto mb-6">
-    <div class="payslip-container">
+<div class="max-w-5xl mx-auto mb-6 overflow-x-auto pb-4">
+    <div class="payslip-container" style="min-width: 800px;">
 
         @php
             $perLineYtd = $yearToDate['per_line'] ?? [];
