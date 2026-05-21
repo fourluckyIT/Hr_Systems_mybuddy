@@ -206,9 +206,9 @@
                     {{-- OT Request quick link --}}
                     @if($authUser)
                         @if($isAdmin)
-                            <a href="{{ route('ot.inbox') }}" class="text-xs text-gray-500 hover:text-indigo-600 {{ request()->routeIs('ot.inbox') ? 'text-indigo-600 font-semibold' : '' }}" title="OT Inbox">📥 จัดการ OT</a>
+                            <a href="{{ route('ot.inbox') }}" class="hidden md:inline text-xs text-gray-500 hover:text-indigo-600 {{ request()->routeIs('ot.inbox') ? 'text-indigo-600 font-semibold' : '' }}" title="OT Inbox">📥 จัดการ OT</a>
                         @else
-                            <a href="{{ route('ot.request') }}" class="text-xs text-gray-500 hover:text-indigo-600 {{ request()->routeIs('ot.request') ? 'text-indigo-600 font-semibold' : '' }}" title="ประวัติ OT">📋 ประวัติ OT</a>
+                            <a href="{{ route('ot.request') }}" class="hidden md:inline text-xs text-gray-500 hover:text-indigo-600 {{ request()->routeIs('ot.request') ? 'text-indigo-600 font-semibold' : '' }}" title="ประวัติ OT">📋 ประวัติ OT</a>
                         @endif
 
                         {{-- Notification Bell --}}
@@ -236,8 +236,8 @@
                         </div>
                     @endif
 
-                    <span class="text-sm text-gray-500">{{ $authUser?->name ?? 'Admin' }}</span>
-                    <form method="POST" action="{{ route('logout') }}" class="inline">
+                    <span class="hidden md:inline text-sm text-gray-500">{{ $authUser?->name ?? 'Admin' }}</span>
+                    <form method="POST" action="{{ route('logout') }}" class="hidden md:inline">
                         @csrf
                         <button type="submit" class="text-sm text-red-500 hover:text-red-700">ออกจากระบบ</button>
                     </form>
@@ -275,6 +275,15 @@
                     <a href="{{ route('settings.bonus.index') }}" class="{{ $dropItem }}">Bonus Manager</a>
                     <a href="{{ route('document-templates.index') }}" class="{{ $dropItem }}">แม่แบบเอกสาร</a>
                 @endif
+                
+                <div class="border-t border-gray-200 my-2"></div>
+                <div class="px-4 py-3 flex items-center justify-between">
+                    <span class="text-sm font-semibold text-gray-700">{{ $authUser?->name ?? 'Admin' }}</span>
+                    <form method="POST" action="{{ route('logout') }}" class="inline">
+                        @csrf
+                        <button type="submit" class="text-sm font-bold text-red-600 hover:text-red-800">ออกจากระบบ</button>
+                    </form>
+                </div>
             </div>
         </div>
     </nav>
