@@ -9,7 +9,7 @@
 
     @page {
         size: A4 landscape;
-        margin: 10mm;
+        margin: 5mm;
     }
 
     @media print {
@@ -22,6 +22,7 @@
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
             color-adjust: exact !important;
+            zoom: 0.9;
         }
 
         nav,
@@ -38,8 +39,10 @@
         .payslip-container {
             max-width: none !important;
             width: 100% !important;
-            padding: 0 !important;
+            padding: 10px 15px !important;
             margin: 0 !important;
+            border: none !important;
+            box-shadow: none !important;
         }
     }
 
