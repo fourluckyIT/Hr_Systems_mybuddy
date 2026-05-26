@@ -200,155 +200,219 @@
 
     {{-- Editing Jobs --}}
     <div class="space-y-4">
-        <h2 class="text-lg font-bold text-gray-800 ml-1">งานทั้งหมดในระบบ</h2>
+        <div class="flex items-center justify-between ml-1">
+            <h2 class="text-lg font-bold text-gray-800">งานทั้งหมดในระบบ</h2>
+            <span class="text-xs text-gray-400 font-medium">{{ $editingJobs->count() }} รายการ</span>
+        </div>
 
-        <div class="bg-white shadow-sm rounded-2xl overflow-hidden border border-gray-200">
+        <div class="bg-white shadow-sm rounded-2xl overflow-hidden border border-gray-100">
             <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-100 text-sm" style="min-width: 900px">
-                <thead class="bg-gray-50 border-b border-gray-200">
-                    <tr>
-                        <th class="px-6 py-4 text-left font-bold text-gray-500 text-[10px] uppercase tracking-widest">ชื่องาน</th>
-                        <th class="px-6 py-4 text-left font-bold text-gray-500 text-[10px] uppercase tracking-widest">หมวดหมู่</th>
-                        <th class="px-6 py-4 text-left font-bold text-gray-500 text-[10px] uppercase tracking-widest">ผู้รับผิดชอบ</th>
-                        <th class="px-6 py-4 text-left font-bold text-gray-500 text-[10px] uppercase tracking-widest">สถานะ</th>
-                        <th class="px-6 py-4 text-left font-bold text-gray-500 text-[10px] uppercase tracking-widest">กำหนดส่ง / ข้อมูล</th>
-                        <th class="px-6 py-4 text-center font-bold text-gray-500 text-[10px] uppercase tracking-widest">จัดการ</th>
+            <table class="min-w-full text-sm" style="min-width: 860px">
+                <thead>
+                    <tr class="bg-gradient-to-r from-gray-50 to-gray-100/60 border-b border-gray-200">
+                        <th class="px-5 py-3.5 text-left font-semibold text-gray-500 text-[10px] uppercase tracking-widest w-[22%]">ชื่องาน</th>
+                        <th class="px-5 py-3.5 text-left font-semibold text-gray-500 text-[10px] uppercase tracking-widest w-[12%]">หมวดหมู่</th>
+                        <th class="px-5 py-3.5 text-left font-semibold text-gray-500 text-[10px] uppercase tracking-widest w-[14%]">ผู้รับผิดชอบ</th>
+                        <th class="px-5 py-3.5 text-left font-semibold text-gray-500 text-[10px] uppercase tracking-widest w-[12%]">สถานะ</th>
+                        <th class="px-5 py-3.5 text-left font-semibold text-gray-500 text-[10px] uppercase tracking-widest w-[14%]">กำหนดส่ง / ข้อมูล</th>
+                        <th class="px-5 py-3.5 text-center font-semibold text-gray-500 text-[10px] uppercase tracking-widest">จัดการ</th>
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-100">
                     @forelse($editingJobs as $job)
-                    <tr class="hover:bg-indigo-50/30 transition-colors group">
-                        <td class="px-6 py-4">
-                            <div class="font-medium text-gray-900">{{ $job->job_name }}</div>
+                    <tr class="hover:bg-indigo-50/25 transition-all duration-150 group">
+                        {{-- ชื่องาน --}}
+                        <td class="px-5 py-4">
+                            <div class="font-semibold text-gray-900 group-hover:text-indigo-700 transition-colors leading-snug">{{ $job->job_name }}</div>
                             @if($job->status === 'final')
-                                <div class="text-[10px] text-gray-400">ปิดงาน: {{ $job->finalized_at?->format('d/m/Y H:i') ?? '-' }}</div>
+                                <div class="text-[10px] text-gray-400 mt-0.5 flex items-center gap-1">
+                                    <svg class="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                    ปิดงาน: {{ $job->finalized_at?->format('d/m/Y H:i') ?? '-' }}
+                                </div>
                             @endif
                         </td>
-                        <td class="px-6 py-4 text-gray-500">{{ $job->game?->game_name ?? '-' }}</td>
-                        <td class="px-6 py-4">
-                            <div class="font-medium text-gray-900">{{ $job->assignee?->first_name ?? '-' }}</div>
-                            @if($job->youtuber)
-                                <div class="text-[10px] text-indigo-500 font-semibold">YTB: {{ $job->youtuber->first_name }}</div>
+
+                        {{-- หมวดหมู่ --}}
+                        <td class="px-5 py-4">
+                            @if($job->game?->game_name)
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 text-xs font-medium">
+                                    {{ $job->game->game_name }}
+                                </span>
+                            @else
+                                <span class="text-gray-300 text-xs">—</span>
                             @endif
                         </td>
-                        <td class="px-6 py-4">
+
+                        {{-- ผู้รับผิดชอบ --}}
+                        <td class="px-5 py-4">
+                            <div class="flex items-center gap-2">
+                                <div class="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-xs flex-shrink-0">
+                                    {{ strtoupper(substr($job->assignee?->first_name ?? '?', 0, 1)) }}
+                                </div>
+                                <div>
+                                    <div class="font-medium text-gray-900 text-xs leading-tight">{{ $job->assignee?->first_name ?? '-' }}</div>
+                                    @if($job->youtuber)
+                                        <div class="text-[10px] text-indigo-500 font-semibold mt-0.5">{{ $job->youtuber->first_name }}</div>
+                                    @endif
+                                </div>
+                            </div>
+                        </td>
+
+                        {{-- สถานะ --}}
+                        <td class="px-5 py-4">
                             @php
-                                $statusColors = [
-                                    'assigned'     => 'bg-blue-100 text-blue-700',
-                                    'in_progress'  => 'bg-yellow-100 text-yellow-700',
-                                    'review_ready' => 'bg-purple-100 text-purple-700',
-                                    'final'        => 'bg-emerald-100 text-emerald-700',
+                                $statusConfig = [
+                                    'assigned'     => ['color' => 'bg-blue-50 text-blue-700 ring-1 ring-blue-200',   'icon' => '📥', 'label' => 'ได้รับมอบหมาย'],
+                                    'in_progress'  => ['color' => 'bg-amber-50 text-amber-700 ring-1 ring-amber-200', 'icon' => '✂️', 'label' => 'กำลังตัดต่อ'],
+                                    'review_ready' => ['color' => 'bg-violet-50 text-violet-700 ring-1 ring-violet-200','icon' => '🔍', 'label' => 'รอตรวจ'],
+                                    'final'        => ['color' => 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200','icon' => '✅', 'label' => 'ปิดงานแล้ว'],
                                 ];
-                                $statusLabels = [
-                                    'assigned'     => 'ได้รับมอบหมาย',
-                                    'in_progress'  => 'กำลังตัดต่อ',
-                                    'review_ready' => 'รอตรวจ',
-                                    'final'        => 'ปิดงานแล้ว',
-                                ];
+                                $sc = $statusConfig[$job->status] ?? ['color' => 'bg-gray-100 text-gray-600', 'icon' => '•', 'label' => $job->status];
                             @endphp
-                            <span class="px-2.5 py-0.5 rounded-full text-xs font-medium {{ $statusColors[$job->status] ?? 'bg-gray-100' }}">
-                                {{ $statusLabels[$job->status] ?? $job->status }}
+                            <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold {{ $sc['color'] }} whitespace-nowrap">
+                                <span>{{ $sc['icon'] }}</span>
+                                {{ $sc['label'] }}
                             </span>
                         </td>
-                        <td class="px-6 py-4 text-gray-500">
+
+                        {{-- กำหนดส่ง / ข้อมูล --}}
+                        <td class="px-5 py-4">
                             @if($job->status === 'final')
-                                <div class="flex flex-col gap-0.5">
-                                    <div class="text-xs font-bold text-gray-700">ความยาว: {{ $job->video_duration_minutes ?? 0 }}:{{ str_pad($job->video_duration_seconds ?? 0, 2, '0', STR_PAD_LEFT) }}</div>
+                                <div class="space-y-0.5">
+                                    <div class="text-xs font-bold text-gray-700 flex items-center gap-1">
+                                        <svg class="w-3 h-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                        {{ $job->video_duration_minutes ?? 0 }}:{{ str_pad($job->video_duration_seconds ?? 0, 2, '0', STR_PAD_LEFT) }}
+                                    </div>
                                     @if($job->layer_count)
-                                        <div class="text-[10px]">เลเยอร์: {{ $job->layer_count }}</div>
+                                        <div class="text-[10px] text-gray-400">{{ $job->layer_count }} เลเยอร์</div>
                                     @endif
                                 </div>
                             @else
-                                {{ $job->deadline_date ? $job->deadline_date->format('d/m/Y') : '-' }}
+                                @if($job->deadline_date)
+                                    @php
+                                        $daysLeft = now()->diffInDays($job->deadline_date, false);
+                                        $deadlineColor = $daysLeft < 0 ? 'text-red-600' : ($daysLeft <= 2 ? 'text-amber-600' : 'text-gray-500');
+                                    @endphp
+                                    <div class="text-xs font-medium {{ $deadlineColor }}">{{ $job->deadline_date->format('d/m/Y') }}</div>
+                                    @if($daysLeft >= 0)
+                                        <div class="text-[10px] text-gray-400">อีก {{ $daysLeft }} วัน</div>
+                                    @else
+                                        <div class="text-[10px] text-red-400 font-semibold">เกินกำหนด {{ abs($daysLeft) }} วัน</div>
+                                    @endif
+                                @else
+                                    <span class="text-gray-300 text-xs">—</span>
+                                @endif
                             @endif
                         </td>
-                        <td class="px-6 py-4 text-center">
-                            <div class="flex items-center justify-center gap-3">
-                                @if(auth()->user()?->hasRole('admin'))
-                                    <button @click="openEdit({{ \Illuminate\Support\Js::from($job) }})" class="text-gray-400 hover:text-indigo-600" title="แก้ไขรายละเอียดงาน">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
-                                    </button>
-                                @endif
 
-                                @if($job->status === 'assigned')
-                                    <form action="{{ route('work.editing-job.start', $job) }}" method="POST">@csrf
-                                        <button class="bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white px-3 py-1 rounded-lg font-bold text-xs transition-colors shadow-sm">เริ่มงาน</button>
-                                    </form>
-                                @elseif($job->status === 'in_progress')
-                                    <form action="{{ route('work.editing-job.mark-ready', $job) }}" method="POST">@csrf
-                                        <button class="bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white px-3 py-1 rounded-lg font-bold text-xs transition-colors shadow-sm">ส่งงาน</button>
-                                    </form>
-                                @elseif($job->status === 'review_ready')
-                                    <form action="{{ route('work.editing-job.finalize', $job) }}" method="POST" class="flex flex-col gap-1 items-center justify-center" x-data="{ mode: '{{ $job->assignee?->fixed_rate_per_clip > 0 ? 'custom' : 'layer' }}' }">
-                                        @csrf
-                                        <div class="flex items-center gap-1.5">
-                                            @if($job->assignee?->payroll_mode === 'freelance_layer')
-                                                <select name="pricing_mode" x-model="mode" class="border border-gray-200 rounded px-1 py-1 text-[9px] bg-gray-50 focus:ring-0 text-gray-600">
-                                                    <option value="layer">ตาม Layer</option>
-                                                    <option value="custom">เหมาคลิป (Fix)</option>
-                                                    <option value="custom_rate_per_min">เรท/นาที (อิสระ)</option>
-                                                </select>
-                                                <div x-show="mode === 'layer'" class="flex items-center gap-1 bg-white border border-gray-200 rounded px-1 py-0.5">
-                                                    <span class="text-[9px] text-gray-400 font-bold">L</span>
-                                                    <input type="number" name="layer_count" min="1" value="{{ $job->layer_count ?? 1 }}" class="w-8 border-0 bg-transparent p-0 text-center text-[10px] font-bold text-indigo-600 focus:ring-0">
-                                                </div>
-                                                <div x-show="mode === 'custom'" x-cloak class="flex items-center gap-1 bg-white border border-gray-200 rounded px-1 py-0.5">
-                                                    <span class="text-[9px] text-gray-400 font-bold">฿</span>
-                                                    <input type="number" name="fix_amount" step="0.01" min="0" value="{{ $job->assignee?->fixed_rate_per_clip ?? 0 }}" class="w-12 border-0 bg-transparent p-0 text-right text-[10px] font-bold text-orange-600 focus:ring-0" placeholder="เหมา">
-                                                </div>
-                                                <div x-show="mode === 'custom_rate_per_min'" x-cloak class="flex items-center gap-1 bg-white border border-gray-200 rounded px-1 py-0.5">
-                                                    <span class="text-[9px] text-gray-400 font-bold">เรท</span>
-                                                    <input type="number" name="custom_rate" step="0.0001" min="0" class="w-12 border-0 bg-transparent p-0 text-right text-[10px] font-bold text-teal-600 focus:ring-0" placeholder="/น.">
-                                                </div>
-                                            @endif
-                                            <div class="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded px-1 py-0.5">
-                                                <input type="number" name="video_duration_hours" step="1" min="0" class="w-8 border-0 bg-transparent p-0 text-center text-[10px] focus:ring-0" placeholder="ชม.">
-                                                <span class="text-[9px] text-gray-400">:</span>
-                                                <input type="number" name="video_duration_minutes" step="1" min="0" max="59" class="w-8 border-0 bg-transparent p-0 text-center text-[10px] focus:ring-0" placeholder="น.">
-                                                <span class="text-[9px] text-gray-400">:</span>
-                                                <input type="number" name="video_duration_seconds" step="1" min="0" max="59" class="w-8 border-0 bg-transparent p-0 text-center text-[10px] focus:ring-0" placeholder="ว.">
-                                            </div>
-                                            <input type="date" name="finalized_at" value="{{ date('Y-m-d') }}" class="w-24 border border-gray-300 rounded px-1 py-1 text-[10px]" required>
-                                            <button class="bg-emerald-600 text-white hover:bg-emerald-700 px-2 py-1 rounded font-bold whitespace-nowrap text-[10px] shadow-sm">
-                                                ปิดงาน
-                                            </button>
-                                        </div>
-                                    </form>
-                                    {{-- Reject Button --}}
+                        {{-- จัดการ --}}
+                        <td class="px-5 py-4">
+                            <div class="flex flex-col items-end gap-2">
+                                {{-- Row 1: Primary action + admin edit/delete --}}
+                                <div class="flex items-center gap-2">
                                     @if(auth()->user()?->hasRole('admin'))
-                                    <form action="{{ route('work.editing-job.reject', $job) }}" method="POST" class="mt-1" x-data="{ showNote: false }">
-                                        @csrf
-                                        <div class="flex items-center gap-1">
-                                            <button type="button" @click="showNote = !showNote" class="text-xs text-rose-600 border border-rose-200 bg-rose-50 px-2 py-1 rounded hover:bg-rose-100 font-bold whitespace-nowrap shadow-sm transition-colors">
-                                                ✕ ตีกลับ
+                                        <button @click="openEdit({{ \Illuminate\Support\Js::from($job) }})" class="text-gray-300 hover:text-indigo-500 transition-colors" title="แก้ไขรายละเอียด">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                                        </button>
+                                    @endif
+
+                                    @if($job->status === 'assigned')
+                                        <form action="{{ route('work.editing-job.start', $job) }}" method="POST">@csrf
+                                            <button class="inline-flex items-center gap-1 bg-indigo-600 text-white hover:bg-indigo-700 px-3 py-1.5 rounded-lg font-semibold text-xs transition-all shadow-sm hover:shadow">
+                                                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/></svg>
+                                                เริ่มงาน
                                             </button>
-                                        </div>
-                                        <div x-show="showNote" x-cloak class="mt-1 flex items-center gap-1">
-                                            <input type="text" name="reject_note" placeholder="เหตุผล..." class="border border-gray-200 rounded px-2 py-1 text-[10px] w-32">
-                                            <button type="submit" class="bg-rose-600 text-white px-2 py-1 rounded text-[10px] font-bold hover:bg-rose-700">ยืนยัน</button>
-                                        </div>
-                                    </form>
+                                        </form>
+                                    @elseif($job->status === 'in_progress')
+                                        <form action="{{ route('work.editing-job.mark-ready', $job) }}" method="POST">@csrf
+                                            <button class="inline-flex items-center gap-1 bg-sky-500 text-white hover:bg-sky-600 px-3 py-1.5 rounded-lg font-semibold text-xs transition-all shadow-sm">
+                                                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                                                ส่งงาน
+                                            </button>
+                                        </form>
                                     @endif
-                                @endif
-                                
-                                @if(auth()->user()?->hasRole('admin'))
-                                    @if($job->status !== 'final')
-                                        <button @click="openDirectFinalize({{ \Illuminate\Support\Js::from($job) }})" class="text-xs text-indigo-700 border border-indigo-200 bg-indigo-50 px-3 py-1 rounded-lg hover:bg-indigo-100 font-bold whitespace-nowrap shadow-sm transition-colors">
-                                            ปิดงานด่วน
-                                        </button>
+
+                                    @if(auth()->user()?->hasRole('admin'))
+                                        @if($job->status !== 'final')
+                                            <button @click="openDirectFinalize({{ \Illuminate\Support\Js::from($job) }})" class="inline-flex items-center gap-1 text-xs text-indigo-600 border border-indigo-200 bg-indigo-50 px-2.5 py-1.5 rounded-lg hover:bg-indigo-100 font-semibold transition-colors">
+                                                ⚡ ด่วน
+                                            </button>
+                                        @endif
+                                        <form action="{{ route('work.editing-job.delete', $job) }}" method="POST">@csrf @method('DELETE')
+                                            <button type="submit" class="text-gray-300 hover:text-red-500 p-1.5 hover:bg-red-50 rounded-lg transition-colors" title="ลบงาน">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                            </button>
+                                        </form>
                                     @endif
-                                    <form action="{{ route('work.editing-job.delete', $job) }}" method="POST">@csrf @method('DELETE')
-                                        <button type="submit" class="text-red-400 hover:text-red-600 p-1.5 hover:bg-red-50 rounded-lg transition-colors" title="ลบงาน (ลบทันที)">
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                                        </button>
-                                    </form>
+                                </div>
+
+                                {{-- Row 2: Finalize form (review_ready only) --}}
+                                @if($job->status === 'review_ready')
+                                    <div class="w-full">
+                                        <form action="{{ route('work.editing-job.finalize', $job) }}" method="POST" x-data="{ mode: '{{ $job->assignee?->fixed_rate_per_clip > 0 ? 'custom' : 'layer' }}' }">
+                                            @csrf
+                                            <div class="flex flex-wrap items-center gap-1.5 p-2 bg-emerald-50 border border-emerald-200 rounded-xl">
+                                                @if($job->assignee?->payroll_mode === 'freelance_layer')
+                                                    <select name="pricing_mode" x-model="mode" class="border border-emerald-200 rounded-lg px-1.5 py-1 text-[10px] bg-white focus:ring-1 focus:ring-emerald-400 text-gray-600 font-medium">
+                                                        <option value="layer">ตาม Layer</option>
+                                                        <option value="custom">เหมาคลิป</option>
+                                                        <option value="custom_rate_per_min">เรท/นาที</option>
+                                                    </select>
+                                                    <div x-show="mode === 'layer'" class="flex items-center gap-0.5 bg-white border border-gray-200 rounded-lg px-1.5 py-1">
+                                                        <span class="text-[9px] text-gray-400 font-bold">L</span>
+                                                        <input type="number" name="layer_count" min="1" value="{{ $job->layer_count ?? 1 }}" class="w-8 border-0 bg-transparent p-0 text-center text-[10px] font-bold text-indigo-600 focus:ring-0">
+                                                    </div>
+                                                    <div x-show="mode === 'custom'" x-cloak class="flex items-center gap-0.5 bg-white border border-gray-200 rounded-lg px-1.5 py-1">
+                                                        <span class="text-[9px] text-gray-400 font-bold">฿</span>
+                                                        <input type="number" name="fix_amount" step="0.01" min="0" value="{{ $job->assignee?->fixed_rate_per_clip ?? 0 }}" class="w-12 border-0 bg-transparent p-0 text-right text-[10px] font-bold text-orange-600 focus:ring-0">
+                                                    </div>
+                                                    <div x-show="mode === 'custom_rate_per_min'" x-cloak class="flex items-center gap-0.5 bg-white border border-gray-200 rounded-lg px-1.5 py-1">
+                                                        <span class="text-[9px] text-gray-400 font-bold">฿/น.</span>
+                                                        <input type="number" name="custom_rate" step="0.0001" min="0" class="w-12 border-0 bg-transparent p-0 text-right text-[10px] font-bold text-teal-600 focus:ring-0" placeholder="เรท">
+                                                    </div>
+                                                @endif
+                                                <div class="flex items-center gap-0.5 bg-white border border-gray-200 rounded-lg px-1.5 py-1">
+                                                    <input type="number" name="video_duration_hours" step="1" min="0" class="w-7 border-0 bg-transparent p-0 text-center text-[10px] focus:ring-0 text-gray-600" placeholder="ชม">
+                                                    <span class="text-[9px] text-gray-300">:</span>
+                                                    <input type="number" name="video_duration_minutes" step="1" min="0" max="59" class="w-7 border-0 bg-transparent p-0 text-center text-[10px] focus:ring-0 text-gray-600" placeholder="น">
+                                                    <span class="text-[9px] text-gray-300">:</span>
+                                                    <input type="number" name="video_duration_seconds" step="1" min="0" max="59" class="w-7 border-0 bg-transparent p-0 text-center text-[10px] focus:ring-0 text-gray-600" placeholder="ว">
+                                                </div>
+                                                <input type="date" name="finalized_at" value="{{ date('Y-m-d') }}" class="border border-gray-200 rounded-lg px-1.5 py-1 text-[10px] bg-white" required>
+                                                <button class="bg-emerald-600 text-white hover:bg-emerald-700 px-2.5 py-1 rounded-lg font-bold whitespace-nowrap text-[10px] shadow-sm transition-colors">
+                                                    ✓ ปิดงาน
+                                                </button>
+                                            </div>
+                                        </form>
+
+                                        @if(auth()->user()?->hasRole('admin'))
+                                        <form action="{{ route('work.editing-job.reject', $job) }}" method="POST" class="mt-1.5" x-data="{ showNote: false }">
+                                            @csrf
+                                            <div class="flex items-center gap-1.5">
+                                                <button type="button" @click="showNote = !showNote" class="text-[10px] text-rose-600 border border-rose-200 bg-rose-50 px-2.5 py-1 rounded-lg hover:bg-rose-100 font-semibold transition-colors">
+                                                    ✕ ตีกลับ
+                                                </button>
+                                                <div x-show="showNote" x-cloak class="flex items-center gap-1 flex-1">
+                                                    <input type="text" name="reject_note" placeholder="เหตุผล..." class="flex-1 border border-rose-200 rounded-lg px-2 py-1 text-[10px] focus:ring-1 focus:ring-rose-300">
+                                                    <button type="submit" class="bg-rose-600 text-white px-2 py-1 rounded-lg text-[10px] font-bold hover:bg-rose-700 whitespace-nowrap">ส่ง</button>
+                                                </div>
+                                            </div>
+                                        </form>
+                                        @endif
+                                    </div>
                                 @endif
                             </div>
                         </td>
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="6" class="px-6 py-10 text-center text-gray-400 italic">ยังไม่มีงานที่ Active</td>
+                        <td colspan="6" class="px-6 py-16 text-center">
+                            <div class="flex flex-col items-center gap-3 text-gray-400">
+                                <svg class="w-12 h-12 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                                <div class="text-sm font-medium">ยังไม่มีงานในระบบ</div>
+                                <div class="text-xs">กด "+ มอบหมายงานใหม่" เพื่อเริ่มต้น</div>
+                            </div>
+                        </td>
                     </tr>
                     @endforelse
                 </tbody>
