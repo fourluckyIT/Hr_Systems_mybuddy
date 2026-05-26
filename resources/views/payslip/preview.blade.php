@@ -174,8 +174,8 @@
     }
     .ztable-head {
         display: grid;
-        grid-template-columns: 1fr 90px 90px;
-        column-gap: 8px;
+        grid-template-columns: 1fr 100px 100px;
+        column-gap: 12px;
         align-items: center;
         padding: 8px 0;
         border-bottom: 1.5px solid #d1d5db;
@@ -187,10 +187,11 @@
     }
     .ztable-head .col-amt,
     .ztable-head .col-ytd { text-align: right; }
+    .ztable-head .col-amt { padding-right: 10px; }
     .ztable-row {
         display: grid;
-        grid-template-columns: 1fr 90px 90px;
-        column-gap: 8px;
+        grid-template-columns: 1fr 100px 100px;
+        column-gap: 12px;
         align-items: baseline;
         padding: 8px 0;
         border-bottom: 1px dashed #f0f0f0;
@@ -202,6 +203,7 @@
         font-weight: 700;
         font-variant-numeric: tabular-nums;
         color: #111827;
+        padding-right: 10px;
     }
     .ztable-row .col-ytd {
         text-align: right;
@@ -213,8 +215,8 @@
     .ztable-row.is-zero .col-ytd { color: #c0c4cc; font-weight: 400; }
     .ztable-subtotal {
         display: grid;
-        grid-template-columns: 1fr 90px 90px;
-        column-gap: 8px;
+        grid-template-columns: 1fr 100px 100px;
+        column-gap: 12px;
         align-items: baseline;
         padding: 10px 0 4px;
         border-top: 1px solid #e5e7eb;
@@ -226,6 +228,7 @@
         text-align: right;
         font-variant-numeric: tabular-nums;
     }
+    .ztable-subtotal .col-amt { padding-right: 10px; }
     .legal-tag {
         display: inline-block;
         margin-left: 4px;

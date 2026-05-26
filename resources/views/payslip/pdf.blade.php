@@ -37,12 +37,13 @@
 
         /* Earnings / Deductions Tables */
         .ztable th { padding: 2px 0; border-bottom: 1.5px solid #d1d5db; font-size: 10px; color: #6b7280; font-weight: bold; text-align: left; }
-        .ztable th.num { text-align: right; width: 65px; }
+        .ztable th.num { text-align: right; width: 75px; padding-right: 12px; }
         .ztable td { padding: 2px 0; border-bottom: 1px dashed #f0f0f0; font-size: 12px; vertical-align: top; }
-        .ztable td.num { text-align: right; font-weight: bold; }
-        .ztable td.ytd { text-align: right; color: #6b7280; }
+        .ztable td.num { text-align: right; font-weight: bold; padding-right: 12px; }
+        .ztable td.ytd { text-align: right; color: #6b7280; width: 60px; }
         .ztable .is-zero td { color: #c0c4cc; font-weight: normal; }
         .ztable .subtotal-row td { padding: 4px 0 0; border-bottom: none; border-top: 1px solid #e5e7eb; font-weight: bold; font-size: 13px; }
+        .ztable .subtotal-row td.num { padding-right: 12px; }
         .ztable .subtotal-row td.red { color: #ef4444; }
 
         /* Total Bar */
