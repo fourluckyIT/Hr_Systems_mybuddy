@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <style>
-        @page { margin: 30px 40px; }
-        body { font-family: 'thsarabun', sans-serif; font-size: 14px; color: #111; line-height: 1.2; }
+        @page { size: A4 landscape; margin: 20px 40px; }
+        body { font-family: 'thsarabun', sans-serif; font-size: 13px; color: #111; line-height: 1.1; }
         table { width: 100%; border-collapse: collapse; }
         
         .text-right { text-align: right; }
@@ -14,52 +14,52 @@
         .text-gray { color: #6b7280; }
         
         /* Zoho Header */
-        .header-table { border-bottom: 2px solid; margin-bottom: 15px; padding-bottom: 5px; }
-        .brand-name { font-size: 24px; font-weight: bold; margin: 0; }
-        .brand-sub { font-size: 12px; color: #6b7280; margin-top: 2px; }
-        .slip-title { font-size: 12px; color: #6b7280; text-align: right; letter-spacing: 0.5px; }
-        .slip-month { font-size: 18px; font-weight: bold; text-align: right; color: #111827; }
+        .header-table { border-bottom: 2px solid; margin-bottom: 10px; padding-bottom: 4px; }
+        .brand-name { font-size: 22px; font-weight: bold; margin: 0; }
+        .brand-sub { font-size: 11px; color: #6b7280; margin-top: 1px; }
+        .slip-title { font-size: 11px; color: #6b7280; text-align: right; letter-spacing: 0.5px; }
+        .slip-month { font-size: 16px; font-weight: bold; text-align: right; color: #111827; }
 
         /* Employee Info & Net Pay */
-        .top-section { margin-bottom: 15px; }
-        .info-table td { padding: 3px 0; font-size: 13px; vertical-align: top; }
+        .top-section { margin-bottom: 10px; }
+        .info-table td { padding: 2px 0; font-size: 12px; vertical-align: top; }
         .info-label { width: 85px; color: #6b7280; }
         .info-colon { width: 10px; color: #6b7280; }
         .info-val { font-weight: bold; color: #1f2937; }
         
-        .netpay-box { border: 1.5px solid; border-radius: 8px; padding: 12px 15px; background-color: #f8fafc; }
-        .netpay-amount { font-size: 28px; font-weight: bold; margin: 0; }
-        .netpay-label { font-size: 12px; color: #6b7280; margin-top: 2px; }
-        .netpay-divider { border-top: 1px dashed #d1d5db; margin: 8px 0; }
-        .netpay-detail-table td { font-size: 12px; padding: 2px 0; }
+        .netpay-box { border: 1.5px solid; border-radius: 8px; padding: 8px 12px; background-color: #f8fafc; }
+        .netpay-amount { font-size: 24px; font-weight: bold; margin: 0; }
+        .netpay-label { font-size: 11px; color: #6b7280; margin-top: 1px; }
+        .netpay-divider { border-top: 1px dashed #d1d5db; margin: 4px 0; }
+        .netpay-detail-table td { font-size: 11px; padding: 1px 0; }
         
-        .bank-strip { margin-top: 15px; margin-bottom: 15px; padding: 10px 0; border-top: 1px dashed #e5e7eb; border-bottom: 1px dashed #e5e7eb; font-size: 13px; }
+        .bank-strip { margin-top: 10px; margin-bottom: 10px; padding: 6px 0; border-top: 1px dashed #e5e7eb; border-bottom: 1px dashed #e5e7eb; font-size: 12px; }
 
         /* Earnings / Deductions Tables */
-        .ztable th { padding: 8px 0; border-bottom: 1.5px solid #d1d5db; font-size: 11px; color: #6b7280; font-weight: bold; text-align: left; }
+        .ztable th { padding: 4px 0; border-bottom: 1.5px solid #d1d5db; font-size: 10px; color: #6b7280; font-weight: bold; text-align: left; }
         .ztable th.num { text-align: right; width: 65px; }
-        .ztable td { padding: 6px 0; border-bottom: 1px dashed #f0f0f0; font-size: 13px; vertical-align: top; }
+        .ztable td { padding: 4px 0; border-bottom: 1px dashed #f0f0f0; font-size: 12px; vertical-align: top; }
         .ztable td.num { text-align: right; font-weight: bold; }
         .ztable td.ytd { text-align: right; color: #6b7280; }
         .ztable .is-zero td { color: #c0c4cc; font-weight: normal; }
-        .ztable .subtotal-row td { padding: 10px 0 5px; border-bottom: none; border-top: 1px solid #e5e7eb; font-weight: bold; font-size: 14px; }
+        .ztable .subtotal-row td { padding: 6px 0 2px; border-bottom: none; border-top: 1px solid #e5e7eb; font-weight: bold; font-size: 13px; }
         .ztable .subtotal-row td.red { color: #ef4444; }
 
         /* Total Bar */
-        .total-wrapper { margin-top: 15px; border: 1.5px solid; border-radius: 8px; }
-        .total-left { padding: 10px 15px; width: 60%; }
-        .total-title { font-size: 12px; font-weight: bold; }
-        .total-subtitle { font-size: 11px; color: #6b7280; }
-        .total-right { padding: 10px 15px; width: 40%; text-align: right; font-size: 20px; font-weight: bold; }
+        .total-wrapper { margin-top: 10px; border: 1.5px solid; border-radius: 6px; }
+        .total-left { padding: 6px 12px; width: 60%; }
+        .total-title { font-size: 11px; font-weight: bold; }
+        .total-subtitle { font-size: 10px; color: #6b7280; }
+        .total-right { padding: 6px 12px; width: 40%; text-align: right; font-size: 18px; font-weight: bold; }
         
-        .amount-words { text-align: right; font-size: 12px; color: #6b7280; margin-top: 5px; margin-bottom: 25px; }
+        .amount-words { text-align: right; font-size: 11px; color: #6b7280; margin-top: 4px; margin-bottom: 10px; }
         .amount-words b { color: #1f2937; margin-left: 5px; }
 
         /* Signatures */
-        .signatures td { text-align: center; font-size: 12px; padding-top: 10px; width: 50%; }
-        .sig-line { display: inline-block; width: 160px; border-top: 1px solid #333; margin-bottom: 5px; }
+        .signatures td { text-align: center; font-size: 11px; padding-top: 5px; width: 50%; }
+        .sig-line { display: inline-block; width: 140px; border-top: 1px solid #333; margin-bottom: 4px; }
         
-        .disclaimer { text-align: center; font-size: 10px; color: #9ca3af; margin-top: 25px; }
+        .disclaimer { text-align: center; font-size: 10px; color: #9ca3af; margin-top: 15px; }
     </style>
 </head>
 <body>

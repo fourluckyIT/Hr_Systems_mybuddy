@@ -8,8 +8,8 @@
     }
 
     @page {
-        size: A5 landscape;
-        margin: 8mm;
+        size: A4 landscape;
+        margin: 10mm;
     }
 
     @media print {
