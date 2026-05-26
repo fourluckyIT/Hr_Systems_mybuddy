@@ -3,209 +3,233 @@
 <head>
     <meta charset="UTF-8">
     <style>
-        @page { margin: 24px 45px; }
-        body { font-family: 'thsarabun', sans-serif; font-size: 16px; color: #111; line-height: 1.1; }
-        .header { text-align: center; margin-bottom: 10px; }
-        .header h2 { margin: 0; font-size: 18px; }
-        .header p { margin: 2px 0; font-size: 12px; color: #666; }
+        @page { margin: 30px 40px; }
+        body { font-family: 'thsarabun', sans-serif; font-size: 14px; color: #111; line-height: 1.2; }
         table { width: 100%; border-collapse: collapse; }
-        .info-table td { padding: 2px 8px; font-size: 13px; }
-        .info-label { color: #666; width: 100px; }
-        .payslip-table { margin-top: 10px; }
-        .payslip-table th { background: #f3f4f6; padding: 4px 8px; text-align: left; font-size: 12px; border: 1px solid #e5e7eb; }
-        .payslip-table td { padding: 4px 10px; font-size: 13px; border: 1px solid #e5e7eb; }
-        .payslip-table td:first-child { width: 65%; }
-        .payslip-table td.text-right { width: 35%; }
-        .metrics-table { margin-top: 5px; margin-bottom: 5px; }
-        .metrics-table td { border: 1px solid #e5e7eb; padding: 2px 6px; }
-        .metric-label { font-size: 11px; color: #6b7280; }
-        .metric-value { font-size: 12px; font-weight: bold; }
+        
         .text-right { text-align: right; }
         .text-center { text-align: center; }
-        .total-row { font-weight: bold; background: #f0fdf4; }
-        .deduction-total { font-weight: bold; background: #fef2f2; }
-        .net-row { font-weight: bold; background: #eef2ff; font-size: 16px; }
-        .signatures { margin-top: 25px; }
-        .signatures td { text-align: center; padding-top: 25px; font-size: 12px; }
-        .disclaimer { text-align: center; font-size: 10px; color: #999; margin-top: 15px; }
-        hr { border: none; border-top: 1px solid #e5e7eb; margin: 8px 0; }
+        .text-left { text-align: left; }
+        .font-bold { font-weight: bold; }
+        .text-gray { color: #6b7280; }
+        
+        /* Zoho Header */
+        .header-table { border-bottom: 2px solid; margin-bottom: 15px; padding-bottom: 5px; }
+        .brand-name { font-size: 24px; font-weight: bold; margin: 0; }
+        .brand-sub { font-size: 12px; color: #6b7280; margin-top: 2px; }
+        .slip-title { font-size: 12px; color: #6b7280; text-align: right; letter-spacing: 0.5px; }
+        .slip-month { font-size: 18px; font-weight: bold; text-align: right; color: #111827; }
+
+        /* Employee Info & Net Pay */
+        .top-section { margin-bottom: 15px; }
+        .info-table td { padding: 3px 0; font-size: 13px; vertical-align: top; }
+        .info-label { width: 85px; color: #6b7280; }
+        .info-colon { width: 10px; color: #6b7280; }
+        .info-val { font-weight: bold; color: #1f2937; }
+        
+        .netpay-box { border: 1.5px solid; border-radius: 8px; padding: 12px 15px; background-color: #f8fafc; }
+        .netpay-amount { font-size: 28px; font-weight: bold; margin: 0; }
+        .netpay-label { font-size: 12px; color: #6b7280; margin-top: 2px; }
+        .netpay-divider { border-top: 1px dashed #d1d5db; margin: 8px 0; }
+        .netpay-detail-table td { font-size: 12px; padding: 2px 0; }
+        
+        .bank-strip { margin-top: 15px; margin-bottom: 15px; padding: 10px 0; border-top: 1px dashed #e5e7eb; border-bottom: 1px dashed #e5e7eb; font-size: 13px; }
+
+        /* Earnings / Deductions Tables */
+        .ztable th { padding: 8px 0; border-bottom: 1.5px solid #d1d5db; font-size: 11px; color: #6b7280; font-weight: bold; text-align: left; }
+        .ztable th.num { text-align: right; width: 65px; }
+        .ztable td { padding: 6px 0; border-bottom: 1px dashed #f0f0f0; font-size: 13px; vertical-align: top; }
+        .ztable td.num { text-align: right; font-weight: bold; }
+        .ztable td.ytd { text-align: right; color: #6b7280; }
+        .ztable .is-zero td { color: #c0c4cc; font-weight: normal; }
+        .ztable .subtotal-row td { padding: 10px 0 5px; border-bottom: none; border-top: 1px solid #e5e7eb; font-weight: bold; font-size: 14px; }
+        .ztable .subtotal-row td.red { color: #ef4444; }
+
+        /* Total Bar */
+        .total-wrapper { margin-top: 15px; border: 1.5px solid; border-radius: 8px; }
+        .total-left { padding: 10px 15px; width: 60%; }
+        .total-title { font-size: 12px; font-weight: bold; }
+        .total-subtitle { font-size: 11px; color: #6b7280; }
+        .total-right { padding: 10px 15px; width: 40%; text-align: right; font-size: 20px; font-weight: bold; }
+        
+        .amount-words { text-align: right; font-size: 12px; color: #6b7280; margin-top: 5px; margin-bottom: 25px; }
+        .amount-words b { color: #1f2937; margin-left: 5px; }
+
+        /* Signatures */
+        .signatures td { text-align: center; font-size: 12px; padding-top: 10px; width: 50%; }
+        .sig-line { display: inline-block; width: 160px; border-top: 1px solid #333; margin-bottom: 5px; }
+        
+        .disclaimer { text-align: center; font-size: 10px; color: #9ca3af; margin-top: 25px; }
     </style>
 </head>
 <body>
     @php
-        $formatHoursAsClock = function ($hours) {
-            $totalMinutes = (int) round(((float) $hours) * 60);
-            $h = intdiv($totalMinutes, 60);
-            $m = $totalMinutes % 60;
-            return sprintf('%d:%02d', $h, $m);
-        };
+        $primaryColor = !empty($company) && $company->primary_color ? $company->primary_color : '#4f46e5';
+        $payDateStr = $payslip && $payslip->payment_date
+            ? \Carbon\Carbon::parse($payslip->payment_date)->format('d/m/') . (\Carbon\Carbon::parse($payslip->payment_date)->year + 543)
+            : \Carbon\Carbon::create($year, $month)->endOfMonth()->format('d/m/') . ($year + 543);
     @endphp
-    <div class="header">
-        <h2>{{ !empty($company) && !empty($company->name) ? $company->name : 'บริษัท' }}</h2>
-        <p>สลิปเงินเดือน / Payslip</p>
-        <p>ประจำเดือน {{ $monthName }} {{ $year + 543 }}</p>
-    </div>
 
-    <table class="info-table">
+    <table class="header-table" style="border-bottom-color: {{ $primaryColor }}">
         <tr>
-            <td class="info-label">ชื่อพนักงาน:</td>
-            <td>{{ $employee->full_name }}</td>
-            <td class="info-label">วันจ่ายเงิน:</td>
-            <td>{{ $payslip->payment_date
-                ? \Carbon\Carbon::parse($payslip->payment_date)->format('d/m/') . (\Carbon\Carbon::parse($payslip->payment_date)->year + 543)
-                : \Carbon\Carbon::create($year, $month)->endOfMonth()->format('d/m/') . ($year + 543) }}</td>
-        </tr>
-        <tr>
-            <td class="info-label">ตำแหน่ง:</td>
-            <td>{{ $employee->position?->name ?? '-' }}</td>
-            <td class="info-label">เลขที่บัญชี:</td>
-            <td>{{ $employee->bankAccount?->account_number ?? '-' }}</td>
-        </tr>
-        <tr>
-            <td class="info-label">ธนาคาร:</td>
-            <td colspan="3">{{ $employee->bankAccount?->bank_name ?? '-' }}</td>
+            <td style="width: 50%; vertical-align: bottom;">
+                <div class="brand-name" style="color: {{ $primaryColor }}">{{ !empty($company) && !empty($company->name) ? $company->name : 'บริษัท' }}</div>
+                @if(!empty($company) && $company->payslip_header_subtitle)
+                    <div class="brand-sub">{{ $company->payslip_header_subtitle }}</div>
+                @elseif(!empty($company) && $company->tagline)
+                    <div class="brand-sub">{{ $company->tagline }}</div>
+                @endif
+            </td>
+            <td style="width: 50%; vertical-align: bottom;">
+                <div class="slip-title">สลิปเงินเดือน</div>
+                <div class="slip-month">{{ $monthName }} {{ $year + 543 }}</div>
+            </td>
         </tr>
     </table>
 
-
-
-    <table style="width:100%">
+    <table class="top-section">
         <tr>
-            <td style="width:50%; vertical-align:top; padding-right:10px;">
-                <table class="payslip-table" style="width:100%">
-                    <thead><tr><th>เงินได้</th><th class="text-right">จำนวน</th></tr></thead>
-                    <tbody>
-                        @foreach($payslip->incomeItems as $item)
-                            {{-- Hide ค่าทำงานวันหยุด when zero (auto-fallback line; see ม.62) --}}
-                            @if($item->label === 'ค่าทำงานวันหยุด' && (float) $item->amount == 0) @continue @endif
+            <td style="width: 55%; vertical-align: top;">
+                <table class="info-table">
+                    <tr><td colspan="3" style="font-size:11px; color:#6b7280; font-weight:bold; padding-bottom:5px; text-transform:uppercase;">ข้อมูลพนักงาน</td></tr>
+                    <tr><td class="info-label">ชื่อพนักงาน</td><td class="info-colon">:</td><td class="info-val">{{ $employee->full_name }}</td></tr>
+                    <tr><td class="info-label">ตำแหน่ง</td><td class="info-colon">:</td><td class="info-val">{{ $employee->position?->name ?? '—' }}</td></tr>
+                    <tr><td class="info-label">รหัสพนักงาน</td><td class="info-colon">:</td><td class="info-val">{{ $employee->employee_code ?? '—' }}</td></tr>
+                    @if($employee->start_date)
+                    <tr><td class="info-label">วันเริ่มงาน</td><td class="info-colon">:</td><td class="info-val">{{ $employee->start_date->format('d/m/') . ($employee->start_date->year + 543) }}</td></tr>
+                    @endif
+                    <tr><td class="info-label">ประจำเดือน</td><td class="info-colon">:</td><td class="info-val">{{ $monthName }} {{ $year + 543 }}</td></tr>
+                    <tr><td class="info-label">วันจ่ายเงิน</td><td class="info-colon">:</td><td class="info-val">{{ $payDateStr }}</td></tr>
+                </table>
+            </td>
+            <td style="width: 45%; vertical-align: top; padding-left: 20px;">
+                <div class="netpay-box" style="border-color: {{ $primaryColor }}">
+                    <div class="netpay-amount" style="color: {{ $primaryColor }}">฿{{ number_format($payslip->net_pay, 2) }}</div>
+                    <div class="netpay-label">รายได้สุทธิ (Net Pay)</div>
+                    <div class="netpay-divider"></div>
+                    <table class="netpay-detail-table">
                         <tr>
-                            <td>
-                                {{ $item->label }}
-                                @if($item->label === 'ค่าทำงานวันหยุด')
-                                    <span style="color:#888; font-size:10px;">(ตาม ม.62)</span>
-                                @endif
-                            </td>
-                            <td class="text-right">{{ number_format($item->amount, 2) }}</td>
+                            <td class="info-label" style="width:85px;">วันที่จ่าย</td>
+                            <td class="info-colon" style="width:10px;">:</td>
+                            <td class="info-val text-right">{{ $monthlyStats['paid_days'] ?? 0 }}</td>
                         </tr>
-                        @endforeach
-                        <tr class="total-row"><td>รวมเงินได้</td><td class="text-right">{{ number_format($payslip->total_income, 2) }}</td></tr>
-                    </tbody>
-                </table>
-            </td>
-            <td style="width:50%; vertical-align:top; padding-left:10px;">
-                <table class="payslip-table" style="width:100%">
-                    <thead><tr><th>รายการหัก</th><th class="text-right">จำนวน</th></tr></thead>
-                    <tbody>
-                        @foreach($payslip->deductionItems as $item)
-                        <tr><td>{{ $item->label }}</td><td class="text-right">{{ number_format($item->amount, 2) }}</td></tr>
-                        @endforeach
-                        <tr class="deduction-total"><td>รวมรายหัก</td><td class="text-right">{{ number_format($payslip->total_deduction, 2) }}</td></tr>
-                    </tbody>
-                </table>
+                        <tr>
+                            <td class="info-label">วันลา/ขาด (LOP)</td>
+                            <td class="info-colon">:</td>
+                            <td class="info-val text-right">{{ $monthlyStats['lwop_days'] ?? 0 }}</td>
+                        </tr>
+                    </table>
+                </div>
             </td>
         </tr>
     </table>
 
-    <table class="payslip-table" style="margin-top:10px">
-        <tr class="net-row"><td>รายได้สุทธิ</td><td class="text-right">{{ number_format($payslip->net_pay, 2) }}</td></tr>
-    </table>
-
-    <table class="payslip-table" style="margin-top:10px">
-        <thead>
-            <tr>
-                <th colspan="2">ยอดสะสมทั้งปี (ม.ค. - {{ $monthName }} {{ $year + 543 }})</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr>
-                <td>สะสมเงินได้</td>
-                <td class="text-right">{{ number_format($yearToDate['total_income'], 2) }}</td>
-            </tr>
-            <tr>
-                <td>สะสมรายการหัก</td>
-                <td class="text-right">{{ number_format($yearToDate['total_deduction'], 2) }}</td>
-            </tr>
-            <tr class="net-row">
-                <td>สะสมสุทธิ</td>
-                <td class="text-right">{{ number_format($yearToDate['net_pay'], 2) }}</td>
-            </tr>
-        </tbody>
-    </table>
-
-    @php
-        // Try to fetch work logs for the snapshot month if it's a freelancer
-        $workLogs = \App\Models\WorkLog::where('employee_id', $employee->id)
-            ->where('is_disabled', false)
-            ->where('month', $payslip->month)
-            ->where('year', $payslip->year)
-            ->get();
-    @endphp
-
-    @if($workLogs->count() > 0 && in_array($employee->payroll_mode, ['freelance_layer', 'youtuber_settlement', 'youtuber_salary']))
-    <div style="margin-top:20px">
-        <p style="font-size:12px; font-weight:bold; margin-bottom:5px;">รายละเอียดการทำงาน / สรุปรายการ (Details)</p>
-        <table class="payslip-table" style="width:100%">
-            <thead>
-                <tr>
-                    <th style="width:40px" class="text-center">ลำดับ</th>
-                    <th>รายการ</th>
-                    <th class="text-center">รายละเอียด / จำนวน</th>
-                    <th class="text-right">หมายเหตุ</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach($workLogs as $idx => $log)
-                @php
-                    $isYoutuberSalary = $employee->payroll_mode === 'youtuber_salary';
-                    $isSettlement = $employee->payroll_mode === 'youtuber_settlement';
-                    $qty = $employee->payroll_mode === 'freelance_layer' 
-                        ? (($log->hours * 60) + $log->minutes + ($log->seconds / 60))
-                        : ($isSettlement || $isYoutuberSalary ? '-' : $log->quantity);
-                    $unit = $employee->payroll_mode === 'freelance_layer' ? ' น.' : ($isSettlement ? ($log->notes === 'income' ? 'รายรับ' : 'รายจ่าย') : ($isYoutuberSalary ? '-' : ' ชิ้น'));
-                @endphp
-                <tr>
-                    <td class="text-center">{{ $idx + 1 }}</td>
-                    <td>{{ $log->work_type ?: 'รายการทั่วไป' }}</td>
-                    <td class="text-center">{{ $isSettlement || $isYoutuberSalary ? $log->notes : number_format($qty, 2) . $unit }}</td>
-                    <td class="text-right">
-                        @if($isYoutuberSalary)
-                            -
-                        @elseif($isSettlement)
-                            {{ number_format($log->amount, 2) }}
-                        @else
-                            {{ number_format($log->amount, 2) }} (เรท {{ number_format($log->rate, 2) }})
-                        @endif
-                    </td>
-                </tr>
-                @endforeach
-            </tbody>
-        </table>
+    <div class="bank-strip">
+        <span class="info-label">ธนาคาร :</span> <span class="info-val" style="margin-right:20px;">{{ $employee->bankAccount?->bank_name ?? '—' }}</span>
+        <span class="info-label">เลขที่บัญชี :</span> <span class="info-val">{{ $employee->bankAccount?->account_number ?? '—' }}</span>
     </div>
-    @endif
 
-    <table class="signatures" style="width:100%">
+    <table class="main-tables" style="margin-bottom: 10px;">
         <tr>
-            <td style="text-align: center;">
-                @if($payslip->status === 'finalized' && !empty($company) && !empty($company->signature_approver_image_path) && file_exists(storage_path('app/public/' . $company->signature_approver_image_path)))
-                    <img src="{{ storage_path('app/public/' . $company->signature_approver_image_path) }}" style="max-height: 50px; display: block; margin: 0 auto 5px;"><br>
-                @else
-                    ___________________________<br>
-                @endif
-                ลายเซ็นผู้จ่าย<br>
-                {{ !empty($company) && !empty($company->signature_approver_name) ? "({$company->signature_approver_name})" : '' }}
+            <td style="width: 48%; vertical-align: top;">
+                <table class="ztable">
+                    <tr>
+                        <th>รายการได้ (EARNINGS)</th>
+                        <th class="num">จำนวน</th>
+                        <th class="num">YTD</th>
+                    </tr>
+                    @foreach($payslip->incomeItems as $item)
+                        @php $ytdAmt = $yearToDate['per_line'][$item->label] ?? $item->amount; @endphp
+                        @if($item->label === 'ค่าทำงานวันหยุด' && (float) $item->amount == 0 && (float) $ytdAmt == 0) @continue @endif
+                    <tr class="{{ (float)$item->amount == 0 ? 'is-zero' : '' }}">
+                        <td>
+                            {{ $item->label }}
+                            @if($item->label === 'ค่าทำงานวันหยุด')
+                                <span style="font-size:9px; color:#9ca3af; background:#f3f4f6; padding:1px 3px; border-radius:3px; margin-left:3px;">ม.62</span>
+                            @endif
+                        </td>
+                        <td class="num">{{ number_format($item->amount, 2) }}</td>
+                        <td class="ytd">{{ number_format($ytdAmt, 2) }}</td>
+                    </tr>
+                    @endforeach
+                    <tr class="subtotal-row">
+                        <td style="color: {{ $primaryColor }}">รวมเงินได้</td>
+                        <td class="num" style="color: {{ $primaryColor }}">{{ number_format($payslip->total_income, 2) }}</td>
+                        <td class="ytd" style="color: {{ $primaryColor }}">{{ number_format($yearToDate['total_income'], 2) }}</td>
+                    </tr>
+                </table>
             </td>
-            <td style="text-align: center;">
-                @if($payslip->status === 'finalized' && !empty($company) && !empty($company->signature_receiver_image_path) && file_exists(storage_path('app/public/' . $company->signature_receiver_image_path)))
-                    <img src="{{ storage_path('app/public/' . $company->signature_receiver_image_path) }}" style="max-height: 50px; display: block; margin: 0 auto 5px;"><br>
-                @else
-                    ___________________________<br>
-                @endif
-                ลายเซ็นผู้รับ<br>
-                ({{ $employee->full_name }})
+            <td style="width: 4%;"></td>
+            <td style="width: 48%; vertical-align: top;">
+                <table class="ztable">
+                    <tr>
+                        <th>รายการหัก (DEDUCTIONS)</th>
+                        <th class="num">จำนวน</th>
+                        <th class="num">YTD</th>
+                    </tr>
+                    @foreach($payslip->deductionItems as $item)
+                        @php $ytdAmt = $yearToDate['per_line'][$item->label] ?? $item->amount; @endphp
+                    <tr class="{{ (float)$item->amount == 0 ? 'is-zero' : '' }}">
+                        <td>{{ $item->label }}</td>
+                        <td class="num">{{ number_format($item->amount, 2) }}</td>
+                        <td class="ytd">{{ number_format($ytdAmt, 2) }}</td>
+                    </tr>
+                    @endforeach
+                    <tr class="subtotal-row">
+                        <td class="red">รวมรายการหัก</td>
+                        <td class="num red">{{ number_format($payslip->total_deduction, 2) }}</td>
+                        <td class="ytd red">{{ number_format($yearToDate['total_deduction'], 2) }}</td>
+                    </tr>
+                </table>
             </td>
         </tr>
     </table>
 
-    <p class="disclaimer">เอกสารฉบับนี้เป็นของผู้มีรายชื่อข้างบนเท่านั้น ไม่สามารถเผยแพร่ให้กับผู้อื่นได้</p>
+    <table class="total-wrapper" style="border-color: {{ $primaryColor }}">
+        <tr>
+            <td class="total-left">
+                <div class="total-title">รายได้สุทธิที่ต้องจ่าย</div>
+                <div class="total-subtitle">รวมเงินได้ − รวมรายการหัก</div>
+            </td>
+            <td class="total-right" style="color: {{ $primaryColor }}; background-color: rgba(79, 70, 229, 0.08);">
+                ฿{{ number_format($payslip->net_pay, 2) }}
+            </td>
+        </tr>
+    </table>
+
+    <div class="amount-words">
+        จำนวนเงิน (ตัวอักษร): <b>{{ \App\Support\ThaiBaht::inWords($payslip->net_pay) }}</b>
+    </div>
+
+    <table class="signatures">
+        <tr>
+            <td>
+                @if($payslip->status === 'finalized' && !empty($company) && !empty($company->signature_approver_image_path) && file_exists(storage_path('app/public/' . $company->signature_approver_image_path)))
+                    <div style="height: 40px; margin-bottom: 5px;">
+                        <img src="{{ storage_path('app/public/' . $company->signature_approver_image_path) }}" style="max-height: 40px;">
+                    </div>
+                @else
+                    <div style="height: 45px;"></div>
+                @endif
+                <div class="sig-line"></div><br>
+                ลายเซ็นผู้จ่าย<br>
+                <span class="text-gray">{{ !empty($company) && !empty($company->signature_approver_name) ? "({$company->signature_approver_name})" : '(............................................)' }}</span>
+            </td>
+            <td>
+                @if($payslip->status === 'finalized' && !empty($company) && !empty($company->signature_receiver_image_path) && file_exists(storage_path('app/public/' . $company->signature_receiver_image_path)))
+                    <div style="height: 40px; margin-bottom: 5px;">
+                        <img src="{{ storage_path('app/public/' . $company->signature_receiver_image_path) }}" style="max-height: 40px;">
+                    </div>
+                @else
+                    <div style="height: 45px;"></div>
+                @endif
+                <div class="sig-line"></div><br>
+                ลายเซ็นผู้รับ<br>
+                <span class="text-gray">({{ $employee->full_name }})</span>
+            </td>
+        </tr>
+    </table>
+
+    <div class="disclaimer">เอกสารฉบับนี้เป็นของผู้มีรายชื่อข้างบนเท่านั้น ไม่สามารถเผยแพร่ให้กับผู้อื่นได้</div>
 </body>
 </html>
