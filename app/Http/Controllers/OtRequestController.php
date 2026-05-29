@@ -161,7 +161,7 @@ class OtRequestController extends Controller
             if ($log) {
                 $log->update([
                     'ot_enabled' => true,
-                    'ot_minutes' => max($log->ot_minutes, $otRequest->requested_minutes),
+                    'ot_minutes' => (int) $otRequest->requested_minutes, // Use ONLY approved request — not actual clock time
                     'ot_status'  => 'approved',
                 ]);
             }
