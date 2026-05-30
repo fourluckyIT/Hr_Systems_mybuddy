@@ -1006,12 +1006,17 @@ class WorkspaceController extends Controller
             }
         }
 
-        // OT Calculation (clock-based, unified workday + holiday)
-        // OT = minutes past standard checkout time
+        // OT Calculation — if there is an approved OT request, honour its requested_minutes
+        // instead of recalculating from actual clock-out (prevents overwriting approved amount).
         if ($otEnabled) {
-            $otMinutes = $outAt->greaterThan($targetOutAt)
-                ? (int) $targetOutAt->diffInMinutes($outAt)
-                : 0;
+            if (in_array($log->ot_status ?? '', ['approved', 'requested'], true) && $log->ot_request_id) {
+                // Keep whatever is stored in ot_minutes — it was set by the OT approval flow.
+                $otMinutes = (int) $log->ot_minutes;
+            } else {
+                $otMinutes = $outAt->greaterThan($targetOutAt)
+                    ? (int) $targetOutAt->diffInMinutes($outAt)
+                    : 0;
+            }
         }
 
         return [
