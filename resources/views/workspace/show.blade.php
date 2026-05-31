@@ -506,7 +506,11 @@
 
     <div class="space-y-4">
         <!-- Payroll Summary Panel -->
-        @php $isFinalized = $payslip && $payslip->status === 'finalized'; @endphp
+        @php
+            $isFinalized = $payslip && $payslip->status === 'finalized';
+            $isAdmin = auth()->user()?->hasRole('admin');
+            $showBlur = !$isFinalized && !$isAdmin;
+        @endphp
         <div class="bg-white rounded-xl shadow-sm border p-4" x-data="{ expanded: window.innerWidth >= 1024 }">
                 @php
                     $panelTitle = match($employee->payroll_mode) {
@@ -521,7 +525,9 @@
                 <div class="flex justify-between items-center cursor-pointer lg:cursor-auto" @click="if(window.innerWidth < 1024) expanded = !expanded">
                     <h3 class="font-semibold text-sm">{{ $panelTitle }}</h3>
                     <div class="flex items-center gap-2">
-                        @if(!$isFinalized)
+                        @if($showBlur)
+                            <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-600 border border-amber-200">Draft</span>
+                        @elseif(!$isFinalized && $isAdmin)
                             <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-600 border border-amber-200">Draft</span>
                         @else
                             <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-600 border border-emerald-200">✓ Finalized</span>
@@ -578,7 +584,7 @@
 
                 {{-- Payroll items: blurred when not finalized --}}
                 <div class="relative">
-                    @if(!$isFinalized)
+                    @if($showBlur)
                     <div class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-lg" style="backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); background: rgba(255,255,255,0.4);">
                         <svg class="w-8 h-8 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
                         <span class="text-xs font-semibold text-amber-700 bg-amber-100 px-3 py-1 rounded-full border border-amber-200">ยังไม่ Finalize</span>
