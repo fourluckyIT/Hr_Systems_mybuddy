@@ -504,9 +504,9 @@
         @endif
     </div>
 
-    <!-- Right Panel (1/3) -->
     <div class="space-y-4">
         <!-- Payroll Summary Panel -->
+        @php $isFinalized = $payslip && $payslip->status === 'finalized'; @endphp
         <div class="bg-white rounded-xl shadow-sm border p-4" x-data="{ expanded: window.innerWidth >= 1024 }">
                 @php
                     $panelTitle = match($employee->payroll_mode) {
@@ -520,10 +520,18 @@
                 @endphp
                 <div class="flex justify-between items-center cursor-pointer lg:cursor-auto" @click="if(window.innerWidth < 1024) expanded = !expanded">
                     <h3 class="font-semibold text-sm">{{ $panelTitle }}</h3>
-                    <svg class="w-4 h-4 text-gray-400 lg:hidden transition-transform" :class="expanded ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    <div class="flex items-center gap-2">
+                        @if(!$isFinalized)
+                            <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-600 border border-amber-200">Draft</span>
+                        @else
+                            <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-600 border border-emerald-200">✓ Finalized</span>
+                        @endif
+                        <svg class="w-4 h-4 text-gray-400 lg:hidden transition-transform" :class="expanded ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </div>
                 </div>
 
             <div x-show="expanded" x-transition class="mt-3">
+                {{-- Stats: always visible --}}
                 @if(isset($summary['total_work_hours']) && in_array($employee->payroll_mode, ['monthly_staff', 'office_staff']))
                 <div class="space-y-2 mb-4 text-sm">
                     <div class="flex justify-between">
@@ -568,9 +576,55 @@
                 <hr class="my-3">
                 @endif
 
-                <h4 class="text-xs font-semibold text-green-600 mb-2 flex items-center gap-1">
-                    เงินได้
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-gray-300 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor" title="รายการรายรับทั้งหมด (แสดงผลจากการคำนวณ)"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                {{-- Payroll items: blurred when not finalized --}}
+                <div class="relative">
+                    @if(!$isFinalized)
+                    <div class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-lg" style="backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); background: rgba(255,255,255,0.4);">
+                        <svg class="w-8 h-8 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                        <span class="text-xs font-semibold text-amber-700 bg-amber-100 px-3 py-1 rounded-full border border-amber-200">ยังไม่ Finalize</span>
+                        <span class="text-[10px] text-gray-400 text-center">กด Finalize เพื่อล็อกและดูตัวเลขจริง</span>
+                    </div>
+                    @endif
+
+                    <h4 class="text-xs font-semibold text-green-600 mb-2 flex items-center gap-1">
+                        เงินได้
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-gray-300 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor" title="รายการรายรับทั้งหมด (แสดงผลจากการคำนวณ)"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    </h4>
+                    <div id="payroll-income-items">
+                    @foreach(($result['items'] ?? []) as $item)
+                        @if($item['category'] === 'income')
+                        @php
+                            $isManual = in_array($item['source_flag'], ['manual', 'override']);
+                        @endphp
+                        @include('workspace.partials.line-item', ['item' => $item, 'isManual' => $isManual, 'canManageWorkspace' => $canManageWorkspace])
+                        @endif
+                    @endforeach
+                    </div>
+
+                    <hr class="my-3">
+                    <h4 class="text-xs font-semibold text-red-600 mb-2 flex items-center gap-1">
+                        รายหัก
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-gray-300 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor" title="รายการหักทั้งหมด (แสดงผลจากการคำนวณ)"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    </h4>
+                    <div id="payroll-deduction-items">
+                    @foreach(($result['items'] ?? []) as $item)
+                        @if($item['category'] === 'deduction')
+                        @php
+                            $isManual = in_array($item['source_flag'], ['manual', 'override']);
+                        @endphp
+                        @include('workspace.partials.line-item', ['item' => $item, 'isManual' => $isManual, 'canManageWorkspace' => $canManageWorkspace])
+                        @endif
+                    @endforeach
+                    </div>
+
+                    <hr class="my-3">
+                    <div class="flex justify-between font-bold text-base">
+                        <span>รายได้สุทธิ</span>
+                        <span id="summary-net-pay-bottom" class="text-indigo-600">{{ number_format($summary['net_pay'] ?? 0, 2) }}</span>
+                    </div>
+                </div>
+            </div>
+        </div> (แสดงผลจากการคำนวณ)"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                 </h4>
                 <div id="payroll-income-items">
                 @foreach(($result['items'] ?? []) as $item)
